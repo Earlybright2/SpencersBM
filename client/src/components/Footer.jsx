@@ -4,10 +4,9 @@ import { useAuth } from '../context/AuthContext.jsx';
 
 const company = [
   { label: 'Home', to: '/' },
-  { label: 'Virtual Numbers', to: '/#virtual-numbers-section' },
-  { label: 'Social Media Accounts', to: '/#social-accounts' },
+  { label: 'Virtual Numbers', to: '/register' },
+  { label: 'Social Media Accounts', to: '/register' },
   { label: 'How It Works', to: '/#how-it-works' },
-  { label: 'Pricing', to: '/#pricing' },
   { label: 'FAQ', to: '/#faq' },
   { label: 'Contact', to: '/#contact' }
 ];

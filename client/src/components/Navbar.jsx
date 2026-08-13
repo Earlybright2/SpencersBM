@@ -6,14 +6,14 @@ import { useAuth } from '../context/AuthContext.jsx';
 const navLinks = [
   { label: 'Home', to: '/#home' },
   { label: 'How It Works', to: '/#how-it-works' },
-  { label: 'Pricing', to: '/#pricing' },
+  { label: 'Register', to: '/register' },
   { label: 'FAQ', to: '/#faq' },
   { label: 'Contact', to: '/#contact' }
 ];
 
 const pricingDropdown = [
-  { label: 'Virtual Numbers', to: '/#virtual-numbers-section', icon: Smartphone },
-  { label: 'Social Media Accounts', to: '/#social-accounts', icon: UserRound }
+  { label: 'Virtual Numbers', to: '/register', icon: Smartphone },
+  { label: 'Social Media Accounts', to: '/register', icon: UserRound }
 ];
 
 export default function Navbar() {

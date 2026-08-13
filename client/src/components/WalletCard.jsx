@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Wallet, Plus, ShieldCheck, Zap, Star, ArrowDownToLine, Copy, Check, Landmark } from 'lucide-react';
+import { Wallet, Plus, ShieldCheck, Zap, Star, Copy, Check, Landmark } from 'lucide-react';
 import FundWalletModal from './FundWalletModal.jsx';
 
-export default function WalletCard({ balance }) {
+export default function WalletCard({ balance, onFunded }) {
   const [fundOpen, setFundOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -12,6 +12,7 @@ export default function WalletCard({ balance }) {
     return () => clearTimeout(t);
   }, [copied]);
 
+  const symbol = balance?.currency === 'USD' ? '$' : '\u20A6';
   const formatted = balance ? Number(balance.balance).toLocaleString('en-NG', { minimumFractionDigits: 2 }) : '0.00';
 
   const copyAccount = async () => {
@@ -36,7 +37,7 @@ export default function WalletCard({ balance }) {
             </div>
             <div className="flex items-end gap-2.5">
               <span className="font-syne font-bold text-4xl md:text-[3rem] gold-gradient-text leading-none">
-                &#8358;{formatted}
+                {symbol}{formatted}
               </span>
             </div>
             <p className="text-gray-500 text-[0.88rem] mt-3 max-w-[440px]">
@@ -50,16 +51,6 @@ export default function WalletCard({ balance }) {
               className="btn-gold px-7 py-4 text-[0.95rem] flex items-center justify-center gap-2 hover:-translate-y-[2px] hover:shadow-[0_10px_30px_rgba(212,175,55,0.4)]"
             >
               <Plus size={19} strokeWidth={1.9} /> Fund Wallet
-            </button>
-            <button
-              disabled
-              title="Coming soon"
-              className="btn-ghost px-7 py-4 text-[0.95rem] flex items-center justify-center gap-2 opacity-50 cursor-not-allowed"
-            >
-              <ArrowDownToLine size={19} strokeWidth={1.9} /> Withdraw
-              <span className="text-[0.6rem] uppercase tracking-wider bg-gold/10 border border-gold/25 text-gold px-2 py-0.5 rounded-[50px]">
-                Soon
-              </span>
             </button>
           </div>
         </div>
@@ -96,7 +87,7 @@ export default function WalletCard({ balance }) {
         </div>
       </div>
 
-      <FundWalletModal open={fundOpen} onClose={() => setFundOpen(false)} />
+      <FundWalletModal open={fundOpen} onClose={() => setFundOpen(false)} onFunded={onFunded} />
     </>
   );
 }

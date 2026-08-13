@@ -45,6 +45,7 @@ router.post('/register', async (req, res, next) => {
       email: normalizedEmail,
       password: await bcrypt.hash(password, 10),
       orders: [],
+      wallet: { balance: 0, currency: 'NGN', transactions: [], pendingFunds: {} },
       createdAt: new Date().toISOString()
     };
     await createUser(user);

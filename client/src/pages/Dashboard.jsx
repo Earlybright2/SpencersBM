@@ -65,6 +65,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') || 'overview';
+  const fundRef = params.get('fund');
 
   const setTab = (t) => {
     setParams(t === 'overview' ? {} : { tab: t }, { replace: true });
@@ -88,6 +89,8 @@ export default function Dashboard() {
   const [cancelling, setCancelling] = useState(false);
   const [balance, setBalance] = useState(null);
   const [balanceError, setBalanceError] = useState('');
+  const [wallet, setWallet] = useState(null);
+  const [walletError, setWalletError] = useState('');
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [providerOffline, setProviderOffline] = useState(false);
@@ -104,10 +107,36 @@ export default function Dashboard() {
   // ----- Data loading -----
   useEffect(() => {
     loadBalance(true);
+    loadWallet(true);
     loadServers();
     loadOrders(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Poll for a completed top-up after being redirected back from OPay/card.
+  useEffect(() => {
+    if (!fundRef) return;
+    let tries = 0;
+    const id = setInterval(async () => {
+      tries += 1;
+      try {
+        const res = await api.get('/wallet/fund-status', { params: { reference: fundRef } });
+        if (res.data.status === 'succeeded') {
+          clearInterval(id);
+          loadWallet(true);
+          setParams({ tab: 'overview' }, { replace: true });
+        }
+      } catch {
+        // transient polling errors are ignored
+      }
+      if (tries >= 8) {
+        clearInterval(id);
+        setParams({ tab: 'overview' }, { replace: true });
+      }
+    }, 3500);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fundRef]);
 
   useEffect(() => {
     if (server) {
@@ -123,6 +152,17 @@ export default function Dashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server]);
+
+  const loadWallet = async (silent = false) => {
+    if (!silent) setWalletError('');
+    try {
+      const res = await api.get('/wallet');
+      setWallet(res.data);
+    } catch (err) {
+      setWalletError(getErrorMessage(err));
+      if (!silent) setError(getErrorMessage(err));
+    }
+  };
 
   const loadBalance = async (silent = false) => {
     if (!silent) setBalanceError('');
@@ -283,10 +323,16 @@ export default function Dashboard() {
   return (
     <DashboardLayout
       title={tab === 'overview' ? `Welcome, ${user?.name?.split(' ')[0]}` : (TITLES[tab] || 'Dashboard')}
-      balance={balance}
-      balanceError={balanceError}
-      onRetryBalance={() => loadBalance()}
+      balance={wallet}
+      balanceError={walletError}
+      onRetryBalance={() => loadWallet()}
     >
+      {fundRef && (
+        <div className="mb-6 rounded-[12px] border border-gold/20 bg-gold/10 px-4 py-3 flex items-center gap-2.5 text-[0.9rem] text-gold">
+          <RefreshCw size={16} strokeWidth={1.9} className="animate-spin shrink-0" />
+          Processing your top-up… we&apos;ll update your balance automatically.
+        </div>
+      )}
       {providerOffline && (
         <div className="mb-6 rounded-[12px] border border-gold/20 bg-gold/10 px-4 py-3 flex items-center justify-between gap-4">
           <p className="text-[0.9rem] text-gold flex items-center gap-2">
@@ -311,7 +357,7 @@ export default function Dashboard() {
 {/* ===== OVERVIEW ===== */}
       {tab === 'overview' && (
         <div className="space-y-6">
-          <WalletCard balance={balance} />
+          <WalletCard balance={wallet} onFunded={() => loadWallet(true)} />
 
           <div className="card-border bg-gradient-to-br from-gold/8 to-gold/2 rounded-[15px] p-6 md:p-8">
               <h2 className="font-syne text-2xl mb-2">
@@ -645,7 +691,7 @@ export default function Dashboard() {
                 <h3 className="font-syne text-2xl mb-1">{user?.name}</h3>
                 <p className="text-gray-400 text-[1rem]">{user?.email}</p>
                 <div className="mt-4 inline-block bg-gold/10 border border-gold/20 text-gold px-4 py-2 rounded-[50px] text-[0.85rem] font-medium">
-                  {balance ? `Wallet: ${Number(balance.balance).toLocaleString()} ${balance.currency}` : 'Wallet: Offline'}
+                  {wallet ? `Wallet: ${Number(wallet.balance).toLocaleString()} ${wallet.currency}` : 'Wallet: Offline'}
                 </div>
               </div>
             </div>

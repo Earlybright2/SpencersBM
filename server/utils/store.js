@@ -81,3 +81,92 @@ export async function updateUserOrder(userId, orderRef, updates) {
   await saveUsers(await getUsers());
   return user.orders[idx];
 }
+
+// ----- Per-user wallet (funded via Flutterwave) -----
+
+function defaultWallet() {
+  return { balance: 0, currency: 'NGN', transactions: [], pendingFunds: {} };
+}
+
+function ensureWallet(user) {
+  if (!user.wallet) user.wallet = defaultWallet();
+  if (!Array.isArray(user.wallet.transactions)) user.wallet.transactions = [];
+  if (!user.wallet.pendingFunds || typeof user.wallet.pendingFunds !== 'object') {
+    user.wallet.pendingFunds = {};
+  }
+  return user.wallet;
+}
+
+export async function getUserWallet(userId) {
+  const user = await findById(userId);
+  if (!user) return null;
+  const wallet = ensureWallet(user);
+  return {
+    balance: Number(wallet.balance) || 0,
+    currency: wallet.currency,
+    transactions: wallet.transactions
+  };
+}
+
+export async function setPendingFund(userId, reference, fund) {
+  const user = await findById(userId);
+  if (!user) return null;
+  const wallet = ensureWallet(user);
+  wallet.pendingFunds[reference] = {
+    ...fund,
+    userId,
+    createdAt: fund.createdAt || new Date().toISOString()
+  };
+  await saveUsers(await getUsers());
+  return wallet.pendingFunds[reference];
+}
+
+export async function findPendingFund(reference) {
+  const db = await getUsers();
+  for (const user of db.users) {
+    const fund = user.wallet?.pendingFunds?.[reference];
+    if (fund) return { user, fund };
+  }
+  return null;
+}
+
+export async function creditUserWallet(userId, { amount, currency, reference, chargeId, meta }) {
+  const user = await findById(userId);
+  if (!user) return null;
+  const wallet = ensureWallet(user);
+  if (wallet.transactions.some((t) => t.reference === reference)) {
+    return { balance: wallet.balance, currency: wallet.currency, transactions: wallet.transactions };
+  }
+  wallet.balance = (Number(wallet.balance) || 0) + Number(amount);
+  wallet.currency = currency;
+  wallet.transactions.unshift({
+    type: 'credit',
+    amount: Number(amount),
+    currency,
+    reference,
+    chargeId,
+    status: 'completed',
+    createdAt: new Date().toISOString(),
+    meta
+  });
+  wallet.transactions = wallet.transactions.slice(0, 200);
+  await saveUsers(await getUsers());
+  return { balance: wallet.balance, currency: wallet.currency, transactions: wallet.transactions };
+}
+
+export async function markFundSucceeded({ reference, chargeId, amount, currency, meta }) {
+  const found = await findPendingFund(reference);
+  if (!found) return false;
+  const { user, fund } = found;
+  if (fund.status === 'succeeded') return true;
+  const wallet = ensureWallet(user);
+  wallet.pendingFunds[reference] = {
+    ...fund,
+    status: 'succeeded',
+    chargeId,
+    completedAt: new Date().toISOString(),
+    raw: meta
+  };
+  await creditUserWallet(user.id, { amount, currency, reference, chargeId, meta });
+  return true;
+}
