@@ -1,0 +1,97 @@
+const BASE_URL = process.env.ONEGRIDHUB_BASE_URL || 'https://onegridhub.com/api/v1/index.php';
+const API_KEY = process.env.ONEGRIDHUB_API_KEY;
+
+const CONNECT_TIMEOUT_MS = 12000;
+const RETRIES = 2;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithTimeout(url, { headers, timeoutMs }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Proxies a request to the OneGridHub API. Never throws nor rejects — returns a
+ * JSON-shaped object on success and an error object on any failure so the rest
+ * of the app (and the process itself) stays alive when the provider is down.
+ * @param {Object} params - query parameters, e.g. { endpoint: 'services', server: 'usa1' }
+ */
+export async function ogRequest(params = {}) {
+  const url = new URL(BASE_URL);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, value);
+    }
+  }
+  url.searchParams.set('api_key', API_KEY);
+  const headers = { Authorization: `Bearer ${API_KEY}` };
+
+  let lastError = null;
+  for (let attempt = 0; attempt <= RETRIES; attempt += 1) {
+    try {
+      const res = await fetchWithTimeout(url.toString(), { headers, timeoutMs: CONNECT_TIMEOUT_MS });
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return {
+          status: 'error',
+          code: 'provider_bad_response',
+          retryable: true,
+          message: `Unexpected response from the numbers provider: ${text.slice(0, 120)}`
+        };
+      }
+    } catch (err) {
+      lastError = err;
+      if (attempt < RETRIES) {
+        await sleep(700 * (attempt + 1));
+      }
+    }
+  }
+
+  const timedOut = lastError && lastError.name === 'AbortError';
+  return {
+    status: 'error',
+    code: 'provider_unreachable',
+    retryable: true,
+    message: timedOut
+      ? 'The numbers provider timed out. Please try again in a moment.'
+      : 'The numbers provider is unreachable right now. Please try again in a moment.'
+  };
+}
+
+export function isOgSuccess(response) {
+  return response && response.status === 'success';
+}
+
+export function ogError(response, fallback = 'Provider request failed') {
+  return {
+    status: 'error',
+    code: response?.code || 'provider_error',
+    retryable: Boolean(response?.retryable),
+    message: response?.message || fallback
+  };
+}
+
+/**
+ * Wraps an async Express handler so rejections are turned into a clean 502 JSON
+ * response instead of crashing the process (Express 4 doesn't catch async throws).
+ */
+export function asyncRoute(handler) {
+  return (req, res, next) =>
+    Promise.resolve(handler(req, res, next)).catch((err) => {
+      console.error('[onegridhub]', err);
+      if (res.headersSent) return next(err);
+      res.status(502).json({
+        status: 'error',
+        code: 'server_error',
+        message: 'Something went wrong contacting the numbers provider.'
+      });
+    });
+}
