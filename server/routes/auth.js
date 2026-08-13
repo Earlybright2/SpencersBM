@@ -147,9 +147,12 @@ router.post('/reset-password', async (req, res, next) => {
     if (!user) {
       return res.status(400).json({ message: 'Reset link is invalid or has expired' });
     }
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
+    const { updateUser } = await import('../utils/store.js');
+    await updateUser(user.id, {
+      password: await bcrypt.hash(newPassword, 10),
+      resetToken: null,
+      resetTokenExpiry: null
+    });
     res.json({ message: 'Password reset successfully. You can now log in.' });
   } catch (err) {
     next(err);

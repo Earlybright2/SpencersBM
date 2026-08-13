@@ -1,60 +1,121 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { pool } from './db.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
+let schemaReady = null;
 
-let cache = null;
-
-async function ensureFile() {
-  try {
-    await readFile(USERS_FILE, 'utf8');
-  } catch {
-    await mkdir(DATA_DIR, { recursive: true });
-    await writeFile(USERS_FILE, JSON.stringify({ users: [] }, null, 2), 'utf8');
+export function ensureSchema() {
+  if (!schemaReady) {
+    schemaReady = pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        orders JSONB NOT NULL DEFAULT '[]'::jsonb,
+        wallet JSONB NOT NULL DEFAULT '{"balance":0,"currency":"NGN","transactions":[],"pendingFunds":{}}'::jsonb,
+        reset_token TEXT,
+        reset_token_expiry TEXT,
+        created_at TEXT NOT NULL
+      )
+    `);
   }
+  return schemaReady;
 }
 
+function defaultWallet() {
+  return { balance: 0, currency: 'NGN', transactions: [], pendingFunds: {} };
+}
+
+function userFromRow(row) {
+  if (!row) return null;
+  const user = {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    password: row.password,
+    orders: Array.isArray(row.orders) ? row.orders : [],
+    wallet: row.wallet || defaultWallet(),
+    createdAt: row.created_at
+  };
+  if (row.reset_token) user.resetToken = row.reset_token;
+  if (row.reset_token_expiry) user.resetTokenExpiry = row.reset_token_expiry;
+  return user;
+}
+
+function paramsFromUser(u) {
+  return [
+    u.id,
+    u.name,
+    u.email,
+    u.password,
+    JSON.stringify(u.orders || []),
+    JSON.stringify(u.wallet || defaultWallet()),
+    u.resetToken || null,
+    u.resetTokenExpiry || null,
+    u.createdAt || new Date().toISOString()
+  ];
+}
+
+const UPSERT_SQL = `
+  INSERT INTO users (id, name, email, password, orders, wallet, reset_token, reset_token_expiry, created_at)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+  ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    email = EXCLUDED.email,
+    password = EXCLUDED.password,
+    orders = EXCLUDED.orders,
+    wallet = EXCLUDED.wallet,
+    reset_token = EXCLUDED.reset_token,
+    reset_token_expiry = EXCLUDED.reset_token_expiry,
+    created_at = EXCLUDED.created_at
+`;
+
 export async function getUsers() {
-  if (cache) return cache;
-  await ensureFile();
-  const raw = await readFile(USERS_FILE, 'utf8');
-  cache = JSON.parse(raw);
-  return cache;
+  await ensureSchema();
+  const { rows } = await pool.query('SELECT * FROM users ORDER BY created_at');
+  return { users: rows.map(userFromRow) };
 }
 
 export async function saveUsers(data) {
-  cache = data;
-  await ensureFile();
-  await writeFile(USERS_FILE, JSON.stringify(data, null, 2), 'utf8');
+  await ensureSchema();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const u of data.users || []) {
+      await client.query(UPSERT_SQL, paramsFromUser(u));
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function findByEmail(email) {
-  const db = await getUsers();
-  return db.users.find((u) => u.email === email) || null;
+  await ensureSchema();
+  const { rows } = await pool.query('SELECT * FROM users WHERE email = $1 LIMIT 1', [email]);
+  return userFromRow(rows[0]);
 }
 
 export async function findById(id) {
-  const db = await getUsers();
-  return db.users.find((u) => u.id === id) || null;
+  await ensureSchema();
+  const { rows } = await pool.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [id]);
+  return userFromRow(rows[0]);
 }
 
 export async function createUser(user) {
-  const db = await getUsers();
-  db.users.push(user);
-  await saveUsers(db);
+  await ensureSchema();
+  await pool.query(UPSERT_SQL, paramsFromUser(user));
   return user;
 }
 
 export async function updateUser(id, updates) {
-  const db = await getUsers();
-  const idx = db.users.findIndex((u) => u.id === id);
-  if (idx === -1) return null;
-  db.users[idx] = { ...db.users[idx], ...updates };
-  await saveUsers(db);
-  return db.users[idx];
+  const current = await findById(id);
+  if (!current) return null;
+  const merged = { ...current, ...updates };
+  await pool.query(UPSERT_SQL, paramsFromUser(merged));
+  return merged;
 }
 
 export async function getUserOrders(userId) {
@@ -65,10 +126,9 @@ export async function getUserOrders(userId) {
 export async function addUserOrder(userId, order) {
   const user = await findById(userId);
   if (!user) return null;
-  if (!Array.isArray(user.orders)) user.orders = [];
-  user.orders.unshift(order);
-  user.orders = user.orders.slice(0, 500);
-  await saveUsers(await getUsers());
+  const orders = Array.isArray(user.orders) ? [...user.orders] : [];
+  orders.unshift(order);
+  await updateUser(userId, { orders: orders.slice(0, 500) });
   return order;
 }
 
@@ -78,15 +138,11 @@ export async function updateUserOrder(userId, orderRef, updates) {
   const idx = user.orders.findIndex((o) => o.order_ref === orderRef || o.ref === orderRef);
   if (idx === -1) return null;
   user.orders[idx] = { ...user.orders[idx], ...updates };
-  await saveUsers(await getUsers());
+  await updateUser(userId, { orders: user.orders });
   return user.orders[idx];
 }
 
 // ----- Per-user wallet (funded via Flutterwave) -----
-
-function defaultWallet() {
-  return { balance: 0, currency: 'NGN', transactions: [], pendingFunds: {} };
-}
 
 function ensureWallet(user) {
   if (!user.wallet) user.wallet = defaultWallet();
@@ -117,17 +173,20 @@ export async function setPendingFund(userId, reference, fund) {
     userId,
     createdAt: fund.createdAt || new Date().toISOString()
   };
-  await saveUsers(await getUsers());
+  await updateUser(userId, { wallet });
   return wallet.pendingFunds[reference];
 }
 
 export async function findPendingFund(reference) {
-  const db = await getUsers();
-  for (const user of db.users) {
-    const fund = user.wallet?.pendingFunds?.[reference];
-    if (fund) return { user, fund };
-  }
-  return null;
+  await ensureSchema();
+  const { rows } = await pool.query(
+    `SELECT * FROM users WHERE wallet->'pendingFunds' ? $1 LIMIT 1`,
+    [reference]
+  );
+  const user = userFromRow(rows[0]);
+  if (!user) return null;
+  const fund = user.wallet?.pendingFunds?.[reference];
+  return fund ? { user, fund } : null;
 }
 
 export async function creditUserWallet(userId, { amount, currency, reference, chargeId, meta }) {
@@ -150,7 +209,7 @@ export async function creditUserWallet(userId, { amount, currency, reference, ch
     meta
   });
   wallet.transactions = wallet.transactions.slice(0, 200);
-  await saveUsers(await getUsers());
+  await updateUser(userId, { wallet });
   return { balance: wallet.balance, currency: wallet.currency, transactions: wallet.transactions };
 }
 
@@ -167,6 +226,7 @@ export async function markFundSucceeded({ reference, chargeId, amount, currency,
     completedAt: new Date().toISOString(),
     raw: meta
   };
+  await updateUser(user.id, { wallet });
   await creditUserWallet(user.id, { amount, currency, reference, chargeId, meta });
   return true;
 }

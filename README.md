@@ -8,7 +8,7 @@ A full-stack marketplace for **virtual phone numbers** and **premium social medi
 |----------|-------|
 | Frontend | React 18, Vite 6, Tailwind CSS 4, React Router 6, lucide-react icons, axios |
 | Backend  | Node.js, Express 4, JWT auth, bcrypt, nodemailer |
-| Data     | JSON file store (`server/data/users.json`) |
+| Data     | PostgreSQL (`pg`) — e.g. Railway Postgres, via `DATABASE_URL` |
 | Provider | OneGridHub API (virtual numbers / SMS verification) proxied server-side |
 
 ## Repository Layout
@@ -49,6 +49,7 @@ Each app has its own `.env` file (already git-ignored). Use the templates above 
 
 ```env
 PORT=5000
+DATABASE_URL=postgres://USER:PASSWORD@HOST:PORT/railway?sslmode=require
 CLIENT_URL=http://localhost:5173
 JWT_SECRET=<generate-a-long-random-string>
 
@@ -109,4 +110,4 @@ Full endpoint reference is in [`server/README.md`](server/README.md).
 - User passwords are hashed with bcrypt (cost 10).
 - Reset links and OneGridHub API keys never leave the server.
 - The checkout on the home page is currently **simulated** — payment gateway integration is in progress.
-- `server/data/users.json` is the local database and is git-ignored.
+- `DATABASE_URL` points at a PostgreSQL instance (e.g. Railway). The `users` table is auto-created on startup.

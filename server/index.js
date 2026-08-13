@@ -5,7 +5,7 @@ import authRoutes from './routes/auth.js';
 import onegridhubRoutes from './routes/onegridhub.js';
 import walletRoutes from './routes/wallet.js';
 import webhookRoutes from './routes/webhook.js';
-import { getUsers } from './utils/store.js';
+import { getUsers, ensureSchema } from './utils/store.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -51,6 +51,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong on the server' });
 });
 
-app.listen(PORT, () => {
-  console.log(`SpencersBM API running on http://localhost:${PORT}`);
-});
+ensureSchema()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`SpencersBM API running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to initialize database schema:', err);
+    process.exit(1);
+  });

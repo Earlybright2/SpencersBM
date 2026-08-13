@@ -19,7 +19,7 @@ Server runs on **http://localhost:5000**.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `PORT` | no | Port to listen on (default `5000`) |
-| `DATA_DIR` | no | Directory for local data files (defaults to `server/data`) |
+| `DATABASE_URL` | yes | PostgreSQL connection string (e.g. from Railway). Schema is created automatically on startup |
 | `CLIENT_URL` | no | Allowed client origin / base for reset links (default `http://localhost:5173`) |
 | `JWT_SECRET` | yes | Secret used to sign auth tokens |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | no | SMTP credentials. If set, password-reset emails are sent. If empty, reset links are logged to the console (dev mode) |
@@ -43,10 +43,10 @@ server/
 │   └── onegridhub.js   # Proxy + order logic for the numbers provider
 ├── utils/
 │   ├── auth.js         # JWT sign/token helpers + requireAuth middleware
+│   ├── db.js           # PostgreSQL connection pool (DATABASE_URL)
 │   ├── mailer.js       # Nodemailer transport + reset email (or dev console log)
 │   ├── onegridhub.js   # Safe provider client (timeouts, retries, error objects)
-│   └── store.js        # JSON-file persistence for users & orders
-└── data/               # Local data files (gitignored)
+│   └── store.js        # PostgreSQL-backed persistence for users & orders
 ```
 
 ## API Reference
@@ -86,7 +86,7 @@ Validation rules: valid email format, password **≥ 8 characters**, duplicate e
 
 ## Behavior Notes
 
-- **Data persistence**: users and orders live in a local JSON file under `data/`. No external database is needed to run locally.
+- **Data persistence**: users and orders live in a PostgreSQL database configured via `DATABASE_URL` (e.g. a Railway Postgres instance). The `users` table is created automatically on startup.
 - **Provider safety**: all OneGridHub calls run through `ogRequest`, which applies a 12s timeout, 2 retries, and never throws — the API returns well-formed error objects so the process stays alive when the provider is down.
 - **Error handling**: a global error middleware returns `500` for unexpected failures; provider failures return `502`.
 - **CORS**: allowed origin comes from `CLIENT_URL`.
