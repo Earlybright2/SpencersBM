@@ -6,7 +6,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import WalletCard from '../components/WalletCard.jsx';
 import SuccessModal from '../components/SuccessModal.jsx';
-import { platformIcon, countries } from '../data/marketplace.js';
+import CascadingNumbers from '../components/CascadingNumbers.jsx';
+import { platformIcon } from '../data/marketplace.js';
 
 const TITLES = {
   overview: 'Overview',
@@ -17,17 +18,6 @@ const TITLES = {
   orders: 'Order History',
   profile: 'My Profile'
 };
-
-const countryFlags = Object.fromEntries(
-  countries.map((c) => [c.name.toLowerCase().replace(/\s+/g, ''), c.flag])
-);
-countryFlags['unitedstates'] = '🇺🇸';
-countryFlags['uae'] = '🇦🇪';
-
-function flagFor(countryName) {
-  const key = String(countryName || '').toLowerCase().replace(/\s+/g, '');
-  return countryFlags[key] || '🌍';
-}
 
 function Row({ label, value, mono }) {
   return (
@@ -433,36 +423,11 @@ export default function Dashboard() {
                     : `No results for "${storeSearch.trim()}".`}
                 </p>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {filteredCountries.map((group) => (
-                    <div key={group.country} className="card-border bg-night/40 rounded-[12px] p-5">
-                      <div className="flex items-center gap-3 mb-4">
-                        <span className="text-[2rem] leading-none">{flagFor(group.countryName)}</span>
-                        <div>
-                          <div className="font-medium text-[0.98rem]">{group.countryName}</div>
-                          <div className="text-gray-500 text-[0.75rem]">{group.items.length} service{group.items.length === 1 ? '' : 's'} available</div>
-                        </div>
-                      </div>
-                      <div className="space-y-2.5">
-                        {group.items.map((p) => (
-                          <div key={p.id} className="flex items-center justify-between gap-3 rounded-[10px] bg-gold/5 border border-gold/15 px-4 py-3">
-                            <div className="min-w-0">
-                              <div className="text-[0.9rem] font-medium truncate">{p.serviceName || p.service}</div>
-                              <div className="text-gold font-semibold text-[0.9rem]">{fmtNgn(p.price)}</div>
-                            </div>
-                            <button
-                              onClick={() => handleBuyNumber(p)}
-                              disabled={Boolean(busy)}
-                              className="btn-gold px-4 py-2 text-[0.8rem] disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-                            >
-                              {busy === `buy-${p.id}` ? 'Buying...' : 'Buy'}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <CascadingNumbers
+                  items={filteredCountries.flatMap((g) => g.items)}
+                  onBuy={handleBuyNumber}
+                  busy={busy}
+                />
               )}
             </PanelCard>
           ) : (
@@ -547,31 +512,7 @@ export default function Dashboard() {
                   : `No results for "${numbersSearch.trim()}".`}
               </p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredNumbers.map((p) => (
-                  <div key={p.id} className="card-border bg-night/40 rounded-[12px] p-5 flex flex-col">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
-                        <Smartphone size={20} strokeWidth={1.8} />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="font-medium text-[0.95rem] truncate">{p.serviceName || p.service}</div>
-                        <div className="text-gray-500 text-[0.78rem]">{p.countryName || p.country}</div>
-                      </div>
-                    </div>
-                    <div className="text-[0.9rem] mb-4">
-                      <span className="text-gold font-semibold text-lg">{fmtNgn(p.price)}</span>
-                    </div>
-                    <button
-                      onClick={() => handleBuyNumber(p)}
-                      disabled={Boolean(busy)}
-                      className="btn-gold w-full py-3 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {busy === `buy-${p.id}` ? 'Purchasing...' : 'Buy Number'}
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <CascadingNumbers items={filteredNumbers} onBuy={handleBuyNumber} busy={busy} />
             )}
           </PanelCard>
 

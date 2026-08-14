@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Users, LogOut, Plus, Trash2, RefreshCw, ShieldCheck, Power, TrendingUp, Package } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
@@ -64,6 +64,10 @@ export default function Admin() {
   const [syncServer, setSyncServer] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+
+  const [editService, setEditService] = useState('');
+  const [editCountry, setEditCountry] = useState('');
+  const [editPrices, setEditPrices] = useState({});
 
   const [loading, setLoading] = useState(false);
 
@@ -175,6 +179,52 @@ export default function Admin() {
       setError(getErrorMessage(err));
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const editServices = useMemo(() => {
+    const set = new Set();
+    products.numbers.forEach((p) => {
+      const name = p.serviceName || p.service;
+      if (name) set.add(name);
+    });
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [products.numbers]);
+
+  const editCountries = useMemo(() => {
+    const map = new Map();
+    products.numbers.forEach((p) => {
+      if ((p.serviceName || p.service) !== editService) return;
+      const key = p.country || 'unknown';
+      if (!map.has(key)) map.set(key, p.countryName || key);
+    });
+    return [...map.entries()]
+      .map(([key, name]) => ({ key, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [products.numbers, editService]);
+
+  const editMatches = useMemo(
+    () =>
+      products.numbers.filter(
+        (p) => (p.serviceName || p.service) === editService && (p.country || 'unknown') === editCountry
+      ),
+    [products.numbers, editService, editCountry]
+  );
+
+  const saveNumberPrice = async (id) => {
+    const price = Number(editPrices[id]);
+    if (!Number.isFinite(price) || price <= 0) {
+      setError('Enter a valid positive price');
+      return;
+    }
+    try {
+      await api.put(`/admin/products/numbers/${id}`, { price });
+      setToast('Price updated');
+      setEditPrices((m) => ({ ...m, [id]: '' }));
+      loadProducts();
+      loadStats();
+    } catch (err) {
+      setError(getErrorMessage(err));
     }
   };
 
@@ -437,6 +487,69 @@ export default function Admin() {
                   </p>
                 )}
               </div>
+
+              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
+                <h2 className="font-syne text-xl mb-1">Edit Number Prices</h2>
+                <p className="text-gray-500 text-[0.85rem] mb-5">
+                  Pick a platform, then a country, to see and update the current price of that pack.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <Field label="1. Platform / service">
+                    <select
+                      value={editService}
+                      onChange={(e) => { setEditService(e.target.value); setEditCountry(''); setEditPrices({}); }}
+                      className={inputCls}
+                    >
+                      <option value="" className="bg-[#141414]">Choose a service</option>
+                      {editServices.map((s) => (
+                        <option key={s} value={s} className="bg-[#141414]">{s}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="2. Country">
+                    <select
+                      value={editCountry}
+                      onChange={(e) => { setEditCountry(e.target.value); setEditPrices({}); }}
+                      disabled={!editService}
+                      className={`${inputCls} disabled:opacity-50`}
+                    >
+                      <option value="" className="bg-[#141414]">Choose a country</option>
+                      {editCountries.map((c) => (
+                        <option key={c.key} value={c.key} className="bg-[#141414]">{c.name}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                {editMatches.length === 0 ? (
+                  <p className="text-gray-500 text-[0.9rem] py-4 text-center">
+                    {editService ? (editCountry ? 'No products for this selection.' : 'Pick a country to see the current price.') : 'Pick a platform above.'}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {editMatches.map((p) => (
+                      <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4 flex flex-wrap items-end gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[0.9rem] font-medium">{p.serviceName || p.service} · {p.countryName || p.country}</div>
+                          <div className="text-gray-500 text-[0.78rem]">Current price: {fmtNgn(p.price)} · {p.server}</div>
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <Field label="New price (NGN)">
+                            <input
+                              type="number"
+                              min="1"
+                              value={editPrices[p.id] ?? p.price}
+                              onChange={(e) => setEditPrices((m) => ({ ...m, [p.id]: e.target.value }))}
+                              className={`${inputCls} w-[140px]`}
+                            />
+                          </Field>
+                          <button onClick={() => saveNumberPrice(p.id)} className="btn-gold px-4 py-2.5 text-[0.85rem]">Save</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
                 <h2 className="font-syne text-xl mb-5">Add a Virtual Number Product</h2>
                 <form onSubmit={addNumberProduct} className="space-y-4">
