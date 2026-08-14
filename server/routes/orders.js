@@ -13,10 +13,25 @@ import {
   updateAccountProduct,
   recordSale
 } from '../utils/store.js';
+import { sendPurchaseSuccessEmail, sendPurchaseFailureEmail } from '../utils/mailer.js';
 
 const router = Router();
 
 router.use(requireAuth);
+
+// Fire-and-forget purchase emails so a slow SMTP never blocks the API response.
+const notify = {
+  success: (userId, order) => {
+    findById(userId)
+      .then((user) => user && sendPurchaseSuccessEmail(user, order))
+      .catch((err) => console.error('Success email failed:', err.message));
+  },
+  failure: (userId, order, reason) => {
+    findById(userId)
+      .then((user) => user && sendPurchaseFailureEmail(user, order, reason))
+      .catch((err) => console.error('Failure email failed:', err.message));
+  }
+};
 
 // GET /api/orders — current user's purchase history (numbers + accounts)
 router.get('/', asyncRoute(async (req, res) => {
@@ -61,12 +76,14 @@ router.post('/numbers', asyncRoute(async (req, res) => {
   const catalog = await getCatalog();
   const product = catalog.products.numbers.find((p) => p.id === productId);
   if (!product || product.enabled === false) {
+    notify.failure(req.user.id, { type: 'virtual_number', service: 'virtual number' }, 'The product you tried to buy could not be found. Please refresh the store and try again.');
     return res.status(404).json({ message: 'Number product not found' });
   }
 
   const cost = Number(product.price) || 0;
   const wallet = await getUserWallet(req.user.id);
   if ((wallet?.balance || 0) < cost) {
+    notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
     return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
   }
 
@@ -78,6 +95,7 @@ router.post('/numbers', asyncRoute(async (req, res) => {
     service: product.service
   });
   if (!isOgSuccess(providerData)) {
+    notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, 'Our numbers provider could not complete the purchase. Please try again in a few minutes.');
     return res.status(502).json(ogError(providerData, 'The numbers provider could not complete the purchase'));
   }
 
@@ -88,6 +106,7 @@ router.post('/numbers', asyncRoute(async (req, res) => {
     meta: { type: 'number', productId, serviceName: product.serviceName }
   });
   if (!debit.ok) {
+    notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
     return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
   }
 
@@ -124,6 +143,8 @@ router.post('/numbers', asyncRoute(async (req, res) => {
     createdAt: new Date().toISOString()
   });
 
+  notify.success(req.user.id, order);
+
   res.status(201).json({ status: 'success', message: 'Number purchased', order, balance: debit.balance });
 }));
 
@@ -135,17 +156,20 @@ router.post('/accounts', asyncRoute(async (req, res) => {
   const catalog = await getCatalog();
   const product = catalog.products.accounts.find((p) => p.id === productId);
   if (!product || product.enabled === false) {
+    notify.failure(req.user.id, { type: 'social_account', platform: 'account' }, 'The product you tried to buy could not be found. Please refresh the store and try again.');
     return res.status(404).json({ message: 'Account product not found' });
   }
 
   const slot = (product.inventory || []).find((i) => i.status === 'available');
   if (!slot) {
+    notify.failure(req.user.id, { type: 'social_account', platform: product.platform }, `${product.platform} is currently sold out. Please check back soon.`);
     return res.status(409).json({ message: 'This platform is currently sold out. Please check back soon.' });
   }
 
   const cost = Number(product.price) || 0;
   const wallet = await getUserWallet(req.user.id);
   if ((wallet?.balance || 0) < cost) {
+    notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
     return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
   }
 
@@ -156,6 +180,7 @@ router.post('/accounts', asyncRoute(async (req, res) => {
     meta: { type: 'account', productId, platform: product.platform }
   });
   if (!debit.ok) {
+    notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
     return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
   }
 
@@ -193,6 +218,8 @@ router.post('/accounts', asyncRoute(async (req, res) => {
     status: 'completed',
     createdAt: new Date().toISOString()
   });
+
+  notify.success(req.user.id, order);
 
   res.status(201).json({ status: 'success', message: 'Account purchased', order, balance: debit.balance });
 }));
