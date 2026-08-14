@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Smartphone, UserRound, Zap, ShieldCheck, Globe, Headphones, Search, ShoppingCart, MessageCircle, CreditCard, Mail, ChevronDown, Star } from 'lucide-react';
+import { Smartphone, UserRound, Zap, ShieldCheck, Globe, Headphones, Search, ShoppingCart, MessageCircle, CreditCard, Mail, ChevronDown, Star, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { countries } from '../data/marketplace.js';
 
@@ -24,18 +24,30 @@ export default function Home() {
           Buy virtual phone numbers and premium social media accounts securely with instant delivery.
         </p>
         <div className="flex flex-col sm:flex-row gap-6 justify-center flex-wrap items-center animate-fade-in-up w-full sm:w-auto">
-          <button
-            onClick={() => go()}
-            className="btn-gold px-10 py-4 text-base w-full sm:w-auto max-w-[300px] hover:-translate-y-[3px] hover:shadow-[0_15px_40px_rgba(212,175,55,0.4)]"
-          >
-            Buy Virtual Numbers
-          </button>
-          <button
-            onClick={() => go()}
-            className="btn-ghost px-10 py-4 text-base w-full sm:w-auto max-w-[300px]"
-          >
-            Buy Social Media Accounts
-          </button>
+          {user ? (
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="btn-gold px-10 py-4 text-base font-semibold flex items-center justify-center gap-2.5 w-full sm:w-auto max-w-[300px] hover:-translate-y-[3px] hover:shadow-[0_15px_40px_rgba(212,175,55,0.45)]"
+            >
+              <LayoutDashboard size={20} strokeWidth={2} />
+              Enter Dashboard
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => go()}
+                className="btn-gold px-10 py-4 text-base w-full sm:w-auto max-w-[300px] hover:-translate-y-[3px] hover:shadow-[0_15px_40px_rgba(212,175,55,0.4)]"
+              >
+                Buy Virtual Numbers
+              </button>
+              <button
+                onClick={() => go()}
+                className="btn-ghost px-10 py-4 text-base w-full sm:w-auto max-w-[300px]"
+              >
+                Buy Social Media Accounts
+              </button>
+            </>
+          )}
         </div>
       </section>
 

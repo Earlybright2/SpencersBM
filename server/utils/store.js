@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { pool } from './db.js';
+import { getUsdToNgnRate } from './rates.js';
 
 // Helper to transform a PostgreSQL user row into the standard JavaScript user object shape
 function mapUserRow(row) {
@@ -361,7 +362,7 @@ export async function getUserWallet(userId) {
     currency: 'NGN',
     transactions: user.wallet.transactions,
     virtualAccount: user.wallet.virtualAccount,
-    usdToNgn: toNgn(1, 'USD')
+    usdToNgn: await toNgn(1, 'USD')
   };
 }
 
@@ -398,7 +399,7 @@ export async function creditUserWallet(userId, { amount, currency, reference, ch
     return { balance: user.wallet.balance, currency: 'NGN' };
   }
 
-  const ngn = toNgn(Number(amount), currency);
+  const ngn = await toNgn(Number(amount), currency);
   const newBalance = (Number(user.wallet.balance) || 0) + ngn;
 
   transactions.unshift({
@@ -479,10 +480,10 @@ export async function debitWallet(userId, { amount, reference, meta }) {
   return { ok: true, balance: newBalance };
 }
 
-export function toNgn(amount, currency) {
+export async function toNgn(amount, currency) {
   const value = Number(amount) || 0;
   if (currency === 'USD') {
-    const rate = Number(process.env.USD_TO_NGN_RATE) || 1500;
+    const rate = await getUsdToNgnRate();
     return Math.round(value * rate);
   }
   return Math.round(value);

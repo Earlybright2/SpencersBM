@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { ChevronDown, Smartphone, UserRound } from 'lucide-react';
+import { ChevronDown, Smartphone, UserRound, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const navLinks = [
@@ -97,7 +97,7 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3">
-          {!user && (
+          {!user ? (
             <div className="flex items-center gap-3">
               <NavLink
                 to="/login"
@@ -112,6 +112,14 @@ export default function Navbar() {
                 Get Started
               </button>
             </div>
+          ) : (
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="hidden md:flex items-center gap-2 btn-gold px-5 py-2 text-[0.9rem] font-semibold hover:-translate-y-[2px] hover:shadow-[0_10px_30px_rgba(212,175,55,0.35)]"
+            >
+              <LayoutDashboard size={17} strokeWidth={2.2} />
+              Enter Dashboard
+            </button>
           )}
 
           <button
@@ -156,7 +164,18 @@ export default function Navbar() {
             </div>
           ))}
           <div className="flex flex-col gap-3 pt-2">
-            {!user && (
+            {user ? (
+              <button
+                onClick={() => {
+                  setMobileOpen(false);
+                  navigate('/dashboard');
+                }}
+                className="btn-gold px-5 py-3 text-[0.9rem] font-semibold flex items-center justify-center gap-2"
+              >
+                <LayoutDashboard size={18} strokeWidth={2.2} />
+                Enter Dashboard
+              </button>
+            ) : (
               <>
                 <Link to="/login" onClick={() => setMobileOpen(false)} className="text-gray-300 hover:text-gold">
                   Login

@@ -109,7 +109,7 @@ function SidebarContent({ onNavigate }) {
   );
 }
 
-export default function DashboardLayout({ title, balance, balanceError, onRetryBalance, children }) {
+export default function DashboardLayout({ title, children }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
 
@@ -133,42 +133,22 @@ export default function DashboardLayout({ title, balance, balanceError, onRetryB
       {/* Main area */}
       <div className="flex-1 lg:pl-[260px] min-w-0">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-[#0a0a0a]/90 backdrop-blur-[10px] border-b border-gold/10">
-          <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <button
-                onClick={() => setDrawerOpen(true)}
-                aria-label="Open menu"
-                className="lg:hidden flex flex-col gap-[5px] p-1"
-              >
-                <span className="w-[24px] h-[2px] bg-gold" />
-                <span className="w-[24px] h-[2px] bg-gold" />
-                <span className="w-[24px] h-[2px] bg-gold" />
-              </button>
-              <h1 className="font-syne text-lg md:text-xl truncate">{title}</h1>
-            </div>
-
-            <div className="flex items-center gap-3 shrink-0">
-              {balance ? (
+<header className="sticky top-0 z-30 bg-[#0a0a0a]/90 backdrop-blur-[10px] border-b border-gold/10">
+            <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-4">
+              <div className="flex items-center gap-3 min-w-0">
                 <button
-                  onClick={onRetryBalance}
-                  title="Click to refresh"
-                  className="card-border bg-gold/5 rounded-[10px] px-4 py-2 text-right hover:bg-gold/10 transition-colors"
+                  onClick={() => setDrawerOpen(true)}
+                  aria-label="Open menu"
+                  className="lg:hidden flex flex-col gap-[5px] p-1"
                 >
-                  <div className="text-[0.65rem] uppercase tracking-wider text-gray-500 leading-none">Wallet</div>
-                  <div className="font-syne text-[0.95rem] text-gold leading-tight">
-                    {Number(balance.balance).toLocaleString()} <span className="text-[0.7rem]">{balance.currency}</span>
-                  </div>
+                  <span className="w-[24px] h-[2px] bg-gold" />
+                  <span className="w-[24px] h-[2px] bg-gold" />
+                  <span className="w-[24px] h-[2px] bg-gold" />
                 </button>
-              ) : (
-                <div>
-                  <div className="text-[0.65rem] uppercase tracking-wider text-gray-500">Wallet</div>
-                  <div className="text-[0.9rem] text-[#e0645a]">{balanceError || 'Offline'}</div>
-                </div>
-              )}
+                <h1 className="font-syne text-lg md:text-xl truncate">{title}</h1>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
 
         <main className="px-4 md:px-8 py-6 md:py-8 w-full">{children}</main>
       </div>

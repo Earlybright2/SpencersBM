@@ -1,6 +1,3 @@
-const BASE_URL = process.env.ONEGRIDHUB_BASE_URL || 'https://onegridhub.com/api/v1/index.php';
-const API_KEY = process.env.ONEGRIDHUB_API_KEY;
-
 const CONNECT_TIMEOUT_MS = 12000;
 const RETRIES = 2;
 
@@ -16,21 +13,26 @@ async function fetchWithTimeout(url, { headers, timeoutMs }) {
   }
 }
 
-/**
- * Proxies a request to the OneGridHub API. Never throws nor rejects — returns a
- * JSON-shaped object on success and an error object on any failure so the rest
- * of the app (and the process itself) stays alive when the provider is down.
- * @param {Object} params - query parameters, e.g. { endpoint: 'services', server: 'usa1' }
- */
 export async function ogRequest(params = {}) {
-  const url = new URL(BASE_URL);
+  const apiKey = process.env.ONEGRIDHUB_API_KEY || '';
+  if (!apiKey) {
+    return {
+      status: 'error',
+      code: 'missing_api_key',
+      retryable: false,
+      message: 'Numbers provider API key is not configured on the server.'
+    };
+  }
+
+  const baseUrl = process.env.ONEGRIDHUB_BASE_URL || 'https://onegridhub.com/api/v1/index.php';
+  const url = new URL(baseUrl);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== '') {
       url.searchParams.set(key, value);
     }
   }
-  url.searchParams.set('api_key', API_KEY);
-  const headers = { Authorization: `Bearer ${API_KEY}` };
+  url.searchParams.set('api_key', apiKey);
+  const headers = { Authorization: `Bearer ${apiKey}` };
 
   let lastError = null;
   for (let attempt = 0; attempt <= RETRIES; attempt += 1) {

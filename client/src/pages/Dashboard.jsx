@@ -63,7 +63,6 @@ export default function Dashboard() {
   };
 
   const [wallet, setWallet] = useState(null);
-  const [walletError, setWalletError] = useState('');
   const [catalog, setCatalog] = useState({ numbers: [], accounts: [] });
   const [orders, setOrders] = useState([]);
   const [paidAccounts, setPaidAccounts] = useState([]);
@@ -78,12 +77,10 @@ export default function Dashboard() {
   const [storeView, setStoreView] = useState('numbers');
 
   const loadWallet = async (silent = false) => {
-    if (!silent) setWalletError('');
     try {
       const res = await api.get('/wallet');
       setWallet(res.data);
     } catch (err) {
-      setWalletError(getErrorMessage(err));
       if (!silent) setError(getErrorMessage(err));
     }
   };
@@ -266,9 +263,6 @@ export default function Dashboard() {
   return (
     <DashboardLayout
       title={tab === 'overview' ? `Welcome, ${user?.name?.split(' ')[0]}` : (TITLES[tab] || 'Dashboard')}
-      balance={wallet}
-      balanceError={walletError}
-      onRetryBalance={() => loadWallet()}
     >
       {fundRef && (
         <div className="mb-6 rounded-[12px] border border-gold/20 bg-gold/10 px-4 py-3 flex items-center gap-2.5 text-[0.9rem] text-gold">

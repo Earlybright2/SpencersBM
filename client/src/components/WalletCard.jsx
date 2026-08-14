@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Wallet, Plus, ShieldCheck, Zap, Star } from 'lucide-react';
+import { Wallet, Plus, ShieldCheck, Zap, DollarSign } from 'lucide-react';
 import FundWalletModal from './FundWalletModal.jsx';
 
 export default function WalletCard({ balance, onFunded }) {
@@ -47,7 +47,7 @@ export default function WalletCard({ balance, onFunded }) {
             <Zap size={15} strokeWidth={1.8} className="text-gold" /> Instant balance
           </span>
           <span className="flex items-center gap-2 text-gray-500">
-            <Star size={15} strokeWidth={1.8} className="text-gold" /> $1 = ₦{Number(rate).toLocaleString()}
+            <DollarSign size={15} strokeWidth={1.8} className="text-gold" /> $1 = ₦{Number(rate).toLocaleString()}
           </span>
         </div>
       </div>
