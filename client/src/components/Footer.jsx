@@ -92,8 +92,8 @@ export default function Footer() {
             </h4>
             <ul className="space-y-3 text-gray-400 text-[0.92rem]">
               <li>
-                <a href="mailto:support@spencersbm.com" className="hover:text-gold transition-colors">
-                  support@spencersbm.com
+                <a href="mailto:spencersbm1@hotmail.com" className="hover:text-gold transition-colors">
+                  spencersbm1@hotmail.com
                 </a>
               </li>
               <li>

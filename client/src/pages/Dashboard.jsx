@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search } from 'lucide-react';
+import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
@@ -509,6 +509,12 @@ export default function Dashboard() {
       {/* ===== NUMBERS ===== */}
       {tab === 'numbers' && (
         <div className="space-y-6">
+          <div className="flex items-start gap-3 rounded-[12px] border border-gold/20 bg-gold/5 px-4 py-3.5 text-[0.88rem] text-gray-300">
+            <MessageSquare size={17} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
+            <p>
+              Once a purchase is complete go to the <span className="text-gold font-medium">&quot;Paid Accounts&quot;</span> in the dashboard sidebar and click on it to view account details.
+            </p>
+          </div>
           <PanelCard
             title="Buy a Virtual Number"
             actions={
@@ -785,6 +791,20 @@ export default function Dashboard() {
                 <div className="text-[0.7rem] uppercase tracking-wider text-gray-500 mb-1">Member Since</div>
                 <div className="font-medium text-[0.95rem]">{user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}</div>
               </div>
+            </div>
+
+            <div className="bg-gold/5 border border-gold/15 rounded-[12px] p-6">
+              <h4 className="font-syne text-lg mb-2 flex items-center gap-2">
+                <Headphones size={18} strokeWidth={1.9} className="text-gold" />
+                Customer Support
+              </h4>
+              <p className="text-gray-400 text-[0.9rem] leading-relaxed">
+                Having any issues with your orders or account? Send us an email at{' '}
+                <a href="mailto:spencersbm1@hotmail.com" className="text-gold hover:text-gold-light break-all">
+                  spencersbm1@hotmail.com
+                </a>{' '}
+                and our support team will get back to you promptly.
+              </p>
             </div>
           </div>
         </PanelCard>

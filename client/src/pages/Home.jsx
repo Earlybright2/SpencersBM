@@ -272,7 +272,7 @@ export default function Home() {
             </p>
             <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
               <a
-                href="https://wa.me/2348012345678"
+                href={`https://wa.me/2349138187814?text=${encodeURIComponent("Hey Spencersbm, I'm a user on your platform, I have an issue with one of my orders")}`}
                 target="_blank"
                 rel="noreferrer"
                 className="btn-gold px-9 py-4 text-[0.98rem] flex items-center justify-center gap-2 hover:-translate-y-[2px] hover:shadow-[0_15px_40px_rgba(212,175,55,0.4)] w-full sm:w-auto"
@@ -281,7 +281,7 @@ export default function Home() {
                 Chat on WhatsApp
               </a>
               <a
-                href="mailto:support@spencersbm.com"
+                href="mailto:spencersbm1@hotmail.com"
                 className="btn-ghost px-9 py-4 text-[0.98rem] flex items-center justify-center gap-2 w-full sm:w-auto"
               >
                 <Mail size={19} strokeWidth={1.8} />

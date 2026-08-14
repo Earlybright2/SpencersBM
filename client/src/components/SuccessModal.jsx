@@ -35,7 +35,7 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
       );
       if (order.sms) lines.push(`SMS Code: ${order.sms}`);
     }
-    lines.push('', 'Thank you for your purchase!', 'support@spencersbm.com');
+    lines.push('', 'Thank you for your purchase!', 'spencersbm1@hotmail.com');
     return lines.join('\n');
   };
 
