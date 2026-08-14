@@ -61,6 +61,10 @@ export default function Admin() {
   const [accForm, setAccForm] = useState({ platform: '', price: '', desc: '' });
   const [invForm, setInvForm] = useState({ accountId: '', username: '', password: '' });
 
+  const [syncServer, setSyncServer] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+
   const [loading, setLoading] = useState(false);
 
   const loadStats = async () => {
@@ -156,12 +160,34 @@ export default function Admin() {
     }
   };
 
+  const syncNumbers = async () => {
+    if (!syncServer || syncing) return;
+    setSyncing(true);
+    setError('');
+    setSyncResult(null);
+    try {
+      const res = await api.post('/onegridhub/sync-numbers', { server: syncServer });
+      setSyncResult(res.data);
+      setToast('Number products synced from provider');
+      loadProducts();
+      loadStats();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const addNumberProduct = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
       const { server, service, country, price } = numForm;
+      if (providerPrice && Number(price) < Number(providerPrice.price)) {
+        setError(`Sell price must be above the provider cost of ${Number(providerPrice.price).toLocaleString()} ${providerPrice.currency || 'NGN'} (otherwise you lose money per sale).`);
+        return;
+      }
       const serverObj = servers.find((s) => s.id === server);
       const serviceObj = services.find((s) => s.id === service);
       const countryObj = countries.find((c) => c.id === country);
@@ -382,6 +408,35 @@ export default function Admin() {
 
           {section === 'numbers' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
+                <h2 className="font-syne text-xl mb-1">Sync Numbers from Provider</h2>
+                <p className="text-gray-500 text-[0.85rem] mb-5">
+                  Fetches available numbers and prices from OneGridHub for a server and updates the marketplace (popular services only, auto-priced with margin).
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 items-end">
+                  <div className="flex-1 min-w-[200px]">
+                    <Field label="Provider server">
+                      <select value={syncServer} onChange={(e) => setSyncServer(e.target.value)} className={inputCls}>
+                        <option value="" className="bg-[#141414]">Select a server</option>
+                        {servers.map((s) => (
+                          <option key={s.id} value={s.id} className="bg-[#141414]">{s.label} ({s.region})</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <button onClick={syncNumbers} disabled={!syncServer || syncing} className="btn-gold px-6 py-2.5 text-[0.9rem] disabled:opacity-50 flex items-center gap-2">
+                    <RefreshCw size={16} strokeWidth={2} className={syncing ? 'animate-spin' : ''} />
+                    {syncing ? 'Syncing...' : 'Sync'}
+                  </button>
+                </div>
+                {syncResult && (
+                  <p className="text-[0.85rem] text-gray-400 mt-4">
+                    Created <span className="text-gold font-semibold">{syncResult.created}</span> · Updated{' '}
+                    <span className="text-gold font-semibold">{syncResult.updated}</span> · Skipped{' '}
+                    <span className="text-gray-500">{syncResult.skipped}</span>
+                  </p>
+                )}
+              </div>
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
                 <h2 className="font-syne text-xl mb-5">Add a Virtual Number Product</h2>
                 <form onSubmit={addNumberProduct} className="space-y-4">

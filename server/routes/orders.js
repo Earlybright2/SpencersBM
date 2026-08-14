@@ -33,6 +33,19 @@ const notify = {
   }
 };
 
+// Turn raw provider errors into messages a customer can actually understand.
+function friendlyProviderError(data) {
+  const code = String(data?.code || '');
+  const msg = String(data?.message || '').toLowerCase();
+  if (code === 'unavailable' || msg.includes('service not found')) {
+    return 'This virtual number is temporarily unavailable from our provider. Please try again later or choose another option.';
+  }
+  if (code === 'insufficient_funds' || msg.includes('insufficient balance') || msg.includes('insufficient_funds')) {
+    return 'Our number provider is temporarily low on funds. Please try again shortly or contact support.';
+  }
+  return data?.message || 'The numbers provider could not complete the purchase. Please try again in a moment.';
+}
+
 // GET /api/orders — current user's purchase history (numbers + accounts)
 router.get('/', asyncRoute(async (req, res) => {
   const orders = await getUserOrders(req.user.id);
@@ -95,8 +108,9 @@ router.post('/numbers', asyncRoute(async (req, res) => {
     service: product.service
   });
   if (!isOgSuccess(providerData)) {
-    notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, 'Our numbers provider could not complete the purchase. Please try again in a few minutes.');
-    return res.status(502).json(ogError(providerData, 'The numbers provider could not complete the purchase'));
+    const reason = friendlyProviderError(providerData);
+    notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, reason);
+    return res.status(502).json({ status: 'error', message: reason });
   }
 
   const purchaseRef = generateReference();

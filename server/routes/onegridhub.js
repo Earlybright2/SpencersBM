@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAdmin } from '../utils/auth.js';
 import { ogRequest, isOgSuccess, ogError, asyncRoute } from '../utils/onegridhub.js';
+import { syncNumbersFromProvider } from '../utils/provider-sync.js';
 
 const router = Router();
 
@@ -49,6 +50,15 @@ router.get('/balance', asyncRoute(async (req, res) => {
   const data = await ogRequest({ endpoint: 'balance' });
   if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
   res.json(data);
+}));
+
+// POST /api/onegridhub/sync-numbers { server, services?, countries?, margin? }
+// Populates number_products with the provider's available numbers and prices.
+router.post('/sync-numbers', asyncRoute(async (req, res) => {
+  const { server, services, countries, margin } = req.body || {};
+  if (!server) return res.status(400).json({ message: 'server is required' });
+  const results = await syncNumbersFromProvider({ server, services, countries, margin });
+  res.json(results);
 }));
 
 export default router;
