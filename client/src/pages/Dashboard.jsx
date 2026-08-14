@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store } from 'lucide-react';
+import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
@@ -75,6 +75,8 @@ export default function Dashboard() {
   const [checkingSms, setCheckingSms] = useState('');
   const [cancelling, setCancelling] = useState('');
   const [storeView, setStoreView] = useState('numbers');
+  const [storeSearch, setStoreSearch] = useState('');
+  const [numbersSearch, setNumbersSearch] = useState('');
 
   const loadWallet = async (silent = false) => {
     try {
@@ -232,6 +234,32 @@ export default function Dashboard() {
     return Object.values(map);
   }, [catalog.numbers]);
 
+  const filteredCountries = useMemo(() => {
+    const q = storeSearch.trim().toLowerCase();
+    if (!q) return numbersByCountry;
+    return numbersByCountry.filter((g) => {
+      if (String(g.countryName || '').toLowerCase().includes(q)) return true;
+      return g.items.some((p) => String(p.serviceName || p.service || '').toLowerCase().includes(q));
+    });
+  }, [numbersByCountry, storeSearch]);
+
+  const filteredAccounts = useMemo(() => {
+    const q = storeSearch.trim().toLowerCase();
+    if (!q) return catalog.accounts;
+    return catalog.accounts.filter((p) =>
+      String(p.platform || '').toLowerCase().includes(q) || String(p.desc || '').toLowerCase().includes(q)
+    );
+  }, [catalog.accounts, storeSearch]);
+
+  const filteredNumbers = useMemo(() => {
+    const q = numbersSearch.trim().toLowerCase();
+    if (!q) return catalog.numbers;
+    return catalog.numbers.filter((p) =>
+      String(p.serviceName || p.service || '').toLowerCase().includes(q) ||
+      String(p.countryName || p.country || '').toLowerCase().includes(q)
+    );
+  }, [catalog.numbers, numbersSearch]);
+
   // Order History = every payment: purchases (numbers/accounts) + wallet funding credits.
   const paymentHistory = useMemo(() => {
     const purchases = orders.map((o) => ({
@@ -384,14 +412,29 @@ export default function Dashboard() {
           </div>
 
           {storeView === 'numbers' ? (
-            <PanelCard title="Numbers by Country">
-              {numbersByCountry.length === 0 ? (
+            <PanelCard
+              title="Numbers by Country"
+              actions={
+                <div className="relative w-full max-w-[280px]">
+                  <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <input
+                    value={storeSearch}
+                    onChange={(e) => setStoreSearch(e.target.value)}
+                    placeholder="Search country or service…"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-[#0d0d0d] border border-gold/20 rounded-[10px] text-white text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-[#555]"
+                  />
+                </div>
+              }
+            >
+              {filteredCountries.length === 0 ? (
                 <p className="text-gray-500 text-[0.95rem] py-6 text-center">
-                  No virtual numbers are available right now. Check back soon.
+                  {numbersByCountry.length === 0
+                    ? 'No virtual numbers are available right now. Check back soon.'
+                    : `No results for "${storeSearch.trim()}".`}
                 </p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {numbersByCountry.map((group) => (
+                  {filteredCountries.map((group) => (
                     <div key={group.country} className="card-border bg-night/40 rounded-[12px] p-5">
                       <div className="flex items-center gap-3 mb-4">
                         <span className="text-[2rem] leading-none">{flagFor(group.countryName)}</span>
@@ -423,14 +466,29 @@ export default function Dashboard() {
               )}
             </PanelCard>
           ) : (
-            <PanelCard title="Social Media Accounts">
-              {catalog.accounts.length === 0 ? (
+            <PanelCard
+              title="Social Media Accounts"
+              actions={
+                <div className="relative w-full max-w-[280px]">
+                  <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <input
+                    value={storeSearch}
+                    onChange={(e) => setStoreSearch(e.target.value)}
+                    placeholder="Search platform…"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-[#0d0d0d] border border-gold/20 rounded-[10px] text-white text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-[#555]"
+                  />
+                </div>
+              }
+            >
+              {filteredAccounts.length === 0 ? (
                 <p className="text-gray-500 text-[0.95rem] py-6 text-center">
-                  No social accounts are listed right now. Check back soon.
+                  {catalog.accounts.length === 0
+                    ? 'No social accounts are listed right now. Check back soon.'
+                    : `No results for "${storeSearch.trim()}".`}
                 </p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {catalog.accounts.map((p) => {
+                  {filteredAccounts.map((p) => {
                     const Icon = platformIcon(p.platform);
                     const soldOut = p.available <= 0;
                     return (
@@ -468,14 +526,29 @@ export default function Dashboard() {
       {/* ===== NUMBERS ===== */}
       {tab === 'numbers' && (
         <div className="space-y-6">
-          <PanelCard title="Buy a Virtual Number">
-            {catalog.numbers.length === 0 ? (
+          <PanelCard
+            title="Buy a Virtual Number"
+            actions={
+              <div className="relative w-full max-w-[280px]">
+                <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                <input
+                  value={numbersSearch}
+                  onChange={(e) => setNumbersSearch(e.target.value)}
+                  placeholder="Search service or country…"
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-[#0d0d0d] border border-gold/20 rounded-[10px] text-white text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-[#555]"
+                />
+              </div>
+            }
+          >
+            {filteredNumbers.length === 0 ? (
               <p className="text-gray-500 text-[0.95rem] py-6 text-center">
-                No virtual numbers are available right now. Check back soon.
+                {catalog.numbers.length === 0
+                  ? 'No virtual numbers are available right now. Check back soon.'
+                  : `No results for "${numbersSearch.trim()}".`}
               </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {catalog.numbers.map((p) => (
+                {filteredNumbers.map((p) => (
                   <div key={p.id} className="card-border bg-night/40 rounded-[12px] p-5 flex flex-col">
                     <div className="flex items-center gap-3 mb-3">
                       <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
