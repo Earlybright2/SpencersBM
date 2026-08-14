@@ -155,6 +155,20 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
     setStep('form');
   };
 
+  const handleTestFund = async (amountToFund = 10000) => {
+    setError('');
+    setStep('processing');
+    try {
+      const res = await api.post('/wallet/test-fund', { amount: amountToFund });
+      setMessage(res.data.message || 'Successfully funded test money!');
+      setStep('success');
+      if (onFunded) onFunded(res.data.wallet);
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setStep('form');
+    }
+  };
+
   const handleInitiate = async (e) => {
     e.preventDefault();
     if (!valid) return;
@@ -456,6 +470,19 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                     ? 'Continue with OPay'
                     : `Pay ${symbol}${valid ? numeric.toLocaleString(undefined, { maximumFractionDigits: 2 }) : ''}`}
                 </button>
+
+                <div className="mt-4 pt-4 border-t border-gold/10 text-center">
+                  <button
+                    type="button"
+                    onClick={() => handleTestFund(10000)}
+                    className="w-full bg-[#1b2a1e] hover:bg-[#233827] text-[#2ecc71] border border-[#2ecc71]/30 py-3 rounded-[12px] text-[0.88rem] font-medium transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>🧪 Sandbox Mode: Instant ₦10,000 Test Top-Up</span>
+                  </button>
+                  <p className="text-[0.72rem] text-gray-500 mt-1">
+                    Adds ₦10,000 test balance immediately to test purchases in sandbox mode.
+                  </p>
+                </div>
               </form>
             )}
           </>

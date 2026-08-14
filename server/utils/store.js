@@ -1,70 +1,119 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
+import { pool } from './db.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const CATALOG_FILE = path.join(DATA_DIR, 'catalog.json');
-
-let cache = null;
-let catalogCache = null;
-
-async function ensureFile(file, fallback) {
-  try {
-    await readFile(file, 'utf8');
-  } catch {
-    await mkdir(DATA_DIR, { recursive: true });
-    await writeFile(file, JSON.stringify(fallback, null, 2), 'utf8');
-  }
+// Helper to transform a PostgreSQL user row into the standard JavaScript user object shape
+function mapUserRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    password: row.password,
+    role: row.role || 'user',
+    orders: row.orders || [],
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+    wallet: {
+      balance: Number(row.wallet_balance) || 0,
+      currency: row.wallet_currency || 'NGN',
+      flwCustomerId: row.flw_customer_id || null,
+      transactions: row.transactions || [],
+      pendingFunds: row.pending_funds || {},
+      virtualAccount: row.virtual_account || null
+    }
+  };
 }
 
 // ----- Users -----
 
 export async function getUsers() {
-  if (cache) return cache;
-  await ensureFile(USERS_FILE, { users: [] });
-  const raw = await readFile(USERS_FILE, 'utf8');
-  cache = JSON.parse(raw);
-  return cache;
-}
-
-export async function saveUsers(data) {
-  cache = data;
-  await ensureFile(USERS_FILE, { users: [] });
-  await writeFile(USERS_FILE, JSON.stringify(data, null, 2), 'utf8');
+  const { rows } = await pool.query('SELECT * FROM users ORDER BY created_at DESC');
+  return { users: rows.map(mapUserRow) };
 }
 
 export async function findByEmail(email) {
-  const db = await getUsers();
-  return db.users.find((u) => u.email === email) || null;
+  if (!email) return null;
+  const { rows } = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+  return mapUserRow(rows[0]);
 }
 
 export async function findById(id) {
-  const db = await getUsers();
-  return db.users.find((u) => u.id === id) || null;
+  if (!id) return null;
+  const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+  return mapUserRow(rows[0]);
 }
 
 export async function createUser(user) {
-  const db = await getUsers();
-  db.users.push(user);
-  await saveUsers(db);
-  return user;
+  const wallet = user.wallet || {};
+  const { rows } = await pool.query(
+    `INSERT INTO users (id, name, email, password, role, wallet_balance, wallet_currency, flw_customer_id, orders, transactions, pending_funds, virtual_account, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+     RETURNING *`,
+    [
+      user.id,
+      user.name,
+      user.email.trim().toLowerCase(),
+      user.password,
+      user.role || 'user',
+      Number(wallet.balance) || 0,
+      wallet.currency || 'NGN',
+      wallet.flwCustomerId || null,
+      JSON.stringify(user.orders || []),
+      JSON.stringify(wallet.transactions || []),
+      JSON.stringify(wallet.pendingFunds || {}),
+      wallet.virtualAccount ? JSON.stringify(wallet.virtualAccount) : null,
+      user.createdAt || new Date().toISOString()
+    ]
+  );
+  return mapUserRow(rows[0]);
 }
 
 export async function updateUser(id, updates) {
-  const db = await getUsers();
-  const idx = db.users.findIndex((u) => u.id === id);
-  if (idx === -1) return null;
-  db.users[idx] = { ...db.users[idx], ...updates };
-  await saveUsers(db);
-  return db.users[idx];
+  const existing = await findById(id);
+  if (!existing) return null;
+
+  const name = updates.name !== undefined ? updates.name : existing.name;
+  const email = updates.email !== undefined ? updates.email.trim().toLowerCase() : existing.email;
+  const password = updates.password !== undefined ? updates.password : existing.password;
+  const role = updates.role !== undefined ? updates.role : existing.role;
+
+  const walletUpdates = updates.wallet || {};
+  const walletBalance = walletUpdates.balance !== undefined ? Number(walletUpdates.balance) : existing.wallet.balance;
+  const walletCurrency = walletUpdates.currency !== undefined ? walletUpdates.currency : existing.wallet.currency;
+  const flwCustomerId = walletUpdates.flwCustomerId !== undefined ? walletUpdates.flwCustomerId : existing.wallet.flwCustomerId;
+  const transactions = walletUpdates.transactions !== undefined ? walletUpdates.transactions : existing.wallet.transactions;
+  const pendingFunds = walletUpdates.pendingFunds !== undefined ? walletUpdates.pendingFunds : existing.wallet.pendingFunds;
+  const virtualAccount = walletUpdates.virtualAccount !== undefined ? walletUpdates.virtualAccount : existing.wallet.virtualAccount;
+
+  const orders = updates.orders !== undefined ? updates.orders : existing.orders;
+
+  const { rows } = await pool.query(
+    `UPDATE users
+     SET name = $1, email = $2, password = $3, role = $4,
+         wallet_balance = $5, wallet_currency = $6, flw_customer_id = $7,
+         orders = $8, transactions = $9, pending_funds = $10, virtual_account = $11
+     WHERE id = $12
+     RETURNING *`,
+    [
+      name,
+      email,
+      password,
+      role,
+      walletBalance,
+      walletCurrency,
+      flwCustomerId,
+      JSON.stringify(orders),
+      JSON.stringify(transactions),
+      JSON.stringify(pendingFunds),
+      virtualAccount ? JSON.stringify(virtualAccount) : null,
+      id
+    ]
+  );
+  return mapUserRow(rows[0]);
 }
 
 export async function countUsers() {
-  const db = await getUsers();
-  return db.users.length;
+  const { rows } = await pool.query('SELECT COUNT(*) FROM users');
+  return parseInt(rows[0].count, 10);
 }
 
 export async function getUserOrders(userId) {
@@ -75,10 +124,8 @@ export async function getUserOrders(userId) {
 export async function addUserOrder(userId, order) {
   const user = await findById(userId);
   if (!user) return null;
-  if (!Array.isArray(user.orders)) user.orders = [];
-  user.orders.unshift(order);
-  user.orders = user.orders.slice(0, 500);
-  await saveUsers(await getUsers());
+  const orders = [order, ...(user.orders || [])].slice(0, 500);
+  await pool.query('UPDATE users SET orders = $1 WHERE id = $2', [JSON.stringify(orders), userId]);
   return order;
 }
 
@@ -88,7 +135,7 @@ export async function updateUserOrder(userId, orderRef, updates) {
   const idx = user.orders.findIndex((o) => o.order_ref === orderRef || o.ref === orderRef);
   if (idx === -1) return null;
   user.orders[idx] = { ...user.orders[idx], ...updates };
-  await saveUsers(await getUsers());
+  await pool.query('UPDATE users SET orders = $1 WHERE id = $2', [JSON.stringify(user.orders), userId]);
   return user.orders[idx];
 }
 
@@ -109,7 +156,7 @@ export async function ensureAdmin() {
     password: await bcrypt.hash(password, 10),
     role: 'admin',
     orders: [],
-    wallet: defaultWallet(),
+    wallet: { balance: 0, currency: 'NGN', transactions: [], pendingFunds: {}, virtualAccount: null },
     createdAt: new Date().toISOString()
   };
   await createUser(admin);
@@ -118,112 +165,202 @@ export async function ensureAdmin() {
 
 // ----- Catalog (products + sales) -----
 
-function defaultCatalog() {
-  return { products: { numbers: [], accounts: [] }, sales: [] };
-}
-
 export async function getCatalog() {
-  if (catalogCache) return catalogCache;
-  await ensureFile(CATALOG_FILE, defaultCatalog());
-  const raw = await readFile(CATALOG_FILE, 'utf8');
-  catalogCache = JSON.parse(raw);
-  if (!catalogCache.products) catalogCache.products = { numbers: [], accounts: [] };
-  if (!catalogCache.products.numbers) catalogCache.products.numbers = [];
-  if (!catalogCache.products.accounts) catalogCache.products.accounts = [];
-  if (!Array.isArray(catalogCache.sales)) catalogCache.sales = [];
-  return catalogCache;
-}
+  const { rows: numbers } = await pool.query('SELECT * FROM number_products ORDER BY created_at DESC');
+  const { rows: accounts } = await pool.query('SELECT * FROM account_products ORDER BY created_at DESC');
+  const { rows: sales } = await pool.query('SELECT * FROM sales ORDER BY created_at DESC LIMIT 5000');
 
-export async function saveCatalog(data) {
-  catalogCache = data;
-  await ensureFile(CATALOG_FILE, defaultCatalog());
-  await writeFile(CATALOG_FILE, JSON.stringify(data, null, 2), 'utf8');
+  return {
+    products: {
+      numbers: numbers.map((n) => ({
+        id: n.id,
+        server: n.server,
+        country: n.country,
+        countryName: n.country_name,
+        service: n.service,
+        serviceName: n.service_name,
+        price: Number(n.price),
+        currency: n.currency,
+        enabled: n.enabled,
+        createdAt: n.created_at ? new Date(n.created_at).toISOString() : new Date().toISOString()
+      })),
+      accounts: accounts.map((a) => ({
+        id: a.id,
+        platform: a.platform,
+        price: Number(a.price),
+        currency: a.currency,
+        desc: a.description,
+        enabled: a.enabled,
+        inventory: a.inventory || [],
+        createdAt: a.created_at ? new Date(a.created_at).toISOString() : new Date().toISOString()
+      }))
+    },
+    sales: sales.map((s) => ({
+      id: s.id,
+      userId: s.user_id,
+      userEmail: s.user_email,
+      userName: s.user_name,
+      type: s.type,
+      productId: s.product_id,
+      productName: s.product_name,
+      price: Number(s.price),
+      currency: s.currency,
+      status: s.status,
+      createdAt: s.created_at ? new Date(s.created_at).toISOString() : new Date().toISOString()
+    }))
+  };
 }
 
 export async function addNumberProduct(product) {
-  const db = await getCatalog();
-  db.products.numbers.unshift(product);
-  await saveCatalog(db);
+  await pool.query(
+    `INSERT INTO number_products (id, server, country, country_name, service, service_name, price, currency, enabled, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    [
+      product.id,
+      product.server,
+      product.country,
+      product.countryName || product.country,
+      product.service,
+      product.serviceName || product.service,
+      Number(product.price) || 0,
+      product.currency || 'NGN',
+      product.enabled ?? true,
+      product.createdAt || new Date().toISOString()
+    ]
+  );
   return product;
 }
 
 export async function updateNumberProduct(id, updates) {
-  const db = await getCatalog();
-  const idx = db.products.numbers.findIndex((p) => p.id === id);
-  if (idx === -1) return null;
-  db.products.numbers[idx] = { ...db.products.numbers[idx], ...updates };
-  await saveCatalog(db);
-  return db.products.numbers[idx];
+  const { rows } = await pool.query('SELECT * FROM number_products WHERE id = $1', [id]);
+  if (!rows[0]) return null;
+  const existing = rows[0];
+
+  const price = updates.price !== undefined ? Number(updates.price) : Number(existing.price);
+  const enabled = updates.enabled !== undefined ? Boolean(updates.enabled) : existing.enabled;
+
+  const { rows: updated } = await pool.query(
+    `UPDATE number_products SET price = $1, enabled = $2 WHERE id = $3 RETURNING *`,
+    [price, enabled, id]
+  );
+  const n = updated[0];
+  return {
+    id: n.id,
+    server: n.server,
+    country: n.country,
+    countryName: n.country_name,
+    service: n.service,
+    serviceName: n.service_name,
+    price: Number(n.price),
+    currency: n.currency,
+    enabled: n.enabled,
+    createdAt: n.created_at ? new Date(n.created_at).toISOString() : new Date().toISOString()
+  };
 }
 
 export async function removeNumberProduct(id) {
-  const db = await getCatalog();
-  db.products.numbers = db.products.numbers.filter((p) => p.id !== id);
-  await saveCatalog(db);
+  await pool.query('DELETE FROM number_products WHERE id = $1', [id]);
   return true;
 }
 
 export async function addAccountProduct(product) {
-  const db = await getCatalog();
-  db.products.accounts.unshift(product);
-  await saveCatalog(db);
+  await pool.query(
+    `INSERT INTO account_products (id, platform, price, currency, description, enabled, inventory, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      product.id,
+      product.platform,
+      Number(product.price) || 0,
+      product.currency || 'NGN',
+      product.desc || '',
+      product.enabled ?? true,
+      JSON.stringify(product.inventory || []),
+      product.createdAt || new Date().toISOString()
+    ]
+  );
   return product;
 }
 
 export async function updateAccountProduct(id, updates) {
-  const db = await getCatalog();
-  const idx = db.products.accounts.findIndex((p) => p.id === id);
-  if (idx === -1) return null;
-  db.products.accounts[idx] = { ...db.products.accounts[idx], ...updates };
-  await saveCatalog(db);
-  return db.products.accounts[idx];
+  const { rows } = await pool.query('SELECT * FROM account_products WHERE id = $1', [id]);
+  if (!rows[0]) return null;
+  const existing = rows[0];
+
+  const price = updates.price !== undefined ? Number(updates.price) : Number(existing.price);
+  const desc = updates.desc !== undefined ? String(updates.desc) : existing.description;
+  const enabled = updates.enabled !== undefined ? Boolean(updates.enabled) : existing.enabled;
+  const inventory = updates.inventory !== undefined ? updates.inventory : existing.inventory;
+
+  const { rows: updated } = await pool.query(
+    `UPDATE account_products SET price = $1, description = $2, enabled = $3, inventory = $4 WHERE id = $5 RETURNING *`,
+    [price, desc, enabled, JSON.stringify(inventory), id]
+  );
+  const a = updated[0];
+  return {
+    id: a.id,
+    platform: a.platform,
+    price: Number(a.price),
+    currency: a.currency,
+    desc: a.description,
+    enabled: a.enabled,
+    inventory: a.inventory || [],
+    createdAt: a.created_at ? new Date(a.created_at).toISOString() : new Date().toISOString()
+  };
 }
 
 export async function removeAccountProduct(id) {
-  const db = await getCatalog();
-  db.products.accounts = db.products.accounts.filter((p) => p.id !== id);
-  await saveCatalog(db);
+  await pool.query('DELETE FROM account_products WHERE id = $1', [id]);
   return true;
 }
 
 export async function recordSale(sale) {
-  const db = await getCatalog();
-  db.sales.unshift(sale);
-  db.sales = db.sales.slice(0, 5000);
-  await saveCatalog(db);
+  await pool.query(
+    `INSERT INTO sales (id, user_id, user_email, user_name, type, product_id, product_name, price, currency, status, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    [
+      sale.id,
+      sale.userId,
+      sale.userEmail || null,
+      sale.userName || null,
+      sale.type,
+      sale.productId,
+      sale.productName,
+      Number(sale.price) || 0,
+      sale.currency || 'NGN',
+      sale.status || 'completed',
+      sale.createdAt || new Date().toISOString()
+    ]
+  );
   return sale;
 }
 
 export async function getSales() {
-  const db = await getCatalog();
-  return db.sales;
+  const { rows } = await pool.query('SELECT * FROM sales ORDER BY created_at DESC LIMIT 5000');
+  return rows.map((s) => ({
+    id: s.id,
+    userId: s.user_id,
+    userEmail: s.user_email,
+    userName: s.user_name,
+    type: s.type,
+    productId: s.product_id,
+    productName: s.product_name,
+    price: Number(s.price),
+    currency: s.currency,
+    status: s.status,
+    createdAt: s.created_at ? new Date(s.created_at).toISOString() : new Date().toISOString()
+  }));
 }
 
-// ----- Wallet (single NGN currency) -----
-
-function defaultWallet() {
-  return { balance: 0, currency: 'NGN', transactions: [], pendingFunds: {}, virtualAccount: null };
-}
-
-function ensureWallet(user) {
-  if (!user.wallet) user.wallet = defaultWallet();
-  if (!Array.isArray(user.wallet.transactions)) user.wallet.transactions = [];
-  if (!user.wallet.pendingFunds || typeof user.wallet.pendingFunds !== 'object') {
-    user.wallet.pendingFunds = {};
-  }
-  if (!user.wallet.virtualAccount) user.wallet.virtualAccount = null;
-  return user.wallet;
-}
+// ----- Wallet -----
 
 export async function getUserWallet(userId) {
   const user = await findById(userId);
   if (!user) return null;
-  const wallet = ensureWallet(user);
   return {
-    balance: Number(wallet.balance) || 0,
+    balance: Number(user.wallet.balance) || 0,
     currency: 'NGN',
-    transactions: wallet.transactions,
-    virtualAccount: wallet.virtualAccount,
+    transactions: user.wallet.transactions,
+    virtualAccount: user.wallet.virtualAccount,
     usdToNgn: toNgn(1, 'USD')
   };
 }
@@ -231,42 +368,40 @@ export async function getUserWallet(userId) {
 export async function setPendingFund(userId, reference, fund) {
   const user = await findById(userId);
   if (!user) return null;
-  const wallet = ensureWallet(user);
-  wallet.pendingFunds[reference] = {
+  const pendingFunds = user.wallet.pendingFunds || {};
+  pendingFunds[reference] = {
     ...fund,
     userId,
     createdAt: fund.createdAt || new Date().toISOString()
   };
-  await saveUsers(await getUsers());
-  return wallet.pendingFunds[reference];
+  await pool.query('UPDATE users SET pending_funds = $1 WHERE id = $2', [JSON.stringify(pendingFunds), userId]);
+  return pendingFunds[reference];
 }
 
 export async function findPendingFund(reference) {
-  const db = await getUsers();
-  for (const user of db.users) {
-    const fund = user.wallet?.pendingFunds?.[reference];
-    if (fund) return { user, fund };
-  }
-  return null;
-}
-
-// Records a wallet transaction without touching the balance (credit already settled).
-function pushTransaction(wallet, entry) {
-  wallet.transactions.unshift(entry);
-  wallet.transactions = wallet.transactions.slice(0, 500);
+  const { rows } = await pool.query(
+    `SELECT * FROM users WHERE pending_funds ? $1`,
+    [reference]
+  );
+  if (!rows[0]) return null;
+  const user = mapUserRow(rows[0]);
+  const fund = user.wallet.pendingFunds[reference];
+  return { user, fund };
 }
 
 export async function creditUserWallet(userId, { amount, currency, reference, chargeId, meta }) {
   const user = await findById(userId);
   if (!user) return null;
-  const wallet = ensureWallet(user);
-  if (wallet.transactions.some((t) => t.reference === reference)) {
-    return { balance: wallet.balance, currency: 'NGN' };
+
+  const transactions = user.wallet.transactions || [];
+  if (transactions.some((t) => t.reference === reference)) {
+    return { balance: user.wallet.balance, currency: 'NGN' };
   }
+
   const ngn = toNgn(Number(amount), currency);
-  wallet.balance = (Number(wallet.balance) || 0) + ngn;
-  wallet.currency = 'NGN';
-  pushTransaction(wallet, {
+  const newBalance = (Number(user.wallet.balance) || 0) + ngn;
+
+  transactions.unshift({
     type: 'credit',
     kind: 'fund',
     amount: ngn,
@@ -277,8 +412,15 @@ export async function creditUserWallet(userId, { amount, currency, reference, ch
     createdAt: new Date().toISOString(),
     meta
   });
-  await saveUsers(await getUsers());
-  return { balance: wallet.balance, currency: 'NGN' };
+
+  const slicedTransactions = transactions.slice(0, 500);
+
+  await pool.query(
+    'UPDATE users SET wallet_balance = $1, wallet_currency = $2, transactions = $3 WHERE id = $4',
+    [newBalance, 'NGN', JSON.stringify(slicedTransactions), userId]
+  );
+
+  return { balance: newBalance, currency: 'NGN' };
 }
 
 export async function markFundSucceeded({ reference, chargeId, amount, currency, meta }) {
@@ -286,38 +428,37 @@ export async function markFundSucceeded({ reference, chargeId, amount, currency,
   if (!found) return false;
   const { user, fund } = found;
   if (fund.status === 'succeeded') return true;
-  const wallet = ensureWallet(user);
-  wallet.pendingFunds[reference] = {
+
+  const pendingFunds = user.wallet.pendingFunds || {};
+  pendingFunds[reference] = {
     ...fund,
     status: 'succeeded',
     chargeId,
     completedAt: new Date().toISOString(),
     raw: meta
   };
+
+  await pool.query('UPDATE users SET pending_funds = $1 WHERE id = $2', [JSON.stringify(pendingFunds), user.id]);
   await creditUserWallet(user.id, { amount, currency, reference, chargeId, meta });
   return true;
 }
 
 export async function setVirtualAccount(userId, virtualAccount) {
-  const user = await findById(userId);
-  if (!user) return null;
-  const wallet = ensureWallet(user);
-  wallet.virtualAccount = virtualAccount;
-  await saveUsers(await getUsers());
+  await pool.query('UPDATE users SET virtual_account = $1 WHERE id = $2', [JSON.stringify(virtualAccount), userId]);
   return virtualAccount;
 }
 
-// Deducts NGN from the wallet. Returns { ok, balance } or { ok:false, error:'insufficient' }.
 export async function debitWallet(userId, { amount, reference, meta }) {
   const user = await findById(userId);
   if (!user) return { ok: false, error: 'User not found' };
-  const wallet = ensureWallet(user);
-  const balance = Number(wallet.balance) || 0;
+
+  const balance = Number(user.wallet.balance) || 0;
   const cost = Number(amount) || 0;
   if (balance < cost) return { ok: false, error: 'insufficient' };
-  wallet.balance = balance - cost;
-  wallet.currency = 'NGN';
-  pushTransaction(wallet, {
+
+  const newBalance = balance - cost;
+  const transactions = user.wallet.transactions || [];
+  transactions.unshift({
     type: 'debit',
     kind: 'purchase',
     amount: cost,
@@ -327,11 +468,17 @@ export async function debitWallet(userId, { amount, reference, meta }) {
     createdAt: new Date().toISOString(),
     meta
   });
-  await saveUsers(await getUsers());
-  return { ok: true, balance: wallet.balance };
+
+  const slicedTransactions = transactions.slice(0, 500);
+
+  await pool.query(
+    'UPDATE users SET wallet_balance = $1, wallet_currency = $2, transactions = $3 WHERE id = $4',
+    [newBalance, 'NGN', JSON.stringify(slicedTransactions), userId]
+  );
+
+  return { ok: true, balance: newBalance };
 }
 
-// NGN is the base currency; USD credits convert at the admin-set rate.
 export function toNgn(amount, currency) {
   const value = Number(amount) || 0;
   if (currency === 'USD') {

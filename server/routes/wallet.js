@@ -5,6 +5,7 @@ import {
   setPendingFund,
   findPendingFund,
   markFundSucceeded,
+  creditUserWallet,
   findById,
   setVirtualAccount,
   updateUser
@@ -32,6 +33,35 @@ router.get('/', async (req, res, next) => {
   try {
     const wallet = await getUserWallet(req.user.id);
     res.json(wallet);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/wallet/test-fund { amount } — Sandbox instant top-up for testing
+router.post('/test-fund', async (req, res, next) => {
+  try {
+    const isSandbox = (process.env.FLW_BASE_URL || '').includes('sandbox') || process.env.NODE_ENV !== 'production';
+    if (!isSandbox) {
+      return res.status(403).json({ message: 'Test funding is only available in Sandbox / Development mode.' });
+    }
+    const { amount } = req.body || {};
+    const numAmount = Number(amount) || 10000;
+    if (numAmount <= 0) {
+      return res.status(400).json({ message: 'Amount must be positive.' });
+    }
+    const reference = generateReference();
+    const result = await creditUserWallet(req.user.id, {
+      amount: numAmount,
+      currency: 'NGN',
+      reference,
+      chargeId: 'sandbox_test_charge',
+      meta: { description: 'Sandbox test money top-up' }
+    });
+    res.json({
+      message: `Successfully credited ₦${numAmount.toLocaleString()} test balance!`,
+      wallet: result
+    });
   } catch (err) {
     next(err);
   }
