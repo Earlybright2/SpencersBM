@@ -244,10 +244,11 @@ router.get('/status', asyncRoute(async (req, res) => {
   if (!order_ref) return res.status(400).json({ message: 'order_ref is required' });
   const data = await ogRequest({ endpoint: 'status', order_ref });
   if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
-  if (data.sms || data.code || data.message) {
+  const smsCode = data.sms || data.code || data.otp || data.sms_code || data.message || null;
+  if (smsCode) {
     await updateUserOrder(req.user.id, order_ref, {
       status: 'received',
-      sms: data.sms || data.code || null,
+      sms: String(smsCode),
       lastCheckedAt: new Date().toISOString()
     });
   }

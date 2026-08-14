@@ -159,6 +159,7 @@ export default function Dashboard() {
     try {
       const res = await api.post('/orders/numbers', { productId: product.id });
       setLastPurchase(res.data.order);
+      setSuccessOpen(true);
       loadWallet(true);
       loadOrders(true);
     } catch (err) {
@@ -191,6 +192,23 @@ export default function Dashboard() {
     setCheckingSms(orderRef);
     try {
       await api.get('/orders/status', { params: { order_ref: orderRef } });
+      loadOrders(true);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setCheckingSms('');
+    }
+  };
+
+  const handleModalCheckSms = async (orderRef) => {
+    if (!orderRef || checkingSms) return;
+    setError('');
+    setCheckingSms(orderRef);
+    try {
+      await api.get('/orders/status', { params: { order_ref: orderRef } });
+      const res = await api.get('/orders');
+      const fresh = res.data.orders?.find((o) => o.order_ref === orderRef || o.id === orderRef);
+      if (fresh) setLastPurchase(fresh);
       loadOrders(true);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -772,7 +790,14 @@ export default function Dashboard() {
         </PanelCard>
       )}
 
-      <SuccessModal open={successOpen} order={lastPurchase} onClose={() => setSuccessOpen(false)} onViewAccounts={() => { setSuccessOpen(false); setTab('paid-accounts'); }} />
+      <SuccessModal
+        open={successOpen}
+        order={lastPurchase}
+        onClose={() => setSuccessOpen(false)}
+        onViewAccounts={() => { setSuccessOpen(false); setTab('paid-accounts'); }}
+        onCheckSms={handleModalCheckSms}
+        checkingSms={Boolean(checkingSms)}
+      />
     </DashboardLayout>
   );
 }

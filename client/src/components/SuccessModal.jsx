@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Check, Copy, Download, KeyRound } from 'lucide-react';
+import { Check, Copy, Download, KeyRound, MessageSquare } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { platformIcon } from '../data/marketplace.js';
 
-export default function SuccessModal({ open, order, onClose, onViewAccounts }) {
+export default function SuccessModal({ open, order, onClose, onViewAccounts, onCheckSms, checkingSms }) {
   const [toast, setToast] = useState('');
 
   if (!order) return null;
@@ -33,6 +33,7 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts }) {
         `Number: ${order.number || ''}`,
         `Status: ${order.status}`
       );
+      if (order.sms) lines.push(`SMS Code: ${order.sms}`);
     }
     lines.push('', 'Thank you for your purchase!', 'support@spencersbm.com');
     return lines.join('\n');
@@ -115,7 +116,22 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts }) {
             <InfoRow label="Phone Number" value={order.number || '—'} mono />
             <InfoRow label="Service" value={order.service} />
             <InfoRow label="Country" value={order.country} />
+            {order.sms ? (
+              <InfoRow label="SMS Code" value={order.sms} mono />
+            ) : (
+              <InfoRow label="SMS Code" value="Not received yet" />
+            )}
             <InfoRow label="Status" value={order.status} />
+            {order.status !== 'received' && onCheckSms && (
+              <button
+                onClick={() => onCheckSms(order.order_ref || order.id)}
+                disabled={Boolean(checkingSms)}
+                className="mt-4 w-full btn-ghost py-3 text-[0.85rem] disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                <MessageSquare size={16} strokeWidth={1.9} />
+                {checkingSms ? 'Checking…' : 'Check SMS Code'}
+              </button>
+            )}
           </>
         )}
       </div>
