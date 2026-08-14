@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, LayoutDashboard, Smartphone, UserRound, ReceiptText, Settings, KeyRound, ShoppingBag, LogOut } from 'lucide-react';
+import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Settings, KeyRound, ShoppingBag, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const navItems = [
   { to: '/dashboard?tab=overview', label: 'Overview', icon: LayoutDashboard },
   { to: '/dashboard?tab=numbers', label: 'Numbers', icon: Smartphone },
   { to: '/dashboard?tab=accounts', label: 'Accounts', icon: UserRound },
+  { to: '/dashboard?tab=paid-accounts', label: 'Paid Accounts', icon: KeyRound },
   { to: '/dashboard?tab=orders', label: 'Order History', icon: ReceiptText },
   { to: '/dashboard?tab=profile', label: 'Profile', icon: Settings }
 ];
@@ -44,7 +45,7 @@ function SidebarContent({ onNavigate }) {
         <p className="text-gray-500 text-[0.7rem] uppercase tracking-[0.2em] mt-1">Member Dashboard</p>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-[3px]">
+      <nav className="flex-1 px-3 py-4 space-y-[3px] overflow-y-auto">
         {navItems.map((item) => (
           <Link
             key={item.label}
@@ -62,18 +63,24 @@ function SidebarContent({ onNavigate }) {
         ))}
 
         <div className="pt-2.5 mt-2.5 border-t border-gold/10 space-y-[3px]">
+          {user?.role === 'admin' && (
+            <Link
+              to="/admin"
+              onClick={onNavigate}
+              className="flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium text-gray-400 hover:text-white hover:bg-white/5"
+            >
+              <span className="text-gold"><ShieldCheck size={18} strokeWidth={1.9} /></span>
+              Admin Panel
+            </Link>
+          )}
           <Link
-            to="/change-password"
+            to="/dashboard?tab=store"
             onClick={onNavigate}
-            className="flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium text-gray-400 hover:text-white hover:bg-white/5"
-          >
-            <span className="text-gold"><KeyRound size={18} strokeWidth={1.9} /></span>
-            Change Password
-          </Link>
-          <Link
-            to="/"
-            onClick={onNavigate}
-            className="flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium text-gray-400 hover:text-white hover:bg-white/5"
+            className={`flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium transition-all ${
+              isActive(pathname, search, { to: '/dashboard?tab=store' })
+                ? 'bg-gold/10 text-gold border border-gold/20'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
           >
             <span className="text-gold"><ShoppingBag size={18} strokeWidth={1.9} /></span>
             View Store

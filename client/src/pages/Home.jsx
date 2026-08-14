@@ -1,11 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Smartphone, UserRound, Zap, ShieldCheck, Globe, LifeBuoy, Search, ShoppingCart, MessageCircle, CreditCard, Mail, ChevronDown, Star } from 'lucide-react';
+import { Smartphone, UserRound, Zap, ShieldCheck, Globe, Headphones, Search, ShoppingCart, MessageCircle, CreditCard, Mail, ChevronDown, Star } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.jsx';
 import { countries } from '../data/marketplace.js';
 
 export default function Home() {
   const [faqOpen, setFaqOpen] = useState(0);
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Signed-in users land in their dashboard; guests go to the register page.
+  const go = () => navigate(user ? '/dashboard' : '/register');
 
   return (
     <div>
@@ -20,13 +25,13 @@ export default function Home() {
         </p>
         <div className="flex flex-col sm:flex-row gap-6 justify-center flex-wrap items-center animate-fade-in-up w-full sm:w-auto">
           <button
-            onClick={() => navigate('/register')}
+            onClick={() => go()}
             className="btn-gold px-10 py-4 text-base w-full sm:w-auto max-w-[300px] hover:-translate-y-[3px] hover:shadow-[0_15px_40px_rgba(212,175,55,0.4)]"
           >
             Buy Virtual Numbers
           </button>
           <button
-            onClick={() => navigate('/register')}
+            onClick={() => go()}
             className="btn-ghost px-10 py-4 text-base w-full sm:w-auto max-w-[300px]"
           >
             Buy Social Media Accounts
@@ -39,11 +44,11 @@ export default function Home() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 xl:gap-10">
           <div
             id="virtual-numbers"
-            onClick={() => navigate('/register')}
+            onClick={() => go()}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') navigate('/register');
+              if (e.key === 'Enter' || e.key === ' ') go();
             }}
             className="card-border relative overflow-hidden rounded-[15px] p-12 md:p-14 bg-gradient-to-br from-gold/5 to-gold/2 backdrop-blur-[10px] transition-all duration-[0.4s] hover:-translate-y-[10px] hover:border-gold/30 hover:shadow-[0_20px_60px_rgba(212,175,55,0.15)] animate-fade-in-up cursor-pointer"
           >
@@ -55,7 +60,7 @@ export default function Home() {
               Get instant access to virtual phone numbers from multiple countries. Perfect for verification, business communications, and global operations.
             </p>
             <button
-              onClick={() => navigate('/register')}
+              onClick={() => go()}
               className="btn-gold px-8 py-3.5 text-[0.95rem] hover:-translate-y-[2px] hover:shadow-[0_10px_30px_rgba(212,175,55,0.4)]"
             >
               Browse Numbers
@@ -64,11 +69,11 @@ export default function Home() {
 
           <div
             id="social-accounts"
-            onClick={() => navigate('/register')}
+            onClick={() => go()}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') navigate('/register');
+              if (e.key === 'Enter' || e.key === ' ') go();
             }}
             className="card-border relative overflow-hidden rounded-[15px] p-12 md:p-14 bg-gradient-to-br from-gold/5 to-gold/2 backdrop-blur-[10px] transition-all duration-[0.4s] hover:-translate-y-[10px] hover:border-gold/30 hover:shadow-[0_20px_60px_rgba(212,175,55,0.15)] animate-fade-in-up cursor-pointer"
           >
@@ -79,7 +84,7 @@ export default function Home() {
             <p className="text-gray-400 text-[1.05rem] mb-8">
               Access premium verified social media accounts ready to use. Boost your social presence with authentic, high-quality accounts.
             </p>
-            <button onClick={() => navigate('/register')} className="btn-gold px-8 py-3.5 text-[0.95rem] hover:-translate-y-[2px] hover:shadow-[0_10px_30px_rgba(212,175,55,0.4)]">
+            <button onClick={() => go()} className="btn-gold px-8 py-3.5 text-[0.95rem] hover:-translate-y-[2px] hover:shadow-[0_10px_30px_rgba(212,175,55,0.4)]">
               Browse Accounts
             </button>
           </div>
@@ -99,7 +104,7 @@ export default function Home() {
           {countries.map((c, i) => (
             <button
               key={c.name}
-              onClick={() => navigate('/register')}
+              onClick={() => go()}
               className="card-border group rounded-[14px] p-6 text-center bg-gradient-to-b from-gold/5 to-gold/1 hover:border-gold/30 hover:bg-gold/5 hover:-translate-y-[5px] transition-all duration-300"
               style={{ animation: `fadeInUp 0.8s ease ${0.05 * i}s both` }}
             >
@@ -119,7 +124,7 @@ export default function Home() {
             { icon: Zap, title: 'Instant Delivery', desc: 'Get your virtual numbers and accounts delivered instantly after purchase. No waiting, no delays.' },
             { icon: ShieldCheck, title: 'Secure Transactions', desc: 'Your data is protected with industry-leading encryption and security protocols for complete peace of mind.' },
             { icon: Globe, title: 'Global Coverage', desc: 'Access virtual numbers and accounts from across the globe. Connect anywhere, anytime.' },
-            { icon: LifeBuoy, title: '24/7 Support', desc: 'Our dedicated support team is available round the clock to help with any questions or issues.' }
+            { icon: Headphones, title: '24/7 Support', desc: 'Our dedicated support team is available round the clock to help with any questions or issues.' }
           ].map((feature, i) => (
             <div
               key={feature.title}
@@ -213,11 +218,11 @@ export default function Home() {
         </div>
         <div className="space-y-4">
           {[
-            { q: 'How fast is delivery?', a: 'Virtual numbers and social account credentials are delivered instantly to your email immediately after payment is confirmed.' },
+            { q: 'How fast is delivery?', a: 'Virtual numbers and social account credentials are delivered instantly to your dashboard immediately after payment is confirmed.' },
             { q: 'Are the social media accounts real?', a: 'Yes. We provide aged, real accounts with working credentials and recovery information. Every account is verified before listing.' },
             { q: 'Can I cancel a virtual number order?', a: 'Absolutely. Active numbers can be cancelled anytime from your dashboard, and multiple numbers can be purchased without any subscription.' },
             { q: 'Is my personal data safe?', a: 'Your data is protected end-to-end with encryption. We never share, sell or store your payment details beyond the transaction.' },
-            { q: 'Which payment methods do you accept?', a: 'We accept secure card and crypto payments. All transactions are encrypted end-to-end for your safety.' }
+            { q: 'Which payment methods do you accept?', a: 'Fund your wallet via bank transfer to your personal virtual account, OPay, or a US dollar card. Your purchases are then paid straight from your wallet balance.' }
           ].map((f, i) => {
             const open = faqOpen === i;
             return (

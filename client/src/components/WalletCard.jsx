@@ -1,28 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Wallet, Plus, ShieldCheck, Zap, Star, Copy, Check, Landmark } from 'lucide-react';
+import { useState } from 'react';
+import { Wallet, Plus, ShieldCheck, Zap, Star } from 'lucide-react';
 import FundWalletModal from './FundWalletModal.jsx';
 
 export default function WalletCard({ balance, onFunded }) {
   const [fundOpen, setFundOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(t);
-  }, [copied]);
-
-  const symbol = balance?.currency === 'USD' ? '$' : '\u20A6';
   const formatted = balance ? Number(balance.balance).toLocaleString('en-NG', { minimumFractionDigits: 2 }) : '0.00';
-
-  const copyAccount = async () => {
-    try {
-      await navigator.clipboard.writeText('0838174296');
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
+  const rate = balance?.usdToNgn || 1500;
 
   return (
     <>
@@ -37,11 +21,11 @@ export default function WalletCard({ balance, onFunded }) {
             </div>
             <div className="flex items-end gap-2.5">
               <span className="font-syne font-bold text-4xl md:text-[3rem] gold-gradient-text leading-none">
-                {symbol}{formatted}
+                {'\u20A6'}{formatted}
               </span>
             </div>
             <p className="text-gray-500 text-[0.88rem] mt-3 max-w-[440px]">
-              Top up in Naira (&#8358;) or Dollars ($) to buy virtual numbers and social media accounts.
+              Fund your wallet by bank transfer to your personal account, OPay, or a US dollar card. Purchases are paid from your balance.
             </p>
           </div>
 
@@ -55,26 +39,7 @@ export default function WalletCard({ balance, onFunded }) {
           </div>
         </div>
 
-        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-7 pt-5 border-t border-gold/10">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-[12px] bg-gold/10 border border-gold/25 flex items-center justify-center text-gold shrink-0">
-              <Landmark size={19} strokeWidth={1.8} />
-            </span>
-            <div>
-              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Bank / PAGA Transfers</div>
-              <div className="font-mono text-[1.02rem] tracking-wider text-white">0838174296</div>
-            </div>
-          </div>
-          <button
-            onClick={copyAccount}
-            className="btn-ghost px-5 py-2.5 text-[0.8rem] flex items-center justify-center gap-2 shrink-0"
-          >
-            {copied ? <Check size={16} strokeWidth={2} /> : <Copy size={16} strokeWidth={1.9} />}
-            {copied ? 'Copied!' : 'Copy Account'}
-          </button>
-        </div>
-
-        <div className="relative flex flex-wrap gap-x-8 gap-y-3 mt-5 text-[0.82rem]">
+        <div className="relative flex flex-wrap gap-x-8 gap-y-3 mt-7 pt-5 border-t border-gold/10 text-[0.82rem]">
           <span className="flex items-center gap-2 text-gray-500">
             <ShieldCheck size={15} strokeWidth={1.8} className="text-gold" /> Secure payments
           </span>
@@ -82,12 +47,12 @@ export default function WalletCard({ balance, onFunded }) {
             <Zap size={15} strokeWidth={1.8} className="text-gold" /> Instant balance
           </span>
           <span className="flex items-center gap-2 text-gray-500">
-            <Star size={15} strokeWidth={1.8} className="text-gold" /> Fund in &#8358; or $
+            <Star size={15} strokeWidth={1.8} className="text-gold" /> $1 = ₦{Number(rate).toLocaleString()}
           </span>
         </div>
       </div>
 
-      <FundWalletModal open={fundOpen} onClose={() => setFundOpen(false)} onFunded={onFunded} />
+      <FundWalletModal open={fundOpen} onClose={() => setFundOpen(false)} onFunded={onFunded} rate={rate} />
     </>
   );
 }

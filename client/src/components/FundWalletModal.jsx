@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
-import { X, Info, CheckCircle2, Loader2, AlertCircle, CreditCard } from 'lucide-react';
+import { X, Info, CheckCircle2, Loader2, AlertCircle, CreditCard, Landmark, Copy, Check, Smartphone } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
-
-const CURRENCIES = [
-  { code: 'NGN', symbol: '₦', label: 'Nigerian Naira', min: 1000, method: 'opay' },
-  { code: 'USD', symbol: '$', label: 'US Dollar', min: 10, method: 'card' }
-];
 
 const AVS_FIELDS = [
   { key: 'line1', label: 'Billing address (line 1)', placeholder: '221B Baker Street' },
@@ -14,6 +9,12 @@ const AVS_FIELDS = [
   { key: 'state', label: 'State', placeholder: 'Colorado' },
   { key: 'postal_code', label: 'Postal / ZIP code', placeholder: '94105' },
   { key: 'country', label: 'Country (2-letter)', placeholder: 'US' }
+];
+
+const METHODS = [
+  { id: 'bank', label: 'Bank Transfer', icon: Landmark, currency: 'NGN' },
+  { id: 'opay', label: 'OPay', icon: Smartphone, currency: 'NGN' },
+  { id: 'card', label: 'Card', icon: CreditCard, currency: 'USD' }
 ];
 
 function resolveAction(charge) {
@@ -42,8 +43,8 @@ function expiryOK(month, year) {
   return exp >= new Date(now.getFullYear(), now.getMonth(), 0);
 }
 
-export default function FundWalletModal({ open, onClose, onFunded }) {
-  const [currency, setCurrency] = useState(CURRENCIES[0]);
+export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }) {
+  const [method, setMethod] = useState('bank');
   const [amount, setAmount] = useState('');
   const [phone, setPhone] = useState('');
   const [card, setCard] = useState({ card_number: '', expiry_month: '', expiry_year: '', cvv: '' });
@@ -58,9 +59,13 @@ export default function FundWalletModal({ open, onClose, onFunded }) {
   const [message, setMessage] = useState('');
   const [successCharge, setSuccessCharge] = useState(null);
 
+  const [va, setVa] = useState(null);
+  const [loadingVa, setLoadingVa] = useState(false);
+  const [copied, setCopied] = useState('');
+
   useEffect(() => {
     if (open) {
-      setCurrency(CURRENCIES[0]);
+      setMethod('bank');
       setAmount('');
       setPhone('');
       setCard({ card_number: '', expiry_month: '', expiry_year: '', cvv: '' });
@@ -73,18 +78,51 @@ export default function FundWalletModal({ open, onClose, onFunded }) {
       setReference('');
       setMessage('');
       setSuccessCharge(null);
+      setVa(null);
+      setCopied('');
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(''), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
+
   if (!open) return null;
 
-  const method = currency.method;
+  const currency = method === 'card' ? 'USD' : 'NGN';
+  const symbol = currency === 'USD' ? '$' : '\u20A6';
   const numeric = Number(amount);
-  const valid = Number.isFinite(numeric) && numeric >= currency.min;
+  const min = currency === 'USD' ? 1 : 100;
+  const valid = Number.isFinite(numeric) && numeric >= min;
 
   const cardValid = /^\d{13,19}$/.test(card.card_number.replace(/\s/g, '')) &&
     expiryOK(card.expiry_month, card.expiry_year) &&
     /^\d{3,4}$/.test(card.cvv);
+
+  const copyText = async (text, key) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+    } catch {
+      setCopied('');
+    }
+  };
+
+  const loadVirtualAccount = async () => {
+    if (!valid || method !== 'bank') return;
+    setLoadingVa(true);
+    setError('');
+    try {
+      const res = await api.post('/wallet/virtual-account', { amount: numeric });
+      setVa(res.data.virtualAccount);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoadingVa(false);
+    }
+  };
 
   const finish = (charge) => {
     const action = resolveAction(charge);
@@ -123,7 +161,7 @@ export default function FundWalletModal({ open, onClose, onFunded }) {
     setError('');
     setStep('processing');
     try {
-      const payload = { currency: currency.code, amount: numeric, method };
+      const payload = { currency, amount: numeric, method: method === 'card' ? 'card' : 'opay' };
       if (method === 'opay' && phone) payload.phone = phone;
       if (method === 'card') {
         payload.card = {
@@ -177,7 +215,7 @@ export default function FundWalletModal({ open, onClose, onFunded }) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-gradient-to-br from-[#1e1e1e]/98 to-[#141414]/98 border border-gold/20 rounded-[15px] p-6 md:p-8 w-full max-w-[480px] relative animate-fade-in-up max-h-[88vh] overflow-y-auto">
+      <div className="bg-gradient-to-br from-[#1e1e1e]/98 to-[#141414]/98 border border-gold/20 rounded-[15px] p-6 md:p-8 w-full max-w-[500px] relative animate-fade-in-up max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="font-syne text-xl md:text-[1.6rem]">
             {step === 'auth' ? 'Confirm Payment' : 'Fund Your Wallet'}
@@ -200,139 +238,227 @@ export default function FundWalletModal({ open, onClose, onFunded }) {
         )}
 
         {step === 'form' && (
-          <form onSubmit={handleInitiate}>
-            <label className="block text-[0.8rem] uppercase tracking-wider text-gray-500 mb-3">Select currency</label>
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {CURRENCIES.map((c) => {
-                const active = currency.code === c.code;
+          <>
+            <label className="block text-[0.8rem] uppercase tracking-wider text-gray-500 mb-3">Payment method</label>
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              {METHODS.map((m) => {
+                const active = method === m.id;
                 return (
                   <button
-                    key={c.code}
+                    key={m.id}
                     type="button"
                     onClick={() => {
-                      setCurrency(c);
+                      setMethod(m.id);
                       setAmount('');
+                      setError('');
                     }}
-                    className={`flex flex-col items-center gap-1.5 px-4 py-4 rounded-[12px] border transition-all ${
+                    className={`flex flex-col items-center gap-2 px-2 py-4 rounded-[12px] border transition-all ${
                       active
                         ? 'border-gold bg-gold/10 text-gold'
                         : 'border-gold/20 bg-white/3 text-gray-400 hover:border-gold/40 hover:text-white'
                     }`}
                   >
-                    <span className="text-xl font-semibold">{c.symbol}</span>
-                    <span className="text-[0.9rem] font-medium">{c.code}</span>
-                    <span className="text-[0.72rem] text-gray-500">{c.label}</span>
+                    <m.icon size={22} strokeWidth={1.7} />
+                    <span className="text-[0.82rem] font-medium">{m.label}</span>
+                    <span className="text-[0.68rem] text-gray-500">{m.currency}</span>
                   </button>
                 );
               })}
             </div>
 
-            <label htmlFor="fundAmount" className="block text-[0.8rem] uppercase tracking-wider text-gray-500 mb-2">
-              Amount
-            </label>
-            <div className="relative mb-5">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gold text-lg font-semibold">
-                {currency.symbol}
-              </span>
-              <input
-                id="fundAmount"
-                type="number"
-                min={currency.min}
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder={`Min. ${currency.symbol}${currency.min.toLocaleString()}`}
-                className={inputCls + ' pl-11'}
-              />
-            </div>
-
-            {method === 'opay' ? (
-              <div className="mb-5">
-                <label htmlFor="opayPhone" className="block text-[0.8rem] uppercase tracking-wider text-gray-500 mb-2">
-                  OPay phone number (optional)
+            {method === 'bank' ? (
+              <div>
+                <label htmlFor="bankAmount" className="block text-[0.8rem] uppercase tracking-wider text-gray-500 mb-2">
+                  Amount you want to fund ({currency})
                 </label>
-                <input
-                  id="opayPhone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="08012345678"
-                  className={inputCls}
-                />
-                <p className="text-[0.78rem] text-[#707070] mt-2">
-                  You&apos;ll be redirected to OPay to authorise the payment in the app.
-                </p>
+                <div className="relative mb-4">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gold text-lg font-semibold">
+                    {symbol}
+                  </span>
+                  <input
+                    id="bankAmount"
+                    type="number"
+                    min={min}
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                      setVa(null);
+                      setError('');
+                    }}
+                    placeholder={`Min. ${symbol}${min.toLocaleString()}`}
+                    className={inputCls + ' pl-11'}
+                  />
+                </div>
+                {loadingVa ? (
+                  <div className="text-center py-8 text-gray-400">
+                    <Loader2 size={30} strokeWidth={1.6} className="animate-spin text-gold mx-auto mb-3" />
+                    Generating your payment account…
+                  </div>
+                ) : va ? (
+                  <div className="bg-gold/8 border border-gold/20 rounded-[12px] p-5">
+                    <p className="text-[0.8rem] text-gray-400 mb-4">
+                      Transfer <span className="text-gold font-semibold">₦{Number(va.amount || amount).toLocaleString()}</span>{' '}
+                      to this account. Your wallet is credited automatically once the transfer is received.
+                    </p>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3 bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3">
+                        <div>
+                          <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Bank</div>
+                          <div className="font-medium text-[0.95rem]">{va.bank_name || '—'}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3">
+                        <div>
+                          <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Account Name</div>
+                          <div className="font-medium text-[0.95rem]">{va.account_name || '—'}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3">
+                        <div>
+                          <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Account Number</div>
+                          <div className="font-mono text-[1.1rem] tracking-wider text-gold">{va.account_number || '—'}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyText(String(va.account_number || ''), 'number')}
+                          className="btn-ghost px-4 py-2 text-[0.8rem] flex items-center gap-1.5 shrink-0"
+                        >
+                          {copied === 'number' ? <Check size={15} /> : <Copy size={15} />}
+                          {copied === 'number' ? 'Copied' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[0.72rem] text-gray-500 mt-4">
+                      Transfer exactly the amount shown using your banking app or USSD, then wait a few moments for the credit.
+                      The account number expires after a while, so make the transfer promptly.
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={loadVirtualAccount}
+                    disabled={!valid}
+                    className="w-full btn-ghost py-4 text-[0.95rem] rounded-[12px] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Generate my bank account
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="space-y-3 mb-5">
-                <label htmlFor="cardNumber" className="block text-[0.8rem] uppercase tracking-wider text-gray-500">
-                  Card number
+              <form onSubmit={handleInitiate}>
+                <label htmlFor="fundAmount" className="block text-[0.8rem] uppercase tracking-wider text-gray-500 mb-2">
+                  Amount ({currency})
                 </label>
-                <input
-                  id="cardNumber"
-                  inputMode="numeric"
-                  value={card.card_number}
-                  onChange={(e) => setCard({ ...card, card_number: e.target.value.replace(/[^\d ]/g, '') })}
-                  placeholder="1234 5678 9012 3456"
-                  className={inputCls}
-                />
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label htmlFor="cardMonth" className="block text-[0.7rem] uppercase tracking-wider text-gray-500 mb-1.5">
-                      Month
-                    </label>
-                    <input
-                      id="cardMonth"
-                      inputMode="numeric"
-                      value={card.expiry_month}
-                      onChange={(e) => setCard({ ...card, expiry_month: e.target.value.replace(/\D/g, '').slice(0, 2) })}
-                      placeholder="MM"
-                      className={inputCls + ' text-center'}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="cardYear" className="block text-[0.7rem] uppercase tracking-wider text-gray-500 mb-1.5">
-                      Year
-                    </label>
-                    <input
-                      id="cardYear"
-                      inputMode="numeric"
-                      value={card.expiry_year}
-                      onChange={(e) => setCard({ ...card, expiry_year: e.target.value.replace(/\D/g, '').slice(0, 2) })}
-                      placeholder="YY"
-                      className={inputCls + ' text-center'}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="cardCvv" className="block text-[0.7rem] uppercase tracking-wider text-gray-500 mb-1.5">
-                      CVV
-                    </label>
-                    <input
-                      id="cardCvv"
-                      inputMode="numeric"
-                      value={card.cvv}
-                      onChange={(e) => setCard({ ...card, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                      placeholder="123"
-                      className={inputCls + ' text-center'}
-                    />
-                  </div>
+                <div className="relative mb-5">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gold text-lg font-semibold">
+                    {symbol}
+                  </span>
+                  <input
+                    id="fundAmount"
+                    type="number"
+                    min={min}
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder={`Min. ${symbol}${min.toLocaleString()}`}
+                    className={inputCls + ' pl-11'}
+                  />
                 </div>
-                <div className="flex items-center gap-2 text-[0.78rem] text-[#707070]">
-                  <CreditCard size={15} strokeWidth={1.8} className="text-gold shrink-0" />
-                  Card details are encrypted end-to-end. {currency.symbol}
-                  {numeric > 0 ? numeric.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0.00'} {currency.code}
-                </div>
-              </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={!valid || (method === 'card' && !cardValid)}
-              className="w-full btn-gold py-4 text-[1.02rem] rounded-[14px] disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 hover:shadow-[0_10px_40px_rgba(212,175,55,0.4)] transition-all duration-300"
-            >
-              {method === 'opay' ? 'Continue with OPay' : `Pay ${currency.symbol}${valid ? numeric.toLocaleString(undefined, { maximumFractionDigits: 2 }) : ''}`}
-            </button>
-          </form>
+                {method === 'opay' ? (
+                  <div className="mb-5">
+                    <label htmlFor="opayPhone" className="block text-[0.8rem] uppercase tracking-wider text-gray-500 mb-2">
+                      OPay phone number (optional)
+                    </label>
+                    <input
+                      id="opayPhone"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="08012345678"
+                      className={inputCls}
+                    />
+                    <p className="text-[0.78rem] text-[#707070] mt-2">
+                      You&apos;ll be redirected to OPay to authorise the payment in the app.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 mb-5">
+                    <p className="text-[0.78rem] text-[#707070]">
+                      Card payments are taken in USD and converted to Naira (₦{Number(rate).toLocaleString()} = $1) in your wallet.
+                    </p>
+                    <label htmlFor="cardNumber" className="block text-[0.8rem] uppercase tracking-wider text-gray-500">
+                      Card number
+                    </label>
+                    <input
+                      id="cardNumber"
+                      inputMode="numeric"
+                      value={card.card_number}
+                      onChange={(e) => setCard({ ...card, card_number: e.target.value.replace(/[^\d ]/g, '') })}
+                      placeholder="1234 5678 9012 3456"
+                      className={inputCls}
+                    />
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label htmlFor="cardMonth" className="block text-[0.7rem] uppercase tracking-wider text-gray-500 mb-1.5">
+                          Month
+                        </label>
+                        <input
+                          id="cardMonth"
+                          inputMode="numeric"
+                          value={card.expiry_month}
+                          onChange={(e) => setCard({ ...card, expiry_month: e.target.value.replace(/\D/g, '').slice(0, 2) })}
+                          placeholder="MM"
+                          className={inputCls + ' text-center'}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="cardYear" className="block text-[0.7rem] uppercase tracking-wider text-gray-500 mb-1.5">
+                          Year
+                        </label>
+                        <input
+                          id="cardYear"
+                          inputMode="numeric"
+                          value={card.expiry_year}
+                          onChange={(e) => setCard({ ...card, expiry_year: e.target.value.replace(/\D/g, '').slice(0, 2) })}
+                          placeholder="YY"
+                          className={inputCls + ' text-center'}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="cardCvv" className="block text-[0.7rem] uppercase tracking-wider text-gray-500 mb-1.5">
+                          CVV
+                        </label>
+                        <input
+                          id="cardCvv"
+                          inputMode="numeric"
+                          value={card.cvv}
+                          onChange={(e) => setCard({ ...card, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                          placeholder="123"
+                          className={inputCls + ' text-center'}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-[0.78rem] text-[#707070]">
+                      <CreditCard size={15} strokeWidth={1.8} className="text-gold shrink-0" />
+                      Card details are encrypted end-to-end.
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!valid || (method === 'card' && !cardValid)}
+                  className="w-full btn-gold py-4 text-[1.02rem] rounded-[14px] disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 hover:shadow-[0_10px_40px_rgba(212,175,55,0.4)] transition-all duration-300"
+                >
+                  {method === 'opay'
+                    ? 'Continue with OPay'
+                    : `Pay ${symbol}${valid ? numeric.toLocaleString(undefined, { maximumFractionDigits: 2 }) : ''}`}
+                </button>
+              </form>
+            )}
+          </>
         )}
 
         {step === 'auth' && (
@@ -420,7 +546,7 @@ export default function FundWalletModal({ open, onClose, onFunded }) {
             </h3>
             <p className="text-gray-400 text-[0.95rem] mb-3">
               {successCharge
-                ? `You topped up ${currency.symbol}${numeric.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${currency.code}. Your wallet has been credited.`
+                ? `You topped up ${symbol}${numeric.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${currency}. Your wallet has been credited.`
                 : message || 'Your wallet will be credited once the payment is confirmed.'}
             </p>
             {reference && (

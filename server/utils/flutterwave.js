@@ -201,6 +201,47 @@ export async function getCharge(chargeId) {
   return flwRequest(`/charges/${chargeId}`);
 }
 
+// Creates a Flutterwave customer and returns its ID (required for virtual accounts).
+export async function createCustomer({ email, name }) {
+  const body = { email, name: { first: 'Customer', last: 'Customer' } };
+  const parts = (name || 'Customer').trim().split(/\s+/);
+  if (parts[0]) body.name.first = parts[0];
+  if (parts.length > 1) body.name.last = parts[parts.length - 1];
+  return flwRequest('/customers', { method: 'POST', body });
+}
+
+// Returns the existing customer ID for an email, or creates the customer.
+export async function getOrCreateCustomer({ email, name }) {
+  const lookup = await flwRequest(`/customers?email=${encodeURIComponent(email)}`);
+  if (flwOk(lookup)) {
+    const match = (lookup.data || []).find(
+      (c) => String(c.email).toLowerCase() === String(email).toLowerCase()
+    );
+    if (match?.id) return { ok: true, customerId: match.id };
+  }
+  const created = await createCustomer({ email, name });
+  if (flwOk(created) && created.data?.id) {
+    return { ok: true, customerId: created.data.id };
+  }
+  return { ok: false, response: created };
+}
+
+// Creates a NGN virtual bank account for a customer. Static accounts are
+// permanent (require BVN/NIN in production); dynamic accounts are generated per
+// funding session and expire after use. When money is transferred to the
+// account Flutterwave fires a `charge.completed` webhook.
+export async function createVirtualAccount({ reference, customerId, type = 'dynamic', amount }) {
+  const body = {
+    type,
+    account_type: type,
+    reference,
+    customer_id: customerId,
+    currency: 'NGN'
+  };
+  if (amount !== undefined && amount !== null) body.amount = amount;
+  return flwRequest('/virtual-accounts', { method: 'POST', body });
+}
+
 // --- Webhooks ---
 
 export function verifyWebhookSignature(rawBody, signature) {

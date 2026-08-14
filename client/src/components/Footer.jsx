@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Bird, Camera, ThumbsUp, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { TwitterIcon, InstagramIcon, WhatsAppIcon, TelegramIcon } from './SocialIcons.jsx';
 
 const company = [
   { label: 'Home', to: '/' },
@@ -15,10 +15,7 @@ export default function Footer() {
   const { user } = useAuth();
 
   const accountLinks = user
-    ? [
-        { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Change Password', to: '/change-password' }
-      ]
+    ? [{ label: 'Dashboard', to: '/dashboard' }]
     : [
         { label: 'Login', to: '/login' },
         { label: 'Get Started', to: '/register' }
@@ -39,10 +36,10 @@ export default function Footer() {
             </p>
             <div className="flex items-center gap-3 mt-6">
               {[
-                { label: 'X', href: '#', icon: Bird },
-                { label: 'Instagram', href: '#', icon: Camera },
-                { label: 'Facebook', href: '#', icon: ThumbsUp },
-                { label: 'Telegram', href: '#', icon: Send }
+                { label: 'Twitter', href: '#', icon: TwitterIcon },
+                { label: 'Instagram', href: '#', icon: InstagramIcon },
+                { label: 'WhatsApp', href: '#', icon: WhatsAppIcon },
+                { label: 'Telegram', href: '#', icon: TelegramIcon }
               ].map((s) => (
                 <a
                   key={s.label}
@@ -50,7 +47,7 @@ export default function Footer() {
                   aria-label={s.label}
                   className="w-10 h-10 flex items-center justify-center rounded-full bg-gold/10 border border-gold/15 text-gold hover:bg-gold hover:text-night transition-all"
                 >
-                  <s.icon size={18} strokeWidth={1.8} />
+                  <s.icon size={18} />
                 </a>
               ))}
             </div>
@@ -85,11 +82,6 @@ export default function Footer() {
                   </Link>
                 </li>
               ))}
-              <li>
-                <Link to="/change-password" className="text-gray-400 text-[0.92rem] hover:text-gold transition-colors">
-                  Change Password
-                </Link>
-              </li>
             </ul>
           </div>
 

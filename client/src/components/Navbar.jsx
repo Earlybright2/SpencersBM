@@ -17,9 +17,12 @@ const pricingDropdown = [
 ];
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Signed-in users land on their dashboard; guests go to the register page.
+  const target = user ? '/dashboard' : '/register';
 
   const handleAnchor = (to) => {
     setMobileOpen(false);
@@ -38,11 +41,6 @@ export default function Navbar() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
   return (
     <header className="sticky top-0 z-1000 bg-night/95 backdrop-blur-[10px] border-b border-gold/10 px-4 md:px-8 py-4">
       <div className="max-w-[1400px] mx-auto flex items-center justify-between">
@@ -52,10 +50,18 @@ export default function Navbar() {
 
         <nav className="hidden lg:flex items-center gap-6 xl:gap-8">
           {navLinks.map((link) =>
-            link.label === 'Pricing' ? (
+            link.label === 'Register' ? (
+              <button
+                key={link.label}
+                onClick={() => navigate(target)}
+                className="relative text-[0.95rem] text-gray-300 font-medium hover:text-white after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-[2px] after:bg-gold after:transition-all hover:after:w-full"
+              >
+                {user ? 'Dashboard' : link.label}
+              </button>
+            ) : link.label === 'Pricing' ? (
               <div key={link.label} className="relative group">
                 <button
-                  onClick={() => handleAnchor(link.to)}
+                  onClick={() => navigate(target)}
                   className="relative flex items-center gap-1 text-[0.95rem] text-gray-300 font-medium hover:text-white after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-[2px] after:bg-gold after:transition-all hover:after:w-full"
                 >
                   {link.label}
@@ -66,7 +72,7 @@ export default function Navbar() {
                     {pricingDropdown.map((item) => (
                       <button
                         key={item.label}
-                        onClick={() => handleAnchor(item.to)}
+                        onClick={() => navigate(target)}
                         className="w-full flex items-center gap-3 text-left px-4 py-3 rounded-[8px] text-[0.92rem] text-gray-300 hover:text-gold hover:bg-gold/10 transition-colors"
                       >
                         <span className="text-gold">
@@ -91,29 +97,7 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3">
-          {user ? (
-            <div className="flex items-center gap-3">
-              <Link
-                to="/dashboard"
-                className="hidden md:inline-block text-[0.9rem] text-gray-300 font-medium hover:text-gold"
-              >
-                Dashboard
-              </Link>
-              <Link
-                to="/change-password"
-                className="hidden md:inline-block text-[0.9rem] text-gray-300 font-medium hover:text-gold"
-              >
-                Change Password
-              </Link>
-              <span className="hidden md:inline-block text-[0.9rem] text-gold">Hi, {user.name.split(' ')[0]}</span>
-              <button
-                onClick={handleLogout}
-                className="btn-ghost px-4 py-2 text-[0.85rem]"
-              >
-                Logout
-              </button>
-            </div>
-          ) : (
+          {!user && (
             <div className="flex items-center gap-3">
               <NavLink
                 to="/login"
@@ -147,10 +131,10 @@ export default function Navbar() {
           {navLinks.map((link) => (
             <div key={link.label} className="flex flex-col gap-1">
               <button
-                onClick={() => handleAnchor(link.to)}
+                onClick={() => (link.label === 'Register' ? navigate(target) : handleAnchor(link.to))}
                 className="text-gray-300 text-left hover:text-gold py-1 flex items-center gap-2"
               >
-                {link.label}
+                {link.label === 'Register' && user ? 'Dashboard' : link.label}
                 {link.label === 'Pricing' && (
                   <ChevronDown size={15} strokeWidth={2} className={`text-gold transition-transform duration-300 ${mobileOpen ? 'rotate-180' : ''}`} />
                 )}
@@ -159,7 +143,10 @@ export default function Navbar() {
                 pricingDropdown.map((item) => (
                   <button
                     key={item.label}
-                    onClick={() => handleAnchor(item.to)}
+                    onClick={() => {
+                      setMobileOpen(false);
+                      navigate(target);
+                    }}
                     className="flex items-center gap-3 text-[0.9rem] text-gray-400 text-left pl-6 py-1.5 hover:text-gold"
                   >
                     <item.icon size={15} strokeWidth={1.9} className="text-gold" />
@@ -169,17 +156,7 @@ export default function Navbar() {
             </div>
           ))}
           <div className="flex flex-col gap-3 pt-2">
-            {user ? (
-              <>
-                <Link to="/dashboard" onClick={() => setMobileOpen(false)} className="text-gray-300 hover:text-gold">
-                  Dashboard
-                </Link>
-                <Link to="/change-password" onClick={() => setMobileOpen(false)} className="text-gray-300 hover:text-gold">
-                  Change Password
-                </Link>
-                <button onClick={handleLogout} className="btn-ghost px-4 py-2">Logout</button>
-              </>
-            ) : (
+            {!user && (
               <>
                 <Link to="/login" onClick={() => setMobileOpen(false)} className="text-gray-300 hover:text-gold">
                   Login

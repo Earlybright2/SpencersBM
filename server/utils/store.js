@@ -1,121 +1,70 @@
-import { pool } from './db.js';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import bcrypt from 'bcryptjs';
 
-let schemaReady = null;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const CATALOG_FILE = path.join(DATA_DIR, 'catalog.json');
 
-export function ensureSchema() {
-  if (!schemaReady) {
-    schemaReady = pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        orders JSONB NOT NULL DEFAULT '[]'::jsonb,
-        wallet JSONB NOT NULL DEFAULT '{"balance":0,"currency":"NGN","transactions":[],"pendingFunds":{}}'::jsonb,
-        reset_token TEXT,
-        reset_token_expiry TEXT,
-        created_at TEXT NOT NULL
-      )
-    `);
+let cache = null;
+let catalogCache = null;
+
+async function ensureFile(file, fallback) {
+  try {
+    await readFile(file, 'utf8');
+  } catch {
+    await mkdir(DATA_DIR, { recursive: true });
+    await writeFile(file, JSON.stringify(fallback, null, 2), 'utf8');
   }
-  return schemaReady;
 }
 
-function defaultWallet() {
-  return { balance: 0, currency: 'NGN', transactions: [], pendingFunds: {} };
-}
-
-function userFromRow(row) {
-  if (!row) return null;
-  const user = {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    password: row.password,
-    orders: Array.isArray(row.orders) ? row.orders : [],
-    wallet: row.wallet || defaultWallet(),
-    createdAt: row.created_at
-  };
-  if (row.reset_token) user.resetToken = row.reset_token;
-  if (row.reset_token_expiry) user.resetTokenExpiry = row.reset_token_expiry;
-  return user;
-}
-
-function paramsFromUser(u) {
-  return [
-    u.id,
-    u.name,
-    u.email,
-    u.password,
-    JSON.stringify(u.orders || []),
-    JSON.stringify(u.wallet || defaultWallet()),
-    u.resetToken || null,
-    u.resetTokenExpiry || null,
-    u.createdAt || new Date().toISOString()
-  ];
-}
-
-const UPSERT_SQL = `
-  INSERT INTO users (id, name, email, password, orders, wallet, reset_token, reset_token_expiry, created_at)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-  ON CONFLICT (id) DO UPDATE SET
-    name = EXCLUDED.name,
-    email = EXCLUDED.email,
-    password = EXCLUDED.password,
-    orders = EXCLUDED.orders,
-    wallet = EXCLUDED.wallet,
-    reset_token = EXCLUDED.reset_token,
-    reset_token_expiry = EXCLUDED.reset_token_expiry,
-    created_at = EXCLUDED.created_at
-`;
+// ----- Users -----
 
 export async function getUsers() {
-  await ensureSchema();
-  const { rows } = await pool.query('SELECT * FROM users ORDER BY created_at');
-  return { users: rows.map(userFromRow) };
+  if (cache) return cache;
+  await ensureFile(USERS_FILE, { users: [] });
+  const raw = await readFile(USERS_FILE, 'utf8');
+  cache = JSON.parse(raw);
+  return cache;
 }
 
 export async function saveUsers(data) {
-  await ensureSchema();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    for (const u of data.users || []) {
-      await client.query(UPSERT_SQL, paramsFromUser(u));
-    }
-    await client.query('COMMIT');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  cache = data;
+  await ensureFile(USERS_FILE, { users: [] });
+  await writeFile(USERS_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
 
 export async function findByEmail(email) {
-  await ensureSchema();
-  const { rows } = await pool.query('SELECT * FROM users WHERE email = $1 LIMIT 1', [email]);
-  return userFromRow(rows[0]);
+  const db = await getUsers();
+  return db.users.find((u) => u.email === email) || null;
 }
 
 export async function findById(id) {
-  await ensureSchema();
-  const { rows } = await pool.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [id]);
-  return userFromRow(rows[0]);
+  const db = await getUsers();
+  return db.users.find((u) => u.id === id) || null;
 }
 
 export async function createUser(user) {
-  await ensureSchema();
-  await pool.query(UPSERT_SQL, paramsFromUser(user));
+  const db = await getUsers();
+  db.users.push(user);
+  await saveUsers(db);
   return user;
 }
 
 export async function updateUser(id, updates) {
-  const current = await findById(id);
-  if (!current) return null;
-  const merged = { ...current, ...updates };
-  await pool.query(UPSERT_SQL, paramsFromUser(merged));
-  return merged;
+  const db = await getUsers();
+  const idx = db.users.findIndex((u) => u.id === id);
+  if (idx === -1) return null;
+  db.users[idx] = { ...db.users[idx], ...updates };
+  await saveUsers(db);
+  return db.users[idx];
+}
+
+export async function countUsers() {
+  const db = await getUsers();
+  return db.users.length;
 }
 
 export async function getUserOrders(userId) {
@@ -126,9 +75,10 @@ export async function getUserOrders(userId) {
 export async function addUserOrder(userId, order) {
   const user = await findById(userId);
   if (!user) return null;
-  const orders = Array.isArray(user.orders) ? [...user.orders] : [];
-  orders.unshift(order);
-  await updateUser(userId, { orders: orders.slice(0, 500) });
+  if (!Array.isArray(user.orders)) user.orders = [];
+  user.orders.unshift(order);
+  user.orders = user.orders.slice(0, 500);
+  await saveUsers(await getUsers());
   return order;
 }
 
@@ -138,11 +88,122 @@ export async function updateUserOrder(userId, orderRef, updates) {
   const idx = user.orders.findIndex((o) => o.order_ref === orderRef || o.ref === orderRef);
   if (idx === -1) return null;
   user.orders[idx] = { ...user.orders[idx], ...updates };
-  await updateUser(userId, { orders: user.orders });
+  await saveUsers(await getUsers());
   return user.orders[idx];
 }
 
-// ----- Per-user wallet (funded via Flutterwave) -----
+// ----- Admin seeding -----
+
+export async function ensureAdmin() {
+  const email = (process.env.ADMIN_EMAIL || 'admin@spencersbm').trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD || 'Admin@123';
+  const existing = await findByEmail(email);
+  if (existing) {
+    if (existing.role !== 'admin') await updateUser(existing.id, { role: 'admin' });
+    return existing;
+  }
+  const admin = {
+    id: 'admin-' + Date.now().toString(36),
+    name: 'SpencersBM Admin',
+    email,
+    password: await bcrypt.hash(password, 10),
+    role: 'admin',
+    orders: [],
+    wallet: defaultWallet(),
+    createdAt: new Date().toISOString()
+  };
+  await createUser(admin);
+  return admin;
+}
+
+// ----- Catalog (products + sales) -----
+
+function defaultCatalog() {
+  return { products: { numbers: [], accounts: [] }, sales: [] };
+}
+
+export async function getCatalog() {
+  if (catalogCache) return catalogCache;
+  await ensureFile(CATALOG_FILE, defaultCatalog());
+  const raw = await readFile(CATALOG_FILE, 'utf8');
+  catalogCache = JSON.parse(raw);
+  if (!catalogCache.products) catalogCache.products = { numbers: [], accounts: [] };
+  if (!catalogCache.products.numbers) catalogCache.products.numbers = [];
+  if (!catalogCache.products.accounts) catalogCache.products.accounts = [];
+  if (!Array.isArray(catalogCache.sales)) catalogCache.sales = [];
+  return catalogCache;
+}
+
+export async function saveCatalog(data) {
+  catalogCache = data;
+  await ensureFile(CATALOG_FILE, defaultCatalog());
+  await writeFile(CATALOG_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+export async function addNumberProduct(product) {
+  const db = await getCatalog();
+  db.products.numbers.unshift(product);
+  await saveCatalog(db);
+  return product;
+}
+
+export async function updateNumberProduct(id, updates) {
+  const db = await getCatalog();
+  const idx = db.products.numbers.findIndex((p) => p.id === id);
+  if (idx === -1) return null;
+  db.products.numbers[idx] = { ...db.products.numbers[idx], ...updates };
+  await saveCatalog(db);
+  return db.products.numbers[idx];
+}
+
+export async function removeNumberProduct(id) {
+  const db = await getCatalog();
+  db.products.numbers = db.products.numbers.filter((p) => p.id !== id);
+  await saveCatalog(db);
+  return true;
+}
+
+export async function addAccountProduct(product) {
+  const db = await getCatalog();
+  db.products.accounts.unshift(product);
+  await saveCatalog(db);
+  return product;
+}
+
+export async function updateAccountProduct(id, updates) {
+  const db = await getCatalog();
+  const idx = db.products.accounts.findIndex((p) => p.id === id);
+  if (idx === -1) return null;
+  db.products.accounts[idx] = { ...db.products.accounts[idx], ...updates };
+  await saveCatalog(db);
+  return db.products.accounts[idx];
+}
+
+export async function removeAccountProduct(id) {
+  const db = await getCatalog();
+  db.products.accounts = db.products.accounts.filter((p) => p.id !== id);
+  await saveCatalog(db);
+  return true;
+}
+
+export async function recordSale(sale) {
+  const db = await getCatalog();
+  db.sales.unshift(sale);
+  db.sales = db.sales.slice(0, 5000);
+  await saveCatalog(db);
+  return sale;
+}
+
+export async function getSales() {
+  const db = await getCatalog();
+  return db.sales;
+}
+
+// ----- Wallet (single NGN currency) -----
+
+function defaultWallet() {
+  return { balance: 0, currency: 'NGN', transactions: [], pendingFunds: {}, virtualAccount: null };
+}
 
 function ensureWallet(user) {
   if (!user.wallet) user.wallet = defaultWallet();
@@ -150,6 +211,7 @@ function ensureWallet(user) {
   if (!user.wallet.pendingFunds || typeof user.wallet.pendingFunds !== 'object') {
     user.wallet.pendingFunds = {};
   }
+  if (!user.wallet.virtualAccount) user.wallet.virtualAccount = null;
   return user.wallet;
 }
 
@@ -159,8 +221,10 @@ export async function getUserWallet(userId) {
   const wallet = ensureWallet(user);
   return {
     balance: Number(wallet.balance) || 0,
-    currency: wallet.currency,
-    transactions: wallet.transactions
+    currency: 'NGN',
+    transactions: wallet.transactions,
+    virtualAccount: wallet.virtualAccount,
+    usdToNgn: toNgn(1, 'USD')
   };
 }
 
@@ -173,20 +237,23 @@ export async function setPendingFund(userId, reference, fund) {
     userId,
     createdAt: fund.createdAt || new Date().toISOString()
   };
-  await updateUser(userId, { wallet });
+  await saveUsers(await getUsers());
   return wallet.pendingFunds[reference];
 }
 
 export async function findPendingFund(reference) {
-  await ensureSchema();
-  const { rows } = await pool.query(
-    `SELECT * FROM users WHERE wallet->'pendingFunds' ? $1 LIMIT 1`,
-    [reference]
-  );
-  const user = userFromRow(rows[0]);
-  if (!user) return null;
-  const fund = user.wallet?.pendingFunds?.[reference];
-  return fund ? { user, fund } : null;
+  const db = await getUsers();
+  for (const user of db.users) {
+    const fund = user.wallet?.pendingFunds?.[reference];
+    if (fund) return { user, fund };
+  }
+  return null;
+}
+
+// Records a wallet transaction without touching the balance (credit already settled).
+function pushTransaction(wallet, entry) {
+  wallet.transactions.unshift(entry);
+  wallet.transactions = wallet.transactions.slice(0, 500);
 }
 
 export async function creditUserWallet(userId, { amount, currency, reference, chargeId, meta }) {
@@ -194,23 +261,24 @@ export async function creditUserWallet(userId, { amount, currency, reference, ch
   if (!user) return null;
   const wallet = ensureWallet(user);
   if (wallet.transactions.some((t) => t.reference === reference)) {
-    return { balance: wallet.balance, currency: wallet.currency, transactions: wallet.transactions };
+    return { balance: wallet.balance, currency: 'NGN' };
   }
-  wallet.balance = (Number(wallet.balance) || 0) + Number(amount);
-  wallet.currency = currency;
-  wallet.transactions.unshift({
+  const ngn = toNgn(Number(amount), currency);
+  wallet.balance = (Number(wallet.balance) || 0) + ngn;
+  wallet.currency = 'NGN';
+  pushTransaction(wallet, {
     type: 'credit',
-    amount: Number(amount),
-    currency,
+    kind: 'fund',
+    amount: ngn,
+    currency: 'NGN',
     reference,
     chargeId,
     status: 'completed',
     createdAt: new Date().toISOString(),
     meta
   });
-  wallet.transactions = wallet.transactions.slice(0, 200);
-  await updateUser(userId, { wallet });
-  return { balance: wallet.balance, currency: wallet.currency, transactions: wallet.transactions };
+  await saveUsers(await getUsers());
+  return { balance: wallet.balance, currency: 'NGN' };
 }
 
 export async function markFundSucceeded({ reference, chargeId, amount, currency, meta }) {
@@ -226,7 +294,49 @@ export async function markFundSucceeded({ reference, chargeId, amount, currency,
     completedAt: new Date().toISOString(),
     raw: meta
   };
-  await updateUser(user.id, { wallet });
   await creditUserWallet(user.id, { amount, currency, reference, chargeId, meta });
   return true;
+}
+
+export async function setVirtualAccount(userId, virtualAccount) {
+  const user = await findById(userId);
+  if (!user) return null;
+  const wallet = ensureWallet(user);
+  wallet.virtualAccount = virtualAccount;
+  await saveUsers(await getUsers());
+  return virtualAccount;
+}
+
+// Deducts NGN from the wallet. Returns { ok, balance } or { ok:false, error:'insufficient' }.
+export async function debitWallet(userId, { amount, reference, meta }) {
+  const user = await findById(userId);
+  if (!user) return { ok: false, error: 'User not found' };
+  const wallet = ensureWallet(user);
+  const balance = Number(wallet.balance) || 0;
+  const cost = Number(amount) || 0;
+  if (balance < cost) return { ok: false, error: 'insufficient' };
+  wallet.balance = balance - cost;
+  wallet.currency = 'NGN';
+  pushTransaction(wallet, {
+    type: 'debit',
+    kind: 'purchase',
+    amount: cost,
+    currency: 'NGN',
+    reference,
+    status: 'completed',
+    createdAt: new Date().toISOString(),
+    meta
+  });
+  await saveUsers(await getUsers());
+  return { ok: true, balance: wallet.balance };
+}
+
+// NGN is the base currency; USD credits convert at the admin-set rate.
+export function toNgn(amount, currency) {
+  const value = Number(amount) || 0;
+  if (currency === 'USD') {
+    const rate = Number(process.env.USD_TO_NGN_RATE) || 1500;
+    return Math.round(value * rate);
+  }
+  return Math.round(value);
 }

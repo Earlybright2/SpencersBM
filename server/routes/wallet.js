@@ -4,7 +4,10 @@ import {
   getUserWallet,
   setPendingFund,
   findPendingFund,
-  markFundSucceeded
+  markFundSucceeded,
+  findById,
+  setVirtualAccount,
+  updateUser
 } from '../utils/store.js';
 import {
   isFlwConfigured,
@@ -15,6 +18,8 @@ import {
   encryptCard,
   encryptPin,
   buildCustomer,
+  createVirtualAccount,
+  getOrCreateCustomer,
   flwOk
 } from '../utils/flutterwave.js';
 
@@ -56,6 +61,72 @@ router.get('/fund-status', async (req, res, next) => {
   }
 });
 
+// POST /api/wallet/virtual-account { amount } — generates a fresh NGN
+// bank-account number the user transfers `amount` to, then credits their wallet
+// when Flutterwave confirms the transfer.
+router.post('/virtual-account', async (req, res, next) => {
+  try {
+    if (!isFlwConfigured()) {
+      return res.status(503).json({ message: 'Payments are not configured yet. Please try again later.' });
+    }
+    const { amount } = req.body || {};
+    const numAmount = Number(amount);
+    if (!Number.isFinite(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ message: 'Please enter the amount you want to fund.' });
+    }
+    const user = await findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const reference = generateReference();
+
+    // v4 virtual accounts reference a Flutterwave customer ID.
+    let customerId = user.wallet?.flwCustomerId || null;
+    if (!customerId) {
+      const customerResult = await getOrCreateCustomer({ name: user.name, email: user.email });
+      if (!customerResult.ok) {
+        const bad = customerResult.response || {};
+        return res.status(bad.statusCode >= 500 ? 502 : 400).json({
+          message: bad.message || 'Could not create payment customer',
+          statusCode: bad.statusCode,
+          details: bad.error || null
+        });
+      }
+      customerId = customerResult.customerId;
+      await updateUser(user.id, { wallet: { ...user.wallet, flwCustomerId: customerId } });
+    }
+
+    const result = await createVirtualAccount({ reference, customerId, type: 'dynamic', amount: numAmount });
+    if (!flwOk(result)) {
+      return res.status(result?.statusCode >= 500 ? 502 : 400).json({
+        message: result?.message || result?.error?.message || 'Could not generate a bank account number',
+        statusCode: result?.statusCode,
+        details: result?.error || null
+      });
+    }
+    const va = {
+      id: result.data?.id || null,
+      reference,
+      account_number: result.data?.account_number || result.data?.nuban || null,
+      bank_name: result.data?.account_bank_name || result.data?.bank_name || null,
+      account_name: result.data?.account_name || result.data?.note || null,
+      amount: numAmount,
+      status: result.data?.status || null,
+      createdAt: new Date().toISOString()
+    };
+    await setVirtualAccount(user.id, va);
+    await setPendingFund(user.id, reference, {
+      reference,
+      amount: numAmount,
+      currency: 'NGN',
+      method: 'bank',
+      chargeId: result.data?.id || null,
+      status: 'initiated'
+    });
+    res.json({ virtualAccount: va });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/wallet/fund  { currency, amount, method: 'opay'|'card', phone?, card? }
 router.post('/fund', async (req, res, next) => {
   try {
@@ -80,7 +151,8 @@ router.post('/fund', async (req, res, next) => {
     const reference = generateReference();
     const redirectBase = process.env.FLW_REDIRECT_URL || process.env.CLIENT_URL || 'http://localhost:5173';
     const redirectUrl = `${redirectBase}/dashboard?tab=overview&fund=${reference}`;
-    const customer = buildCustomer({ name: req.user.name, email: req.user.email, phone });
+    const user = await findById(req.user.id);
+    const customer = buildCustomer({ name: user?.name, email: user?.email || req.user.email, phone });
 
     let paymentMethod;
     if (method === 'opay') {
