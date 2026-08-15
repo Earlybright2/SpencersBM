@@ -73,6 +73,7 @@ export default function Admin() {
   const [editService, setEditService] = useState('');
   const [editCountry, setEditCountry] = useState('');
   const [editPrices, setEditPrices] = useState({});
+  const [editAccPlatform, setEditAccPlatform] = useState('');
 
   const [loading, setLoading] = useState(false);
 
@@ -224,6 +225,36 @@ export default function Admin() {
     }
     try {
       await api.put(`/admin/products/numbers/${id}`, { price });
+      setToast('Price updated');
+      setEditPrices((m) => ({ ...m, [id]: '' }));
+      loadProducts();
+      loadStats();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const editAccPlatforms = useMemo(() => {
+    const set = new Set();
+    products.accounts.forEach((p) => {
+      if (p.platform) set.add(p.platform);
+    });
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [products.accounts]);
+
+  const editAccMatches = useMemo(
+    () => products.accounts.filter((p) => !editAccPlatform || p.platform === editAccPlatform),
+    [products.accounts, editAccPlatform]
+  );
+
+  const saveAccountPrice = async (id) => {
+    const price = Number(editPrices[id]);
+    if (!Number.isFinite(price) || price <= 0) {
+      setError('Enter a valid positive price');
+      return;
+    }
+    try {
+      await api.put(`/admin/products/accounts/${id}`, { price });
       setToast('Price updated');
       setEditPrices((m) => ({ ...m, [id]: '' }));
       loadProducts();
@@ -736,6 +767,55 @@ export default function Admin() {
                     <span className="text-gold font-semibold">{digResult.updated}</span> · Skipped{' '}
                     <span className="text-gray-500">{digResult.skipped}</span>
                   </p>
+                )}
+              </div>
+
+              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
+                <h2 className="font-syne text-xl mb-1">Edit Account Prices</h2>
+                <p className="text-gray-500 text-[0.85rem] mb-5">
+                  Pick a platform to see and update the sell price of each account product.
+                </p>
+                <div className="mb-4 max-w-[280px]">
+                  <Field label="Platform">
+                    <select
+                      value={editAccPlatform}
+                      onChange={(e) => { setEditAccPlatform(e.target.value); setEditPrices({}); }}
+                      className={inputCls}
+                    >
+                      <option value="" className="bg-[#141414]">All platforms</option>
+                      {editAccPlatforms.map((pl) => (
+                        <option key={pl} value={pl} className="bg-[#141414]">{pl}</option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+                {editAccMatches.length === 0 ? (
+                  <p className="text-gray-500 text-[0.9rem] py-4 text-center">
+                    No account products to edit yet. Sync from the provider above first.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {editAccMatches.map((p) => (
+                      <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4 flex flex-wrap items-end gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[0.9rem] font-medium">{p.platform}</div>
+                          <div className="text-gray-500 text-[0.78rem]">Current price: {fmtNgn(p.price)} · {p.stock ?? 0} in stock</div>
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <Field label="New price (NGN)">
+                            <input
+                              type="number"
+                              min="1"
+                              value={editPrices[p.id] ?? p.price}
+                              onChange={(e) => setEditPrices((m) => ({ ...m, [p.id]: e.target.value }))}
+                              className={`${inputCls} w-[140px]`}
+                            />
+                          </Field>
+                          <button onClick={() => saveAccountPrice(p.id)} className="btn-gold px-4 py-2.5 text-[0.85rem]">Save</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 
