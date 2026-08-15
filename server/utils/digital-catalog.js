@@ -177,6 +177,32 @@ export async function getDigitalPlatforms(server) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// OneGridHub digital products embed the platform AND the country in a single
+// product name, so we surface them as one combined "service" option — mirroring
+// how virtual number services are picked in the admin panel.
+export async function getDigitalServices(server) {
+  const products = await fetchAllProducts(server);
+  const map = new Map();
+  for (const raw of products) {
+    const n = normalizeDigitalProduct(raw);
+    if (!n.platform || n.cost <= 0) continue;
+    const key = `${n.platform}|${n.country}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        key,
+        platform: n.platform,
+        country: n.country,
+        countryName: n.countryName,
+        count: 0
+      });
+    }
+    map.get(key).count += 1;
+  }
+  return [...map.values()].sort((a, b) =>
+    `${a.platform} ${a.countryName}`.localeCompare(`${b.platform} ${b.countryName}`)
+  );
+}
+
 export async function getDigitalCountries(server, platform) {
   const products = await fetchAllProducts(server);
   const map = new Map();

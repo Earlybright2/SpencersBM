@@ -59,13 +59,11 @@ export default function Admin() {
   const [providerPrice, setProviderPrice] = useState(null);
 
   const [digServers, setDigServers] = useState([]);
-  const [digPlatforms, setDigPlatforms] = useState([]);
-  const [digCountries, setDigCountries] = useState([]);
+  const [digServices, setDigServices] = useState([]);
   const [digPrice, setDigPrice] = useState(null);
 
   const [numForm, setNumForm] = useState({ server: '', service: '', country: '', price: '' });
-  const [invForm, setInvForm] = useState({ accountId: '', username: '', password: '' });
-  const [digForm, setDigForm] = useState({ server: '', platform: '', country: '', price: '' });
+  const [digForm, setDigForm] = useState({ server: '', service: '', price: '' });
 
   const [digSync, setDigSync] = useState({ server: '', category: '', search: '' });
   const [digSyncing, setDigSyncing] = useState(false);
@@ -78,9 +76,8 @@ export default function Admin() {
   const [editService, setEditService] = useState('');
   const [editCountry, setEditCountry] = useState('');
   const [editPrices, setEditPrices] = useState({});
-  const [editAccPlatform, setEditAccPlatform] = useState('');
   const [editAccServer, setEditAccServer] = useState('');
-  const [editAccCountry, setEditAccCountry] = useState('');
+  const [editAccService, setEditAccService] = useState('');
 
   const [loading, setLoading] = useState(false);
 
@@ -188,37 +185,25 @@ export default function Admin() {
   };
 
   const onDigServerChange = async (server) => {
-    setDigForm((f) => ({ ...f, server, platform: '', country: '', price: '' }));
-    setDigPlatforms([]);
-    setDigCountries([]);
+    setDigForm((f) => ({ ...f, server, service: '', price: '' }));
+    setDigServices([]);
     setDigPrice(null);
     if (!server) return;
     try {
-      const res = await api.get('/onegridhub/digital/platforms', { params: { server } });
-      setDigPlatforms(res.data.platforms || []);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
-  const onDigPlatformChange = async (platform) => {
-    setDigForm((f) => ({ ...f, platform, country: '', price: '' }));
-    setDigCountries([]);
-    setDigPrice(null);
-    if (!platform || !digForm.server) return;
-    try {
-      const res = await api.get('/onegridhub/digital/countries', { params: { server: digForm.server, platform } });
-      setDigCountries(res.data.countries || []);
+      const res = await api.get('/onegridhub/digital/services', { params: { server } });
+      setDigServices(res.data.services || []);
     } catch (err) {
       setError(getErrorMessage(err));
     }
   };
 
   const checkDigProviderPrice = async () => {
-    const { server, platform, country } = digForm;
-    if (!server || !platform || !country) return;
+    const { server, service } = digForm;
+    if (!server || !service) return;
+    const svc = digServices.find((s) => s.key === service);
+    if (!svc) return;
     try {
-      const res = await api.get('/onegridhub/digital/price', { params: { server, platform, country } });
+      const res = await api.get('/onegridhub/digital/price', { params: { server, platform: svc.platform, country: svc.country } });
       setDigPrice(res.data.price);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -297,37 +282,25 @@ export default function Admin() {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [products.accounts]);
 
-  const editAccPlatforms = useMemo(() => {
-    const set = new Set();
-    products.accounts.forEach((p) => {
-      if (editAccServer && p.providerServer !== editAccServer) return;
-      if (p.platform) set.add(p.platform);
-    });
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [products.accounts, editAccServer]);
-
-  const editAccCountries = useMemo(() => {
+  const editAccServices = useMemo(() => {
     const map = new Map();
     products.accounts.forEach((p) => {
       if (editAccServer && p.providerServer !== editAccServer) return;
-      if (editAccPlatform && p.platform !== editAccPlatform) return;
-      const key = p.country || 'Mixed';
-      if (!map.has(key)) map.set(key, p.countryName || key);
+      const key = `${p.platform}|${p.country || 'Mixed'}`;
+      const name = `${p.platform}${p.countryName ? ` · ${p.countryName}` : ''}`;
+      if (!map.has(key)) map.set(key, { key, name });
     });
-    return [...map.entries()]
-      .map(([key, name]) => ({ key, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [products.accounts, editAccServer, editAccPlatform]);
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [products.accounts, editAccServer]);
 
   const editAccMatches = useMemo(
     () =>
       products.accounts.filter((p) => {
         if (editAccServer && p.providerServer !== editAccServer) return false;
-        if (editAccPlatform && p.platform !== editAccPlatform) return false;
-        if (editAccCountry && (p.country || 'Mixed') !== editAccCountry) return false;
+        if (editAccService && `${p.platform}|${p.country || 'Mixed'}` !== editAccService) return false;
         return true;
       }),
-    [products.accounts, editAccServer, editAccPlatform, editAccCountry]
+    [products.accounts, editAccServer, editAccService]
   );
 
   const saveAccountPrice = async (id) => {
@@ -408,11 +381,15 @@ export default function Admin() {
     setError('');
     setLoading(true);
     try {
-      const { server, platform, country, price } = digForm;
+      const { server, service, price } = digForm;
+      const svc = digServices.find((s) => s.key === service);
+      if (!svc) {
+        setError('No provider service matched this selection.');
+        return;
+      }
       const cheapest = digPrice?.products?.[0];
-      const countryObj = digCountries.find((c) => c.key === country);
       if (!cheapest) {
-        setError('No provider product matched this selection.');
+        setError('Check the provider price before adding the product.');
         return;
       }
       if (Number(price) < Number(digPrice.min)) {
@@ -421,9 +398,9 @@ export default function Admin() {
       }
       await api.post('/admin/products/accounts', {
         server,
-        platform,
-        country,
-        countryName: countryObj?.name || country,
+        platform: svc.platform,
+        country: svc.country,
+        countryName: svc.countryName,
         price: Number(price),
         desc: cheapest.name,
         providerProductId: cheapest.id,
@@ -431,7 +408,7 @@ export default function Admin() {
         category: ''
       });
       setToast('Social account product added from provider');
-      setDigForm({ server: digForm.server, platform: '', country: '', price: '' });
+      setDigForm((f) => ({ ...f, service: '', price: '' }));
       setDigPrice(null);
       loadProducts();
       loadStats();
@@ -461,26 +438,6 @@ export default function Admin() {
       loadStats();
     } catch (err) {
       setError(getErrorMessage(err));
-    }
-  };
-
-  const addInventory = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      await api.post(`/admin/products/accounts/${invForm.accountId}/inventory`, {
-        username: invForm.username,
-        password: invForm.password
-      });
-      setToast('Account credentials added to inventory');
-      setInvForm((f) => ({ ...f, username: '', password: '' }));
-      loadProducts();
-      loadStats();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -875,13 +832,13 @@ export default function Admin() {
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
                 <h2 className="font-syne text-xl mb-1">Edit Account Prices</h2>
                 <p className="text-gray-500 text-[0.85rem] mb-5">
-                  Pick a provider server, then a platform and country, to see and update the sell price of each account product.
+                  Pick a provider server, then a service (platform + country) to see and update the sell price of each account product.
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                   <Field label="1. Provider server">
                     <select
                       value={editAccServer}
-                      onChange={(e) => { setEditAccServer(e.target.value); setEditAccPlatform(''); setEditAccCountry(''); setEditPrices({}); }}
+                      onChange={(e) => { setEditAccServer(e.target.value); setEditAccService(''); setEditPrices({}); }}
                       className={inputCls}
                     >
                       <option value="" className="bg-[#141414]">All servers</option>
@@ -890,28 +847,15 @@ export default function Admin() {
                       ))}
                     </select>
                   </Field>
-                  <Field label="2. Platform">
+                  <Field label="2. Service (platform · country)">
                     <select
-                      value={editAccPlatform}
-                      onChange={(e) => { setEditAccPlatform(e.target.value); setEditAccCountry(''); setEditPrices({}); }}
+                      value={editAccService}
+                      onChange={(e) => { setEditAccService(e.target.value); setEditPrices({}); }}
                       className={inputCls}
                     >
-                      <option value="" className="bg-[#141414]">All platforms</option>
-                      {editAccPlatforms.map((pl) => (
-                        <option key={pl} value={pl} className="bg-[#141414]">{pl}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="3. Country">
-                    <select
-                      value={editAccCountry}
-                      onChange={(e) => { setEditAccCountry(e.target.value); setEditPrices({}); }}
-                      disabled={!editAccPlatform}
-                      className={`${inputCls} disabled:opacity-50`}
-                    >
-                      <option value="" className="bg-[#141414]">All countries</option>
-                      {editAccCountries.map((c) => (
-                        <option key={c.key} value={c.key} className="bg-[#141414]">{c.name}</option>
+                      <option value="" className="bg-[#141414]">All services</option>
+                      {editAccServices.map((s) => (
+                        <option key={s.key} value={s.key} className="bg-[#141414]">{s.name}</option>
                       ))}
                     </select>
                   </Field>
@@ -953,10 +897,10 @@ export default function Admin() {
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
                 <h2 className="font-syne text-xl mb-1">Add a Social Account Product</h2>
                 <p className="text-gray-500 text-[0.85rem] mb-5">
-                  Pick a provider server, then a platform and country from OneGridHub, and check the provider cost before setting your sell price.
+                  Pick a provider server, then a service (platform + country) from OneGridHub, and check the provider cost before setting your sell price.
                 </p>
                 <form onSubmit={addProviderAccountProduct} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Provider server">
                       <select value={digForm.server} onChange={(e) => onDigServerChange(e.target.value)} className={inputCls}>
                         <option value="" className="bg-[#141414]">Select a server</option>
@@ -965,19 +909,11 @@ export default function Admin() {
                         ))}
                       </select>
                     </Field>
-                    <Field label="Platform">
-                      <select value={digForm.platform} onChange={(e) => onDigPlatformChange(e.target.value)} disabled={!digForm.server} className={`${inputCls} disabled:opacity-50`}>
-                        <option value="" className="bg-[#141414]">Select platform</option>
-                        {digPlatforms.map((p) => (
-                          <option key={p.name} value={p.name} className="bg-[#141414]">{p.name} ({p.count})</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Country">
-                      <select value={digForm.country} onChange={(e) => setDigForm((f) => ({ ...f, country: e.target.value }))} disabled={!digForm.platform} className={`${inputCls} disabled:opacity-50`}>
-                        <option value="" className="bg-[#141414]">Select country</option>
-                        {digCountries.map((c) => (
-                          <option key={c.key} value={c.key} className="bg-[#141414]">{c.name} ({c.count})</option>
+                    <Field label="Service (platform · country)">
+                      <select value={digForm.service} onChange={(e) => setDigForm((f) => ({ ...f, service: e.target.value, price: '' }))} disabled={!digForm.server} className={`${inputCls} disabled:opacity-50`}>
+                        <option value="" className="bg-[#141414]">Select service</option>
+                        {digServices.map((s) => (
+                          <option key={s.key} value={s.key} className="bg-[#141414]">{s.platform} · {s.countryName} ({s.count})</option>
                         ))}
                       </select>
                     </Field>
@@ -986,14 +922,14 @@ export default function Admin() {
                     <Field label="Selling price (NGN)">
                       <input type="number" min="1" value={digForm.price} onChange={(e) => setDigForm((f) => ({ ...f, price: e.target.value }))} placeholder="e.g. 15000" className={inputCls} />
                     </Field>
-                    <button type="button" onClick={checkDigProviderPrice} disabled={!digForm.server || !digForm.platform || !digForm.country} className="btn-ghost px-4 py-2.5 text-[0.82rem] disabled:opacity-50">
+                    <button type="button" onClick={checkDigProviderPrice} disabled={!digForm.server || !digForm.service} className="btn-ghost px-4 py-2.5 text-[0.82rem] disabled:opacity-50">
                       Check provider price
                     </button>
                   </div>
                   {digPrice && (
                     <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 space-y-1.5 text-[0.85rem] text-gray-300">
                       <div>
-                        <span className="text-gold font-semibold">{digForm.platform}</span> · {digCountries.find((c) => c.key === digForm.country)?.name || digForm.country} —{' '}
+                        <span className="text-gold font-semibold">{digServices.find((s) => s.key === digForm.service)?.platform}</span> · {digServices.find((s) => s.key === digForm.service)?.countryName} —{' '}
                         <span className="text-gold font-semibold">{digPrice.count}</span> provider product{digPrice.count === 1 ? '' : 's'}
                       </div>
                       <div>
@@ -1004,36 +940,11 @@ export default function Admin() {
                       )}
                     </div>
                   )}
-                  <button type="submit" disabled={loading || !digForm.server || !digForm.platform || !digForm.country || !digForm.price || !digPrice} className="w-full btn-gold py-3.5 text-[0.92rem] disabled:opacity-50 flex items-center justify-center gap-2">
+                  <button type="submit" disabled={loading || !digForm.server || !digForm.service || !digForm.price || !digPrice} className="w-full btn-gold py-3.5 text-[0.92rem] disabled:opacity-50 flex items-center justify-center gap-2">
                     <Plus size={17} strokeWidth={2} /> {loading ? 'Adding...' : 'Add Product'}
                   </button>
                 </form>
               </div>
-
-                <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
-                  <h2 className="font-syne text-xl mb-5">Add Inventory</h2>
-                  <form onSubmit={addInventory} className="space-y-4">
-                    <Field label="Platform">
-                      <select value={invForm.accountId} onChange={(e) => setInvForm((f) => ({ ...f, accountId: e.target.value }))} className={inputCls}>
-                        <option value="" className="bg-[#141414]">Select platform</option>
-                        {products.accounts.map((p) => (
-                          <option key={p.id} value={p.id} className="bg-[#141414]">{p.platform}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Username / Email">
-                        <input type="text" value={invForm.username} onChange={(e) => setInvForm((f) => ({ ...f, username: e.target.value }))} placeholder="user@example.com" className={inputCls} />
-                      </Field>
-                      <Field label="Password">
-                        <input type="text" value={invForm.password} onChange={(e) => setInvForm((f) => ({ ...f, password: e.target.value }))} placeholder="Password" className={inputCls} />
-                      </Field>
-                    </div>
-                    <button type="submit" disabled={loading || !invForm.accountId || !invForm.username || !invForm.password} className="w-full btn-ghost py-3.5 text-[0.92rem] disabled:opacity-50 flex items-center justify-center gap-2">
-                      <Plus size={17} strokeWidth={2} /> {loading ? 'Saving...' : 'Add to Inventory'}
-                    </button>
-                  </form>
-                </div>
 
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
                 <h2 className="font-syne text-xl mb-5">Account Products ({products.accounts.length})</h2>

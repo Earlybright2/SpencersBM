@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAdmin } from '../utils/auth.js';
 import { ogRequest, isOgSuccess, ogError, asyncRoute } from '../utils/onegridhub.js';
 import { syncNumbersFromProvider } from '../utils/provider-sync.js';
-import { getDigitalServers, getDigitalPlatforms, getDigitalCountries, getDigitalPrice } from '../utils/digital-catalog.js';
+import { getDigitalServers, getDigitalPlatforms, getDigitalCountries, getDigitalServices, getDigitalPrice } from '../utils/digital-catalog.js';
 
 const router = Router();
 
@@ -74,6 +74,16 @@ router.get('/digital/countries', asyncRoute(async (req, res) => {
   if (!server || !platform) return res.status(400).json({ message: 'server and platform are required' });
   const countries = await getDigitalCountries(server, platform);
   res.json({ status: 'success', countries });
+}));
+
+// GET /api/onegridhub/digital/services?server=
+// Combined platform + country options for a server. OneGridHub joins the two in
+// a single product name, so the admin picks one combined "service" at a time.
+router.get('/digital/services', asyncRoute(async (req, res) => {
+  const { server } = req.query;
+  if (!server) return res.status(400).json({ message: 'server is required' });
+  const services = await getDigitalServices(server);
+  res.json({ status: 'success', services });
 }));
 
 // GET /api/onegridhub/digital/price?server=&platform=&country=
