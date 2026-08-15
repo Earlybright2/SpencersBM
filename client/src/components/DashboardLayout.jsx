@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Settings, KeyRound, ShoppingBag, LogOut, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Smartphone, ReceiptText, Settings, KeyRound, ShoppingBag, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 
 const navItems = [
   { to: '/dashboard?tab=overview', label: 'Overview', icon: LayoutDashboard },
   { to: '/dashboard?tab=numbers', label: 'Numbers', icon: Smartphone },
-  { to: '/dashboard?tab=accounts', label: 'Accounts', icon: UserRound },
   { to: '/dashboard?tab=paid-accounts', label: 'Paid Accounts', icon: KeyRound },
   { to: '/dashboard?tab=orders', label: 'Order History', icon: ReceiptText },
   { to: '/dashboard?tab=profile', label: 'Profile', icon: Settings }

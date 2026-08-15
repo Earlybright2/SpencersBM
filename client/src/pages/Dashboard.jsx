@@ -217,10 +217,31 @@ export default function Dashboard() {
       loadWallet(true);
       loadOrders(true);
       loadPaidAccounts(true);
+      if (res.data.order?.status === 'pending') {
+        pollAccountStatus(res.data.order.order_ref);
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setBusy('');
+    }
+  };
+
+  // Poll a pending provider-backed account purchase until the credentials arrive.
+  const pollAccountStatus = async (orderRef) => {
+    for (let i = 0; i < 20; i += 1) {
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const res = await api.get('/orders/account-status', { params: { order_ref: orderRef } });
+        loadOrders(true);
+        loadPaidAccounts(true);
+        if (res.data.status === 'completed') {
+          loadWallet(true);
+          return;
+        }
+      } catch {
+        // transient errors are ignored; keep polling
+      }
     }
   };
 
@@ -265,6 +286,7 @@ export default function Dashboard() {
     try {
       await api.post('/orders/cancel', { order_ref: orderRef });
       loadOrders(true);
+      loadWallet(true);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -327,7 +349,7 @@ export default function Dashboard() {
       date: t.createdAt,
       kind: 'fund',
       type: t.type === 'credit' ? 'credit' : 'debit',
-      title: t.type === 'credit' ? 'Wallet Funding' : 'Purchase Payment',
+      title: t.kind === 'refund' ? 'Order Refund' : (t.type === 'credit' ? 'Wallet Funding' : 'Purchase Payment'),
       amount: Number(t.amount) || 0,
       ref: t.reference,
       status: t.status
@@ -721,58 +743,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ===== ACCOUNTS ===== */}
-      {tab === 'accounts' && (
-        <div className="space-y-6">
-          <div className="flex items-start gap-3 rounded-[12px] border border-gold/20 bg-gold/5 px-4 py-3.5 text-[0.88rem] text-gray-300">
-            <KeyRound size={17} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
-            <p>
-              Once a purchase is complete go to <span className="text-gold font-medium">&quot;Paid Accounts&quot;</span> in the dashboard sidebar and click on it to view account details.
-            </p>
-          </div>
-          <PanelCard title="Social Media Accounts">
-          {catalog.accounts.length === 0 ? (
-            <p className="text-gray-500 text-[0.95rem] py-6 text-center">
-              No social accounts are listed right now. Check back soon.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {catalog.accounts.map((p) => {
-                const Icon = platformIcon(p.platform);
-                const soldOut = p.available <= 0;
-                return (
-                  <div key={p.id} className="card-border bg-night/40 rounded-[12px] p-5 flex flex-col">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
-                        <Icon size={20} strokeWidth={1.8} />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="font-medium text-[0.95rem] truncate">{p.platform}</div>
-                        <div className="text-gray-500 text-[0.78rem]">
-                          {p.available} available
-                        </div>
-                      </div>
-                    </div>
-                    {p.desc && <p className="text-gray-400 text-[0.85rem] mb-3">{p.desc}</p>}
-                    <div className="text-[0.9rem] mb-4">
-                      <span className="text-gold font-semibold text-lg">{fmtNgn(p.price)}</span>
-                    </div>
-                    <button
-                      onClick={() => handleBuyAccount(p)}
-                      disabled={Boolean(busy) || soldOut}
-                      className="btn-gold w-full py-3 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {busy === `buy-${p.id}` ? 'Purchasing...' : soldOut ? 'Sold Out' : 'Buy Account'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          </PanelCard>
-        </div>
-      )}
-
       {/* ===== PAID ACCOUNTS ===== */}
       {tab === 'paid-accounts' && (
         <PanelCard
@@ -792,6 +762,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               {paidAccounts.map((a) => {
                 const Icon = platformIcon(a.platform);
+                const pending = a.status === 'pending' || (!a.username && !a.password);
                 return (
                   <div key={a.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -808,30 +779,47 @@ export default function Dashboard() {
                       </div>
                       <span className="text-[0.9rem] font-semibold text-gold">{fmtNgn(a.price)}</span>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Username / Email</div>
-                          <div className="font-mono text-[0.92rem] break-all">{a.username}</div>
+                    {pending ? (
+                      <div className="flex items-center justify-between gap-3 flex-wrap bg-night/50 border border-gold/20 rounded-[10px] px-4 py-3">
+                        <div className="flex items-center gap-2.5 text-[0.9rem] text-gray-300">
+                          <RefreshCw size={16} strokeWidth={1.9} className="text-gold animate-spin" />
+                          Your account is being prepared by the provider. Credentials will appear here once ready.
                         </div>
-                        <button onClick={() => copyText(a.username, `u-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
-                          {copied === `u-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
+                        <button
+                          onClick={() => pollAccountStatus(a.order_ref)}
+                          className="btn-ghost px-4 py-2 text-[0.8rem]"
+                        >
+                          Check Status
                         </button>
                       </div>
-                      <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Password</div>
-                          <div className="font-mono text-[0.92rem] break-all">{a.password}</div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Username / Email</div>
+                              <div className="font-mono text-[0.92rem] break-all">{a.username}</div>
+                            </div>
+                            <button onClick={() => copyText(a.username, `u-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
+                              {copied === `u-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
+                            </button>
+                          </div>
+                          <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Password</div>
+                              <div className="font-mono text-[0.92rem] break-all">{a.password}</div>
+                            </div>
+                            <button onClick={() => copyText(a.password, `p-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
+                              {copied === `p-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
+                            </button>
+                          </div>
                         </div>
-                        <button onClick={() => copyText(a.password, `p-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
-                          {copied === `p-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
-                        </button>
-                      </div>
-                    </div>
-                    <p className="text-[0.75rem] text-gray-500 mt-3 flex items-center gap-1.5">
-                      <Landmark size={14} strokeWidth={1.8} className="text-gold" />
-                      Keep these credentials safe. Store them somewhere secure.
-                    </p>
+                        <p className="text-[0.75rem] text-gray-500 mt-3 flex items-center gap-1.5">
+                          <Landmark size={14} strokeWidth={1.8} className="text-gold" />
+                          Keep these credentials safe. Store them somewhere secure.
+                        </p>
+                      </>
+                    )}
                   </div>
                 );
               })}

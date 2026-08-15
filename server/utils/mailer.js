@@ -129,7 +129,15 @@ export async function sendWelcomeEmail(user) {
 
 export async function sendPurchaseSuccessEmail(user, order) {
   const product = order.type === 'social_account' ? order.platform : `${order.service} · ${order.country}`;
-  const content = `
+  const pending = order.type === 'social_account' && (!order.username || !order.password);
+  const content = pending ? `
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Hi ${user.name || 'there'},</p>
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Your payment for <strong style="color:#D4AF37;">${product}</strong> was successful.</p>
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Your account is currently being prepared by our provider. We will email you the username and password as soon as it is ready (usually within a few minutes).</p>
+    <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);border-radius:10px;padding:14px 16px;font-size:13px;color:#cfcfcf;margin:20px 0;">
+      Your credentials will also appear under <strong style="color:#D4AF37;">Paid Accounts</strong> in your dashboard.
+    </div>
+  ` : `
     <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Hi ${user.name || 'there'},</p>
     <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Your payment for <strong style="color:#D4AF37;">${product}</strong> was successful. Here are your purchase details:</p>
     <table style="width:100%;border-collapse:collapse;margin:20px 0;">
@@ -179,5 +187,41 @@ export async function sendPurchaseFailureEmail(user, order, reason) {
     to: user.email,
     subject,
     html: emailShell('Payment Failed', 'Payment Failed', '#e0645a', content)
+  });
+}
+
+export async function sendRefundEmail(user, order, balance) {
+  const product = order?.type === 'social_account'
+    ? order.platform
+    : `${order?.service || 'item'} ${order?.country ? `· ${order.country}` : ''}`;
+  const content = `
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Hi ${user.name || 'there'},</p>
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Your order for <strong style="color:#D4AF37;">${product}</strong> has been cancelled and the full amount has been refunded back to your wallet.</p>
+    <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+      ${orderRows(order)}
+      <tr>
+        <td style="padding:8px 0;color:#a0a0a0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.06);">Refunded Amount</td>
+        <td style="padding:8px 0;font-size:13px;text-align:right;font-weight:600;color:#2ecc71;border-bottom:1px solid rgba(255,255,255,0.06);">+${fmtNgn(order.price)}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 0;color:#a0a0a0;font-size:13px;">New Wallet Balance</td>
+        <td style="padding:8px 0;font-size:13px;text-align:right;font-weight:600;">${fmtNgn(balance)}</td>
+      </tr>
+    </table>
+    <p style="color:#a0a0a0;font-size:13px;">If you have any questions, reply to this email or reach us 24/7 on WhatsApp &amp; Telegram.</p>
+  `;
+  const subject = `Order Cancelled — Refund Issued`;
+  if (!getTransporter()) {
+    console.log('\n============================================');
+    console.log('DEV MODE — Refund email for', user.email);
+    console.log(JSON.stringify({ subject, order, balance }, null, 2));
+    console.log('============================================\n');
+    return;
+  }
+  await getTransporter().sendMail({
+    from: EMAIL_FROM(),
+    to: user.email,
+    subject,
+    html: emailShell('Refund Issued', 'Refund Issued', '#2ecc71', content)
   });
 }

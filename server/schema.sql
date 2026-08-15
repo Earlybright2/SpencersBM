@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS account_products (
   description TEXT DEFAULT '',
   enabled BOOLEAN DEFAULT true,
   inventory JSONB DEFAULT '[]'::jsonb,
+  provider_server VARCHAR(100) DEFAULT NULL,
+  provider_product_id VARCHAR(255) DEFAULT NULL,
+  provider_category VARCHAR(255) DEFAULT NULL,
+  stock NUMERIC(10, 0) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 

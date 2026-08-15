@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAdmin } from '../utils/auth.js';
-import { asyncRoute } from '../utils/onegridhub.js';
+import { asyncRoute, ogDigitalProducts } from '../utils/onegridhub.js';
+import { syncDigitalProducts } from '../utils/digital-sync.js';
 import {
   getUsers,
   getCatalog,
@@ -113,6 +114,23 @@ router.put('/products/numbers/:id', asyncRoute(async (req, res) => {
 router.delete('/products/numbers/:id', asyncRoute(async (req, res) => {
   await removeNumberProduct(req.params.id);
   res.json({ deleted: true });
+}));
+
+// GET /api/admin/digital/products?server=&category=&search=
+// Lists digital (social media account) products directly from OneGridHub.
+router.get('/digital/products', asyncRoute(async (req, res) => {
+  const { server, category, search, limit } = req.query;
+  const data = await ogDigitalProducts({ server, category, search, limit: limit || 50 });
+  res.json(data);
+}));
+
+// POST /api/admin/digital/sync { server, category?, search?, margin? }
+// Syncs OneGridHub digital products into account_products with a sell price.
+router.post('/digital/sync', asyncRoute(async (req, res) => {
+  const { server, category, search, margin } = req.body || {};
+  if (!server) return res.status(400).json({ message: 'server is required' });
+  const results = await syncDigitalProducts({ server, category, search, margin });
+  res.json(results);
 }));
 
 // POST /api/admin/products/accounts { platform, price, desc? }

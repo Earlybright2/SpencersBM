@@ -193,6 +193,10 @@ export async function getCatalog() {
         desc: a.description,
         enabled: a.enabled,
         inventory: a.inventory || [],
+        providerServer: a.provider_server || null,
+        providerProductId: a.provider_product_id || null,
+        providerCategory: a.provider_category || null,
+        stock: Number(a.stock) || 0,
         createdAt: a.created_at ? new Date(a.created_at).toISOString() : new Date().toISOString()
       }))
     },
@@ -266,8 +270,10 @@ export async function removeNumberProduct(id) {
 
 export async function addAccountProduct(product) {
   await pool.query(
-    `INSERT INTO account_products (id, platform, price, currency, description, enabled, inventory, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    `INSERT INTO account_products
+       (id, platform, price, currency, description, enabled, inventory,
+        provider_server, provider_product_id, provider_category, stock, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     [
       product.id,
       product.platform,
@@ -276,6 +282,10 @@ export async function addAccountProduct(product) {
       product.desc || '',
       product.enabled ?? true,
       JSON.stringify(product.inventory || []),
+      product.providerServer || null,
+      product.providerProductId || null,
+      product.providerCategory || null,
+      Number(product.stock) || 0,
       product.createdAt || new Date().toISOString()
     ]
   );
@@ -291,10 +301,17 @@ export async function updateAccountProduct(id, updates) {
   const desc = updates.desc !== undefined ? String(updates.desc) : existing.description;
   const enabled = updates.enabled !== undefined ? Boolean(updates.enabled) : existing.enabled;
   const inventory = updates.inventory !== undefined ? updates.inventory : existing.inventory;
+  const providerServer = updates.providerServer !== undefined ? updates.providerServer : existing.provider_server;
+  const providerProductId = updates.providerProductId !== undefined ? updates.providerProductId : existing.provider_product_id;
+  const providerCategory = updates.providerCategory !== undefined ? updates.providerCategory : existing.provider_category;
+  const stock = updates.stock !== undefined ? Number(updates.stock) : Number(existing.stock);
 
   const { rows: updated } = await pool.query(
-    `UPDATE account_products SET price = $1, description = $2, enabled = $3, inventory = $4 WHERE id = $5 RETURNING *`,
-    [price, desc, enabled, JSON.stringify(inventory), id]
+    `UPDATE account_products
+     SET price = $1, description = $2, enabled = $3, inventory = $4,
+         provider_server = $5, provider_product_id = $6, provider_category = $7, stock = $8
+     WHERE id = $9 RETURNING *`,
+    [price, desc, enabled, JSON.stringify(inventory), providerServer, providerProductId, providerCategory, stock, id]
   );
   const a = updated[0];
   return {
@@ -305,6 +322,10 @@ export async function updateAccountProduct(id, updates) {
     desc: a.description,
     enabled: a.enabled,
     inventory: a.inventory || [],
+    providerServer: a.provider_server || null,
+    providerProductId: a.provider_product_id || null,
+    providerCategory: a.provider_category || null,
+    stock: Number(a.stock) || 0,
     createdAt: a.created_at ? new Date(a.created_at).toISOString() : new Date().toISOString()
   };
 }
@@ -463,6 +484,40 @@ export async function debitWallet(userId, { amount, reference, meta }) {
     type: 'debit',
     kind: 'purchase',
     amount: cost,
+    currency: 'NGN',
+    reference,
+    status: 'completed',
+    createdAt: new Date().toISOString(),
+    meta
+  });
+
+  const slicedTransactions = transactions.slice(0, 500);
+
+  await pool.query(
+    'UPDATE users SET wallet_balance = $1, wallet_currency = $2, transactions = $3 WHERE id = $4',
+    [newBalance, 'NGN', JSON.stringify(slicedTransactions), userId]
+  );
+
+  return { ok: true, balance: newBalance };
+}
+
+// Refund money back into a user's wallet (e.g. cancelled order).
+export async function creditWallet(userId, { amount, reference, meta }) {
+  const user = await findById(userId);
+  if (!user) return { ok: false, error: 'User not found' };
+
+  const transactions = user.wallet.transactions || [];
+  if (transactions.some((t) => t.reference === reference)) {
+    return { ok: true, balance: user.wallet.balance, alreadyRefunded: true };
+  }
+
+  const value = Number(amount) || 0;
+  const newBalance = (Number(user.wallet.balance) || 0) + value;
+
+  transactions.unshift({
+    type: 'credit',
+    kind: 'refund',
+    amount: value,
     currency: 'NGN',
     reference,
     status: 'completed',

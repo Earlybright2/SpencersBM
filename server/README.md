@@ -84,9 +84,35 @@ Validation rules: valid email format, password **≥ 8 characters**, duplicate e
 | POST | `/cancel` | `{ order_ref }` | Cancel an active number |
 | GET | `/orders` | – | Current user's order history |
 
+### Digital Products (Social Accounts) — `/api/onegridhub` & `/api/admin`
+
+OneGridHub's digital-products API powers the social media account marketplace. The admin syncs the provider's products into `account_products`, then customers buy them through `/api/orders`.
+
+| Method | Path | Auth | Params | Description |
+|--------|------|------|--------|-------------|
+| GET | `/admin/digital/products` | Admin | `server, category?, search?, limit?` | List provider digital products |
+| POST | `/admin/digital/sync` | Admin | `{ server, category?, search?, margin? }` | Sync provider products into `account_products` with a sell price (markup) |
+
+Provider helpers in `server/utils/onegridhub.js`: `ogDigitalProducts`, `ogDigitalBuy`, `ogDigitalOrder`.
+
+### Orders — `/api/orders` (all require Bearer auth)
+
+| Method | Path | Body/Params | Description |
+|--------|------|-------------|-------------|
+| GET | `/` | – | Current user's purchase history |
+| GET | `/payments` | – | All wallet money movements (funding + purchases) |
+| GET | `/paid-accounts` | – | Purchased social media accounts with credentials |
+| GET | `/catalog` | – | Buyable products (numbers + accounts, with stock) |
+| POST | `/numbers` | `{ productId }` | Buy a virtual number (wallet debited) |
+| POST | `/accounts` | `{ productId }` | Buy a social account — provider-backed or legacy inventory |
+| GET | `/status` | `order_ref` | Poll SMS code for a number |
+| GET | `/account-status` | `order_ref` | Poll a pending provider account until credentials arrive |
+| POST | `/cancel` | `{ order_ref }` | Cancel an order and refund the wallet (numbers only; blocked once SMS received) |
+
 ## Behavior Notes
 
 - **Data persistence**: users and orders live in a PostgreSQL database configured via `DATABASE_URL` (e.g. a Railway Postgres instance). The `users` table is created automatically on startup.
-- **Provider safety**: all OneGridHub calls run through `ogRequest`, which applies a 12s timeout, 2 retries, and never throws — the API returns well-formed error objects so the process stays alive when the provider is down.
+- **Provider safety**: all OneGridHub calls run through `ogRequest` / the digital helpers, which apply a 12s timeout, 2 retries, and never throw — the API returns well-formed error objects so the process stays alive when the provider is down.
+- **Digital product responses** are parsed adaptively (price/name/id/stock and delivered credentials are extracted from the most likely fields) because OneGridHub's exact JSON schema can vary. Tune `server/utils/digital-sync.js` and `extractAccountCredentials` in `server/routes/orders.js` if the live response differs.
 - **Error handling**: a global error middleware returns `500` for unexpected failures; provider failures return `502`.
 - **CORS**: allowed origin comes from `CLIENT_URL`.

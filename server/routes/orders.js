@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../utils/auth.js';
-import { ogRequest, isOgSuccess, ogError, asyncRoute } from '../utils/onegridhub.js';
+import { ogRequest, ogDigitalBuy, ogDigitalOrder, isOgSuccess, ogError, asyncRoute } from '../utils/onegridhub.js';
 import { generateReference } from '../utils/flutterwave.js';
 import {
   findById,
@@ -9,11 +9,12 @@ import {
   updateUserOrder,
   getUserWallet,
   debitWallet,
+  creditWallet,
   getCatalog,
   updateAccountProduct,
   recordSale
 } from '../utils/store.js';
-import { sendPurchaseSuccessEmail, sendPurchaseFailureEmail } from '../utils/mailer.js';
+import { sendPurchaseSuccessEmail, sendPurchaseFailureEmail, sendRefundEmail } from '../utils/mailer.js';
 
 const router = Router();
 
@@ -30,6 +31,11 @@ const notify = {
     findById(userId)
       .then((user) => user && sendPurchaseFailureEmail(user, order, reason))
       .catch((err) => console.error('Failure email failed:', err.message));
+  },
+  refund: (userId, order, balance) => {
+    findById(userId)
+      .then((user) => user && sendRefundEmail(user, order, balance))
+      .catch((err) => console.error('Refund email failed:', err.message));
   }
 };
 
@@ -75,9 +81,11 @@ router.get('/catalog', asyncRoute(async (req, res) => {
     }));
   const accounts = catalog.products.accounts
     .filter((p) => p.enabled !== false)
-    .map(({ id, platform, price, currency, desc, inventory }) => ({
-      id, platform, price, currency: currency || 'NGN', desc, available: (inventory || []).filter((i) => i.status === 'available').length
-    }));
+    .map(({ id, platform, price, currency, desc, inventory, providerServer, providerProductId, stock }) => {
+      const inventoryAvailable = (inventory || []).filter((i) => i.status === 'available').length;
+      const available = providerProductId ? Number(stock) || 0 : inventoryAvailable;
+      return { id, platform, price, currency: currency || 'NGN', desc, available, provider: Boolean(providerProductId) };
+    });
   res.json({ numbers, accounts });
 }));
 
@@ -163,7 +171,7 @@ router.post('/numbers', asyncRoute(async (req, res) => {
   res.status(201).json({ status: 'success', message: 'Number purchased', order, balance: debit.balance });
 }));
 
-// POST /api/orders/accounts { productId } — buy a social media account from inventory
+// POST /api/orders/accounts { productId } — buy a social media account from the provider
 router.post('/accounts', asyncRoute(async (req, res) => {
   const { productId } = req.body || {};
   if (!productId) return res.status(400).json({ message: 'productId is required' });
@@ -175,6 +183,102 @@ router.post('/accounts', asyncRoute(async (req, res) => {
     return res.status(404).json({ message: 'Account product not found' });
   }
 
+  // Provider-backed products are bought through OneGridHub. If a product has no
+  // provider link (legacy manual inventory), fall back to the old inventory flow.
+  if (product.providerServer && product.providerProductId) {
+    return buyProviderAccount(req, res, catalog, product);
+  }
+
+  return buyInventoryAccount(req, res, catalog, product);
+}));
+
+// Provider-backed purchase: digital_buy then digital_order to retrieve credentials.
+async function buyProviderAccount(req, res, catalog, product) {
+  const cost = Number(product.price) || 0;
+  const wallet = await getUserWallet(req.user.id);
+  if ((wallet?.balance || 0) < cost) {
+    notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
+    return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
+  }
+
+  // Place the order with the provider first, then debit the wallet.
+  const buyRes = await ogDigitalBuy({
+    server: product.providerServer,
+    product: product.providerProductId,
+    quantity: 1
+  });
+  if (!isOgSuccess(buyRes)) {
+    const reason = buyRes.message || 'The account provider could not complete your purchase. Please try again shortly.';
+    notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, reason);
+    return res.status(502).json({ status: 'error', message: reason });
+  }
+
+  const providerOrderId = String(
+    buyRes.order || buyRes.order_id || buyRes.orderid || buyRes.orderId || buyRes.id || ''
+  );
+
+  // Retrieve the delivered account details from the provider. If the order query
+  // fails but the buy succeeded, proceed with a pending order rather than erroring.
+  let detail = buyRes;
+  if (providerOrderId) {
+    try {
+      const res = await ogDigitalOrder(providerOrderId);
+      if (isOgSuccess(res)) detail = res;
+    } catch {
+      // ignore — order will be marked pending and can be polled later
+    }
+  }
+  const account = extractAccountCredentials(detail, buyRes);
+
+  const purchaseRef = generateReference();
+  const debit = await debitWallet(req.user.id, {
+    amount: cost,
+    reference: purchaseRef,
+    meta: { type: 'account', productId: product.id, platform: product.platform, providerOrderId }
+  });
+  if (!debit.ok) {
+    notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
+    return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
+  }
+
+  const order = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    type: 'social_account',
+    order_ref: purchaseRef,
+    provider_order: providerOrderId,
+    platform: product.platform,
+    username: account.username,
+    password: account.password,
+    desc: product.desc || null,
+    price: cost,
+    currency: 'NGN',
+    status: account.ready ? 'completed' : 'pending',
+    purchasedAt: new Date().toISOString()
+  };
+  await addUserOrder(req.user.id, order);
+
+  const user = await findById(req.user.id);
+  await recordSale({
+    id: order.id,
+    userId: user.id,
+    userEmail: user.email,
+    userName: user.name,
+    type: 'social_account',
+    productId: product.id,
+    productName: product.platform,
+    price: cost,
+    currency: 'NGN',
+    status: order.status,
+    createdAt: new Date().toISOString()
+  });
+
+  notify.success(req.user.id, order);
+
+  res.status(201).json({ status: 'success', message: 'Account purchased', order, balance: debit.balance });
+}
+
+// Legacy purchase from manually-entered inventory.
+async function buyInventoryAccount(req, res, catalog, product) {
   const slot = (product.inventory || []).find((i) => i.status === 'available');
   if (!slot) {
     notify.failure(req.user.id, { type: 'social_account', platform: product.platform }, `${product.platform} is currently sold out. Please check back soon.`);
@@ -192,7 +296,7 @@ router.post('/accounts', asyncRoute(async (req, res) => {
   const debit = await debitWallet(req.user.id, {
     amount: cost,
     reference: purchaseRef,
-    meta: { type: 'account', productId, platform: product.platform }
+    meta: { type: 'account', productId: product.id, platform: product.platform }
   });
   if (!debit.ok) {
     notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
@@ -237,7 +341,117 @@ router.post('/accounts', asyncRoute(async (req, res) => {
   notify.success(req.user.id, order);
 
   res.status(201).json({ status: 'success', message: 'Account purchased', order, balance: debit.balance });
-}));
+}
+
+// Best-effort extraction of delivered account credentials from the provider's
+// digital_order / digital_buy response, tolerating unknown response shapes.
+function extractAccountCredentials(detail, buyRes = {}) {
+  const candidates = [detail, buyRes].filter(Boolean);
+
+  const LOGIN_KEYS = ['username', 'user', 'login', 'email', 'account_username', 'data_username', 'id', 'mail'];
+  const PASS_KEYS = ['password', 'pass', 'pwd', 'account_password', 'data_password', 'secret', 'code'];
+
+  const deepFind = (obj, keys, seen = new Set()) => {
+    if (obj == null) return '';
+    if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
+      return '';
+    }
+    if (seen.has(obj)) return '';
+    seen.add(obj);
+    // Array of {name/key, value} pairs — a common provider shape.
+    if (Array.isArray(obj)) {
+      const pairs = {};
+      for (const item of obj) {
+        if (item && typeof item === 'object') {
+          const k = item.name || item.key || item.label || item.field || item.type || '';
+          const v = item.value ?? item.data ?? item.result ?? '';
+          if (k && v !== undefined && v !== null) pairs[String(k).toLowerCase()] = v;
+        }
+      }
+      for (const key of keys) {
+        if (pairs[key] !== undefined) return String(pairs[key]);
+      }
+      for (const item of obj) {
+        const r = deepFind(item, keys, seen);
+        if (r) return r;
+      }
+      return '';
+    }
+    // Plain object: try direct keys, then recurse into nested values.
+    for (const key of keys) {
+      const v = obj[key];
+      if (v !== undefined && v !== null && (typeof v === 'string' || typeof v === 'number') && String(v) !== '') {
+        return String(v);
+      }
+    }
+    for (const v of Object.values(obj)) {
+      const r = deepFind(v, keys, seen);
+      if (r) return r;
+    }
+    return '';
+  };
+
+  let username = '';
+  let password = '';
+
+  const isScalar = (v) => typeof v === 'string' || typeof v === 'number';
+
+  // First pass: look at top-level keys of each candidate response.
+  for (const d of candidates) {
+    for (const k of LOGIN_KEYS) {
+      if (d[k] !== undefined && isScalar(d[k]) && String(d[k]) !== '') { username = String(d[k]); break; }
+    }
+    if (username) break;
+  }
+  for (const d of candidates) {
+    for (const k of PASS_KEYS) {
+      if (d[k] !== undefined && isScalar(d[k]) && String(d[k]) !== '') { password = String(d[k]); break; }
+    }
+    if (password) break;
+  }
+
+  // Second pass: deep-search for credentials nested in objects / arrays.
+  if (!username || !password) {
+    for (const d of candidates) {
+      if (!username) username = deepFind(d, LOGIN_KEYS);
+      if (!password) password = deepFind(d, PASS_KEYS);
+      if (username && password) break;
+    }
+  }
+
+  // Some providers hand back a single string blob: "user:pass" or "user|pass".
+  if (!username || !password) {
+    for (const d of candidates) {
+      const blob = d?.account ?? d?.details ?? d?.credentials ?? d?.data ?? d?.info;
+      if (typeof blob === 'string' && (blob.includes(':') || blob.includes('|') || blob.includes('\n'))) {
+        const parts = blob.split(/[:|\n]/).map((s) => s.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          if (!username) username = parts[0];
+          if (!password) password = parts[1];
+        }
+        break;
+      }
+    }
+  }
+
+  const completed =
+    String(detail?.status || '').toLowerCase() === 'completed' ||
+    String(detail?.state || '').toLowerCase() === 'completed' ||
+    String(detail?.status || '').toLowerCase() === 'success' ||
+    String(detail?.status || '').toLowerCase() === 'delivered' ||
+    String(detail?.status || '').toLowerCase() === 'fulfilled';
+
+  // Only mark ready when we actually have credentials (or a status that clearly
+  // confirms delivery alongside at least one credential). Blank creds should
+  // stay pending so the account-status poll can retrieve them.
+  const ready = Boolean(username && password) || (completed && Boolean(username || password));
+
+  if (!ready && (detail || buyRes)) {
+    console.warn('[digital-account] credentials not ready. raw:', JSON.stringify(detail || buyRes).slice(0, 800));
+  }
+
+  return { username, password, ready };
+}
 
 // How long a number stays active waiting for its SMS (mirrors the provider's window).
 const NUMBER_EXPIRY_MS = (Number(process.env.NUMBER_EXPIRY_MINUTES) || 20) * 60 * 1000;
@@ -269,13 +483,77 @@ router.get('/status', asyncRoute(async (req, res) => {
 router.post('/cancel', asyncRoute(async (req, res) => {
   const { order_ref } = req.body || {};
   if (!order_ref) return res.status(400).json({ message: 'order_ref is required' });
+
+  const orders = await getUserOrders(req.user.id);
+  const order = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if (order.status === 'cancelled') return res.status(409).json({ message: 'Order is already cancelled' });
+  if (order.status === 'received') {
+    return res.status(409).json({ message: 'This order already received its SMS code and cannot be refunded.' });
+  }
+
   const data = await ogRequest({ endpoint: 'cancel', order_ref });
   if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
+
+  const refund = await creditWallet(req.user.id, {
+    amount: Number(order.price) || 0,
+    reference: `refund-${order_ref}`,
+    meta: { type: 'refund', orderRef: order_ref, service: order.service || order.platform }
+  });
+
   await updateUserOrder(req.user.id, order_ref, {
     status: 'cancelled',
+    cancelledAt: new Date().toISOString(),
+    refundedAt: new Date().toISOString(),
     lastCheckedAt: new Date().toISOString()
   });
-  res.json(data);
+
+  notify.refund(req.user.id, { ...order, status: 'cancelled' }, refund?.balance);
+
+  res.json({ ...data, refunded: true, balance: refund?.balance });
+}));
+
+// GET /api/orders/account-status?order_ref= — poll the provider for a pending
+// digital (social media account) purchase and store the delivered credentials.
+router.get('/account-status', asyncRoute(async (req, res) => {
+  const { order_ref } = req.query;
+  if (!order_ref) return res.status(400).json({ message: 'order_ref is required' });
+
+  const orders = await getUserOrders(req.user.id);
+  const order = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if (order.type !== 'social_account') {
+    return res.status(400).json({ message: 'Not a social account order' });
+  }
+
+  const providerOrderId = order.provider_order;
+  if (!providerOrderId) {
+    return res.json({ status: order.status, order });
+  }
+
+  const detail = await ogDigitalOrder(providerOrderId);
+  if (!isOgSuccess(detail)) {
+    return res.status(502).json(ogError(detail));
+  }
+
+  const account = extractAccountCredentials(detail, {});
+  const isDone = Boolean(account.username && account.password);
+
+  if (isDone) {
+    await updateUserOrder(req.user.id, order_ref, {
+      status: 'completed',
+      username: account.username,
+      password: account.password,
+      lastCheckedAt: new Date().toISOString()
+    });
+    return res.json({ status: 'completed', order: { ...order, username: account.username, password: account.password, status: 'completed' } });
+  }
+
+  await updateUserOrder(req.user.id, order_ref, {
+    status: 'pending',
+    lastCheckedAt: new Date().toISOString()
+  });
+  res.json({ status: 'pending', order });
 }));
 
 export default router;

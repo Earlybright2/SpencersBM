@@ -108,24 +108,47 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
       <h3 className="font-syne font-bold text-gold text-[0.95rem] tracking-[0.5px] uppercase mb-4 mt-7">Your Purchase</h3>
       <div className="bg-white/3 border border-gold/15 rounded-[12px] p-5">
         {isAccount ? (
-          <>
-            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/5">
-              {Icon && (
-                <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
-                  <Icon size={20} strokeWidth={1.8} />
-                </span>
-              )}
-              <div>
-                <div className="font-medium">{order.platform}</div>
-                <div className="text-[#2ecc71] text-[0.75rem] font-semibold uppercase tracking-wider">Delivered</div>
+          order.status === 'pending' || (!order.username && !order.password) ? (
+            <>
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/5">
+                {Icon && (
+                  <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
+                    <Icon size={20} strokeWidth={1.8} />
+                  </span>
+                )}
+                <div>
+                  <div className="font-medium">{order.platform}</div>
+                  <div className="text-gold text-[0.75rem] font-semibold uppercase tracking-wider">Processing</div>
+                </div>
               </div>
-            </div>
-            <InfoRow label="Username / Email" value={order.username} mono />
-            <InfoRow label="Password" value={order.password} mono />
-            <p className="text-[0.78rem] text-gray-500 pt-3">
-              Your account credentials are also saved under <span className="text-gold">Paid Accounts</span> in the dashboard.
-            </p>
-          </>
+              <div className="flex items-center gap-2 rounded-[10px] border border-gold/20 bg-gold/5 px-4 py-3 text-[0.82rem] text-gray-300">
+                <Clock size={15} strokeWidth={1.9} className="text-gold shrink-0" />
+                <span>
+                  Your account is being prepared by the provider. The credentials will be delivered to{' '}
+                  <span className="text-gold">Paid Accounts</span> and your email shortly.
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/5">
+                {Icon && (
+                  <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
+                    <Icon size={20} strokeWidth={1.8} />
+                  </span>
+                )}
+                <div>
+                  <div className="font-medium">{order.platform}</div>
+                  <div className="text-[#2ecc71] text-[0.75rem] font-semibold uppercase tracking-wider">Delivered</div>
+                </div>
+              </div>
+              <InfoRow label="Username / Email" value={order.username} mono />
+              <InfoRow label="Password" value={order.password} mono />
+              <p className="text-[0.78rem] text-gray-500 pt-3">
+                Your account credentials are also saved under <span className="text-gold">Paid Accounts</span> in the dashboard.
+              </p>
+            </>
+          )
         ) : (
           <>
             <InfoRow label="Phone Number" value={order.number || '—'} mono />

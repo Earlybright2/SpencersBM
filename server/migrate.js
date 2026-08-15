@@ -55,8 +55,16 @@ async function migrate() {
         description TEXT DEFAULT '',
         enabled BOOLEAN DEFAULT true,
         inventory JSONB DEFAULT '[]'::jsonb,
+        provider_server VARCHAR(100) DEFAULT NULL,
+        provider_product_id VARCHAR(255) DEFAULT NULL,
+        provider_category VARCHAR(255) DEFAULT NULL,
+        stock NUMERIC(10, 0) DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+      ALTER TABLE account_products ADD COLUMN IF NOT EXISTS provider_server VARCHAR(100) DEFAULT NULL;
+      ALTER TABLE account_products ADD COLUMN IF NOT EXISTS provider_product_id VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE account_products ADD COLUMN IF NOT EXISTS provider_category VARCHAR(255) DEFAULT NULL;
+      ALTER TABLE account_products ADD COLUMN IF NOT EXISTS stock NUMERIC(10, 0) DEFAULT 0;
 
       CREATE TABLE IF NOT EXISTS sales (
         id VARCHAR(255) PRIMARY KEY,
@@ -148,13 +156,17 @@ async function migrate() {
       console.log(`Migrating ${accountProds.length} account products from catalog.json...`);
       for (const p of accountProds) {
         await client.query(
-          `INSERT INTO account_products (id, platform, price, currency, description, enabled, inventory, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `INSERT INTO account_products (id, platform, price, currency, description, enabled, inventory, provider_server, provider_product_id, provider_category, stock, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
            ON CONFLICT (id) DO UPDATE SET
              price = EXCLUDED.price,
              description = EXCLUDED.description,
              enabled = EXCLUDED.enabled,
-             inventory = EXCLUDED.inventory`,
+             inventory = EXCLUDED.inventory,
+             provider_server = EXCLUDED.provider_server,
+             provider_product_id = EXCLUDED.provider_product_id,
+             provider_category = EXCLUDED.provider_category,
+             stock = EXCLUDED.stock`,
           [
             p.id,
             p.platform,
@@ -163,6 +175,10 @@ async function migrate() {
             p.desc || '',
             p.enabled ?? true,
             JSON.stringify(p.inventory || []),
+            p.providerServer || null,
+            p.providerProductId || null,
+            p.providerCategory || null,
+            Number(p.stock) || 0,
             p.createdAt || new Date().toISOString()
           ]
         );

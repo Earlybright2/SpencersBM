@@ -62,6 +62,10 @@ export default function Admin() {
   const [accForm, setAccForm] = useState({ platform: '', price: '', desc: '' });
   const [invForm, setInvForm] = useState({ accountId: '', username: '', password: '' });
 
+  const [digSync, setDigSync] = useState({ server: '', category: '', search: '' });
+  const [digSyncing, setDigSyncing] = useState(false);
+  const [digResult, setDigResult] = useState(null);
+
   const [syncServer, setSyncServer] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
@@ -356,6 +360,28 @@ export default function Admin() {
       loadStats();
     } catch (err) {
       setError(getErrorMessage(err));
+    }
+  };
+
+  const syncDigital = async () => {
+    if (!digSync.server || digSyncing) return;
+    setDigSyncing(true);
+    setError('');
+    setDigResult(null);
+    try {
+      const res = await api.post('/admin/digital/sync', {
+        server: digSync.server,
+        category: digSync.category || undefined,
+        search: digSync.search || undefined
+      });
+      setDigResult(res.data);
+      setToast('Social account products synced from provider');
+      loadProducts();
+      loadStats();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setDigSyncing(false);
     }
   };
 
@@ -661,6 +687,59 @@ export default function Admin() {
 
           {section === 'accounts' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
+                <h2 className="font-syne text-xl mb-1">Sync Social Accounts from Provider</h2>
+                <p className="text-gray-500 text-[0.85rem] mb-5">
+                  Fetches pre-built social media accounts from OneGridHub (digital products) and adds them to the marketplace, auto-priced with margin.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 items-end">
+                  <div className="flex-1 min-w-[160px]">
+                    <Field label="Provider server">
+                      <input
+                        type="text"
+                        value={digSync.server}
+                        onChange={(e) => setDigSync((f) => ({ ...f, server: e.target.value }))}
+                        placeholder="e.g. server6"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </div>
+                  <div className="flex-1 min-w-[160px]">
+                    <Field label="Category (optional)">
+                      <input
+                        type="text"
+                        value={digSync.category}
+                        onChange={(e) => setDigSync((f) => ({ ...f, category: e.target.value }))}
+                        placeholder="e.g. Instagram"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </div>
+                  <div className="flex-1 min-w-[160px]">
+                    <Field label="Search (optional)">
+                      <input
+                        type="text"
+                        value={digSync.search}
+                        onChange={(e) => setDigSync((f) => ({ ...f, search: e.target.value }))}
+                        placeholder="Filter by name"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </div>
+                  <button onClick={syncDigital} disabled={!digSync.server || digSyncing} className="btn-gold px-6 py-2.5 text-[0.9rem] disabled:opacity-50 flex items-center gap-2">
+                    <RefreshCw size={16} strokeWidth={2} className={digSyncing ? 'animate-spin' : ''} />
+                    {digSyncing ? 'Syncing...' : 'Sync'}
+                  </button>
+                </div>
+                {digResult && (
+                  <p className="text-[0.85rem] text-gray-400 mt-4">
+                    Created <span className="text-gold font-semibold">{digResult.created}</span> · Updated{' '}
+                    <span className="text-gold font-semibold">{digResult.updated}</span> · Skipped{' '}
+                    <span className="text-gray-500">{digResult.skipped}</span>
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-6">
                 <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
                   <h2 className="font-syne text-xl mb-5">Add a Social Account Product</h2>
@@ -715,6 +794,7 @@ export default function Admin() {
                 ) : (
                   <div className="space-y-4">
                     {products.accounts.map((p) => {
+                      const isProvider = Boolean(p.providerProductId);
                       const available = (p.inventory || []).filter((i) => i.status === 'available');
                       const sold = (p.inventory || []).filter((i) => i.status === 'sold');
                       return (
@@ -722,7 +802,7 @@ export default function Admin() {
                           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                             <div>
                               <div className="font-medium text-[0.95rem]">{p.platform}</div>
-                              <div className="text-gray-500 text-[0.78rem]">{p.desc || '—'}</div>
+                              <div className="text-gray-500 text-[0.78rem]">{p.desc || '—'}{isProvider ? ` · ${p.providerServer || ''}${p.providerProductId ? ` (${p.providerProductId})` : ''}` : ''}</div>
                             </div>
                             <div className="flex items-center gap-2">
                               <button
@@ -749,10 +829,10 @@ export default function Admin() {
                               className="w-32 px-3 py-2 bg-[#0d0d0d] border border-gold/20 rounded-[8px] text-white text-[0.88rem] outline-none focus:border-gold"
                             />
                             <span className="text-[0.75rem] text-gray-500">
-                              {available.length} available · {sold.length} sold
+                              {isProvider ? `${p.stock ?? 0} in stock` : `${available.length} available · ${sold.length} sold`}
                             </span>
                           </div>
-                          {(p.inventory || []).length > 0 && (
+                          {!isProvider && (p.inventory || []).length > 0 && (
                             <div className="space-y-1.5">
                               {(p.inventory || []).map((slot) => (
                                 <div key={slot.id} className="flex items-center justify-between gap-3 bg-night/50 border border-gold/10 rounded-[8px] px-3 py-2">
