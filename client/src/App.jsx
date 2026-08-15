@@ -19,6 +19,14 @@ function Protected({ children }) {
   return children;
 }
 
+function UserDashboard({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <AuthLoading />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'admin') return <Navigate to="/admin" replace />;
+  return children;
+}
+
 function AdminRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <AuthLoading />;
@@ -63,9 +71,9 @@ export default function App() {
           <Route
             path="/dashboard"
             element={
-              <Protected>
+              <UserDashboard>
                 <Dashboard />
-              </Protected>
+              </UserDashboard>
             }
           />
           <Route

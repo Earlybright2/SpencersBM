@@ -10,7 +10,7 @@ export default function Home() {
   const { user } = useAuth();
 
   // Signed-in users land in their dashboard; guests go to the register page.
-  const go = () => navigate(user ? '/dashboard' : '/register');
+  const go = () => navigate(user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/register');
 
   return (
     <div>
@@ -26,7 +26,7 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row gap-6 justify-center flex-wrap items-center animate-fade-in-up w-full sm:w-auto">
           {user ? (
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate(user.role === 'admin' ? '/admin' : '/dashboard')}
               className="btn-gold px-10 py-4 text-base font-semibold flex items-center justify-center gap-2.5 w-full sm:w-auto max-w-[300px] hover:-translate-y-[3px] hover:shadow-[0_15px_40px_rgba(212,175,55,0.45)]"
             >
               <LayoutDashboard size={20} strokeWidth={2} />

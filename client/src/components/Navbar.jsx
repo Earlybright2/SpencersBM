@@ -22,7 +22,7 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Signed-in users land on their dashboard; guests go to the register page.
-  const target = user ? '/dashboard' : '/register';
+  const target = user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/register';
 
   const handleAnchor = (to) => {
     setMobileOpen(false);
@@ -114,7 +114,7 @@ export default function Navbar() {
             </div>
           ) : (
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate(user.role === 'admin' ? '/admin' : '/dashboard')}
               className="hidden md:flex items-center gap-2 btn-gold px-5 py-2 text-[0.9rem] font-semibold hover:-translate-y-[2px] hover:shadow-[0_10px_30px_rgba(212,175,55,0.35)]"
             >
               <LayoutDashboard size={17} strokeWidth={2.2} />
@@ -168,7 +168,7 @@ export default function Navbar() {
               <button
                 onClick={() => {
                   setMobileOpen(false);
-                  navigate('/dashboard');
+                  navigate(user.role === 'admin' ? '/admin' : '/dashboard');
                 }}
                 className="btn-gold px-5 py-3 text-[0.9rem] font-semibold flex items-center justify-center gap-2"
               >
