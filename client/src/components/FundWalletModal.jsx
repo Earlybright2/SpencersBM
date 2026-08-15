@@ -62,6 +62,14 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
   const [va, setVa] = useState(null);
   const [loadingVa, setLoadingVa] = useState(false);
   const [copied, setCopied] = useState('');
+  const [bankConfirmed, setBankConfirmed] = useState(false);
+  const [testFunding, setTestFunding] = useState(false);
+
+  useEffect(() => {
+    api.get('/config')
+      .then((res) => setTestFunding(Boolean(res.data?.testFunding)))
+      .catch(() => setTestFunding(false));
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -80,6 +88,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
       setSuccessCharge(null);
       setVa(null);
       setCopied('');
+      setBankConfirmed(false);
     }
   }, [open]);
 
@@ -298,6 +307,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                     onChange={(e) => {
                       setAmount(e.target.value);
                       setVa(null);
+                      setBankConfirmed(false);
                       setError('');
                     }}
                     placeholder={`Min. ${symbol}${min.toLocaleString()}`}
@@ -344,9 +354,35 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                       </div>
                     </div>
                     <p className="text-[0.72rem] text-gray-500 mt-4">
-                      Transfer exactly the amount shown using your banking app or USSD, then wait a few moments for the credit.
-                      The account number expires after a while, so make the transfer promptly.
+                      Transfer exactly the amount shown using your banking app or USSD. The account number expires after a while, so make the transfer promptly.
                     </p>
+
+                    {bankConfirmed ? (
+                      <div className="mt-4 bg-[#2ecc71]/10 border border-[#2ecc71]/30 rounded-[12px] px-4 py-3.5 flex items-start gap-3">
+                        <CheckCircle2 size={18} strokeWidth={1.9} className="text-[#2ecc71] shrink-0 mt-[2px]" />
+                        <div>
+                          <p className="text-[0.9rem] font-medium text-[#2ecc71]">Transfer confirmed</p>
+                          <p className="text-[0.8rem] text-gray-300 mt-0.5">
+                            Your wallet will be credited automatically as soon as the transfer is received. This usually takes a few minutes. You can keep this window open or check your balance shortly.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={onClose}
+                            className="mt-3 text-[0.82rem] text-gold font-medium hover:text-gold-light"
+                          >
+                            Done — close
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setBankConfirmed(true)}
+                        className="mt-4 w-full btn-gold py-4 text-[0.95rem] rounded-[12px] flex items-center justify-center gap-2"
+                      >
+                        <Check size={18} strokeWidth={1.9} /> I have sent the money
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <button
@@ -471,18 +507,20 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                     : `Pay ${symbol}${valid ? numeric.toLocaleString(undefined, { maximumFractionDigits: 2 }) : ''}`}
                 </button>
 
-                <div className="mt-4 pt-4 border-t border-gold/10 text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleTestFund(10000)}
-                    className="w-full bg-[#1b2a1e] hover:bg-[#233827] text-[#2ecc71] border border-[#2ecc71]/30 py-3 rounded-[12px] text-[0.88rem] font-medium transition-all flex items-center justify-center gap-2"
-                  >
-                    <span>🧪 Sandbox Mode: Instant ₦10,000 Test Top-Up</span>
-                  </button>
-                  <p className="text-[0.72rem] text-gray-500 mt-1">
-                    Adds ₦10,000 test balance immediately to test purchases in sandbox mode.
-                  </p>
-                </div>
+                {testFunding && (
+                  <div className="mt-4 pt-4 border-t border-gold/10 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleTestFund(10000)}
+                      className="w-full bg-[#1b2a1e] hover:bg-[#233827] text-[#2ecc71] border border-[#2ecc71]/30 py-3 rounded-[12px] text-[0.88rem] font-medium transition-all flex items-center justify-center gap-2"
+                    >
+                      <span>🧪 Sandbox Mode: Instant ₦10,000 Test Top-Up</span>
+                    </button>
+                    <p className="text-[0.72rem] text-gray-500 mt-1">
+                      Adds ₦10,000 test balance immediately to test purchases in sandbox mode.
+                    </p>
+                  </div>
+                )}
               </form>
             )}
           </>

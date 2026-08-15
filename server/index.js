@@ -30,6 +30,7 @@ app.get('/', (req, res) => {
     baseUrl: req.protocol + '://' + req.get('host'),
     endpoints: {
       health: { method: 'GET', path: '/api/health', auth: 'none' },
+      config: { method: 'GET', path: '/api/config', auth: 'none' },
       auth: {
         register: { method: 'POST', path: '/api/auth/register', auth: 'none', body: { name: 'string', email: 'string', password: 'string' } },
         login: { method: 'POST', path: '/api/auth/login', auth: 'none', body: { email: 'string', password: 'string' } },
@@ -82,8 +83,7 @@ app.get('/', (req, res) => {
   });
 });
 
-app.get('/api/health', async (req, res) => {
-  const checks = {};
+app.get('/api/health', async (req, res) => {  const checks = {};
 
   try {
     await getUsers();
@@ -100,6 +100,16 @@ app.get('/api/health', async (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     checks,
+  });
+});
+
+// Client-facing runtime config (no secrets).
+app.get('/api/config', (req, res) => {
+  const isSandbox =
+    (process.env.FLW_BASE_URL || '').includes('sandbox') || process.env.NODE_ENV !== 'production';
+  res.json({
+    testFunding: isSandbox,
+    paymentsLive: !isSandbox
   });
 });
 

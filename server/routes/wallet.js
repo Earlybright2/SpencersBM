@@ -44,8 +44,7 @@ router.post('/test-fund', async (req, res, next) => {
     const isSandbox = (process.env.FLW_BASE_URL || '').includes('sandbox') || process.env.NODE_ENV !== 'production';
     if (!isSandbox) {
       return res.status(403).json({ message: 'Test funding is only available in Sandbox / Development mode.' });
-    }
-    const { amount } = req.body || {};
+    }    const { amount } = req.body || {};
     const numAmount = Number(amount) || 10000;
     if (numAmount <= 0) {
       return res.status(400).json({ message: 'Amount must be positive.' });

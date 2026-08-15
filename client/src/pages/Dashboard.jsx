@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones, Clock } from 'lucide-react';
+import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones, Clock, Download } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
@@ -9,6 +9,7 @@ import SuccessModal from '../components/SuccessModal.jsx';
 import CascadingNumbers from '../components/CascadingNumbers.jsx';
 import CountdownTimer from '../components/CountdownTimer.jsx';
 import { platformIcon } from '../data/marketplace.js';
+import { downloadReceiptPdf } from '../utils/receipt.js';
 
 const TITLES = {
   overview: 'Overview',
@@ -41,6 +42,29 @@ function PanelCard({ title, children, actions }) {
   );
 }
 
+function RefreshButton({ onClick, label = 'Refresh' }) {
+  const [spinning, setSpinning] = useState(false);
+  const handle = async () => {
+    if (spinning) return;
+    setSpinning(true);
+    try {
+      await onClick();
+    } finally {
+      setSpinning(false);
+    }
+  };
+  return (
+    <button
+      onClick={handle}
+      disabled={spinning}
+      className="btn-ghost px-4 py-2.5 text-[0.82rem] flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      <RefreshCw size={15} strokeWidth={1.9} className={`shrink-0 ${spinning ? 'animate-spin' : ''}`} />
+      {spinning ? 'Refreshing...' : label}
+    </button>
+  );
+}
+
 const fmtNgn = (n) => `\u20A6${Number(n || 0).toLocaleString()}`;
 
 // Numbers keep the same SMS window the provider uses (~20 min). Old orders that
@@ -49,6 +73,9 @@ const SMS_EXPIRY_MS = 20 * 60 * 1000;
 const smsExpiresAt = (order) =>
   order.expiresAt ||
   new Date(new Date(order.purchasedAt || Date.now()).getTime() + SMS_EXPIRY_MS).toISOString();
+
+const isSuccessfulPayment = (p) =>
+  !['cancelled', 'expired', 'failed', 'initiated'].includes(String(p.status || '').toLowerCase());
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -307,6 +334,58 @@ export default function Dashboard() {
     }));
     return [...purchases, ...funds].sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [orders, wallet]);
+
+  const handleDownloadPayment = (p) => {
+    if (p.kind === 'purchase') {
+      const order = orders.find((o) => o.id === p.id || o.order_ref === p.ref);
+      downloadReceiptPdf({
+        ref: p.ref,
+        subtitle: 'ORDER RECEIPT',
+        date: p.date,
+        amount: p.amount,
+        status: p.status,
+        sectionTitle: 'YOUR PURCHASE',
+        rows: order
+          ? order.type === 'virtual_number'
+            ? [
+                ['Phone Number', order.number || ''],
+                ['Service', order.service],
+                ['Country', order.country],
+                ['SMS Code', order.sms || 'Not received yet'],
+                ['Status', order.status]
+              ]
+            : [
+                ['Platform', order.platform],
+                ['Username / Email', order.username],
+                ['Password', order.password]
+              ]
+          : [['Product', p.title]]
+      });
+    } else if (p.kind === 'fund') {
+      if (p.type === 'credit') {
+        downloadReceiptPdf({
+          ref: p.ref,
+          subtitle: 'FUNDING RECEIPT',
+          date: p.date,
+          amount: p.amount,
+          status: 'Completed',
+          rows: [['Type', 'Wallet Top-up']],
+          sectionTitle: 'DETAILS',
+          note: 'Thank you for funding your wallet!'
+        });
+      } else {
+        downloadReceiptPdf({
+          ref: p.ref,
+          subtitle: 'PAYMENT RECEIPT',
+          date: p.date,
+          amount: p.amount,
+          status: 'Completed',
+          rows: [['Type', 'Purchase Payment'], ['Product', p.title]],
+          sectionTitle: 'DETAILS'
+        });
+      }
+    }
+  };
 
   const totalSpent = useMemo(() => orders.reduce((s, o) => s + (Number(o.price) || 0), 0), [orders]);
   const activeNumbers = useMemo(() => numberOrders.filter((o) => o.status !== 'cancelled' && o.status !== 'received').length, [numberOrders]);
@@ -699,9 +778,7 @@ export default function Dashboard() {
         <PanelCard
           title="Paid Accounts"
           actions={
-            <button onClick={loadPaidAccounts} className="btn-ghost px-4 py-2.5 text-[0.82rem] flex items-center gap-2">
-              <RefreshCw size={15} strokeWidth={1.9} /> Refresh
-            </button>
+            <RefreshButton onClick={loadPaidAccounts} />
           }
         >
           {paidAccounts.length === 0 ? (
@@ -768,9 +845,7 @@ export default function Dashboard() {
         <PanelCard
           title="Order History"
           actions={
-            <button onClick={() => { loadWallet(); loadOrders(); }} className="btn-ghost px-4 py-2.5 text-[0.82rem] flex items-center gap-2">
-              <RefreshCw size={15} strokeWidth={1.9} /> Refresh
-            </button>
+            <RefreshButton onClick={() => Promise.all([loadWallet(), loadOrders()])} />
           }
         >
           {paymentHistory.length === 0 ? (
@@ -807,6 +882,15 @@ export default function Dashboard() {
                     <span className="text-[0.68rem] font-semibold uppercase px-2.5 py-1 rounded-[50px] border text-gold border-gold/30 bg-gold/10">
                       {p.status}
                     </span>
+                    {isSuccessfulPayment(p) && (
+                      <button
+                        onClick={() => handleDownloadPayment(p)}
+                        title="Download receipt"
+                        className="text-gold hover:bg-gold/10 rounded-[8px] p-1.5 transition-colors"
+                      >
+                        <Download size={15} strokeWidth={1.9} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
