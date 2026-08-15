@@ -188,6 +188,8 @@ export async function getCatalog() {
       accounts: accounts.map((a) => ({
         id: a.id,
         platform: a.platform,
+        country: a.country || '',
+        countryName: a.country_name || '',
         price: Number(a.price),
         currency: a.currency,
         desc: a.description,
@@ -271,12 +273,14 @@ export async function removeNumberProduct(id) {
 export async function addAccountProduct(product) {
   await pool.query(
     `INSERT INTO account_products
-       (id, platform, price, currency, description, enabled, inventory,
+       (id, platform, country, country_name, price, currency, description, enabled, inventory,
         provider_server, provider_product_id, provider_category, stock, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
     [
       product.id,
       product.platform,
+      product.country || '',
+      product.countryName || '',
       Number(product.price) || 0,
       product.currency || 'NGN',
       product.desc || '',
@@ -305,18 +309,24 @@ export async function updateAccountProduct(id, updates) {
   const providerProductId = updates.providerProductId !== undefined ? updates.providerProductId : existing.provider_product_id;
   const providerCategory = updates.providerCategory !== undefined ? updates.providerCategory : existing.provider_category;
   const stock = updates.stock !== undefined ? Number(updates.stock) : Number(existing.stock);
+  const platform = updates.platform !== undefined ? String(updates.platform) : existing.platform;
+  const country = updates.country !== undefined ? String(updates.country) : existing.country;
+  const countryName = updates.countryName !== undefined ? String(updates.countryName) : existing.country_name;
 
   const { rows: updated } = await pool.query(
     `UPDATE account_products
      SET price = $1, description = $2, enabled = $3, inventory = $4,
-         provider_server = $5, provider_product_id = $6, provider_category = $7, stock = $8
-     WHERE id = $9 RETURNING *`,
-    [price, desc, enabled, JSON.stringify(inventory), providerServer, providerProductId, providerCategory, stock, id]
+         provider_server = $5, provider_product_id = $6, provider_category = $7, stock = $8,
+         platform = $9, country = $10, country_name = $11
+     WHERE id = $12 RETURNING *`,
+    [price, desc, enabled, JSON.stringify(inventory), providerServer, providerProductId, providerCategory, stock, platform, country, countryName, id]
   );
   const a = updated[0];
   return {
     id: a.id,
     platform: a.platform,
+    country: a.country || '',
+    countryName: a.country_name || '',
     price: Number(a.price),
     currency: a.currency,
     desc: a.description,

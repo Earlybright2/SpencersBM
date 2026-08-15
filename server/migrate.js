@@ -50,6 +50,8 @@ async function migrate() {
       CREATE TABLE IF NOT EXISTS account_products (
         id VARCHAR(255) PRIMARY KEY,
         platform VARCHAR(255) NOT NULL,
+        country VARCHAR(100) DEFAULT '',
+        country_name VARCHAR(255) DEFAULT '',
         price NUMERIC(14, 2) NOT NULL,
         currency VARCHAR(10) DEFAULT 'NGN',
         description TEXT DEFAULT '',
@@ -65,6 +67,8 @@ async function migrate() {
       ALTER TABLE account_products ADD COLUMN IF NOT EXISTS provider_product_id VARCHAR(255) DEFAULT NULL;
       ALTER TABLE account_products ADD COLUMN IF NOT EXISTS provider_category VARCHAR(255) DEFAULT NULL;
       ALTER TABLE account_products ADD COLUMN IF NOT EXISTS stock NUMERIC(10, 0) DEFAULT 0;
+      ALTER TABLE account_products ADD COLUMN IF NOT EXISTS country VARCHAR(100) DEFAULT '';
+      ALTER TABLE account_products ADD COLUMN IF NOT EXISTS country_name VARCHAR(255) DEFAULT '';
 
       CREATE TABLE IF NOT EXISTS sales (
         id VARCHAR(255) PRIMARY KEY,
@@ -156,8 +160,8 @@ async function migrate() {
       console.log(`Migrating ${accountProds.length} account products from catalog.json...`);
       for (const p of accountProds) {
         await client.query(
-          `INSERT INTO account_products (id, platform, price, currency, description, enabled, inventory, provider_server, provider_product_id, provider_category, stock, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          `INSERT INTO account_products (id, platform, country, country_name, price, currency, description, enabled, inventory, provider_server, provider_product_id, provider_category, stock, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            ON CONFLICT (id) DO UPDATE SET
              price = EXCLUDED.price,
              description = EXCLUDED.description,
@@ -166,10 +170,14 @@ async function migrate() {
              provider_server = EXCLUDED.provider_server,
              provider_product_id = EXCLUDED.provider_product_id,
              provider_category = EXCLUDED.provider_category,
-             stock = EXCLUDED.stock`,
+             stock = EXCLUDED.stock,
+             country = EXCLUDED.country,
+             country_name = EXCLUDED.country_name`,
           [
             p.id,
             p.platform,
+            p.country || '',
+            p.countryName || '',
             Number(p.price) || 0,
             p.currency || 'NGN',
             p.desc || '',

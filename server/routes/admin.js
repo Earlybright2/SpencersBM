@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAdmin } from '../utils/auth.js';
 import { asyncRoute, ogDigitalProducts } from '../utils/onegridhub.js';
 import { syncDigitalProducts } from '../utils/digital-sync.js';
+import { pool } from '../utils/db.js';
 import {
   getUsers,
   getCatalog,
@@ -133,20 +134,51 @@ router.post('/digital/sync', asyncRoute(async (req, res) => {
   res.json(results);
 }));
 
-// POST /api/admin/products/accounts { platform, price, desc? }
+// POST /api/admin/products/accounts { platform, price, desc?, server?, country?, countryName?, providerProductId?, stock?, category? }
+// Creates (or updates) an account product. When providerProductId is supplied
+// the product is linked to a specific OneGridHub digital product so purchases
+// are fulfilled directly by the provider.
 router.post('/products/accounts', asyncRoute(async (req, res) => {
-  const { platform, price, desc } = req.body || {};
+  const { platform, price, desc, server, country, countryName, providerProductId, stock, category } = req.body || {};
   if (!platform) return res.status(400).json({ message: 'platform is required' });
   const cost = Number(price);
   if (!Number.isFinite(cost) || cost <= 0) return res.status(400).json({ message: 'A valid positive price is required' });
+
+  if (providerProductId) {
+    const existing = await pool.query(
+      'SELECT id FROM account_products WHERE provider_product_id = $1 AND provider_server = $2',
+      [String(providerProductId), server || null]
+    );
+    if (existing.rows[0]) {
+      const product = await updateAccountProduct(existing.rows[0].id, {
+        price: cost,
+        desc: desc || undefined,
+        platform,
+        country: country || '',
+        countryName: countryName || '',
+        providerServer: server || null,
+        providerCategory: category || null,
+        stock: Number(stock) || 0,
+        enabled: true
+      });
+      return res.json({ product, updated: true });
+    }
+  }
+
   const product = {
     id: genId('ap'),
     platform,
+    country: country || '',
+    countryName: countryName || '',
     price: cost,
     currency: 'NGN',
     desc: desc || '',
     enabled: true,
     inventory: [],
+    providerServer: server || null,
+    providerProductId: providerProductId || null,
+    providerCategory: category || null,
+    stock: Number(stock) || 0,
     createdAt: new Date().toISOString()
   };
   await addAccountProduct(product);

@@ -9,6 +9,7 @@ import SuccessModal from '../components/SuccessModal.jsx';
 import CascadingNumbers from '../components/CascadingNumbers.jsx';
 import CountdownTimer from '../components/CountdownTimer.jsx';
 import { platformIcon } from '../data/marketplace.js';
+import CascadingAccounts from '../components/CascadingAccounts.jsx';
 import { downloadReceiptPdf } from '../utils/receipt.js';
 
 const TITLES = {
@@ -104,7 +105,6 @@ export default function Dashboard() {
   const [storeView, setStoreView] = useState('numbers');
   const [storeSearch, setStoreSearch] = useState('');
   const [numbersSearch, setNumbersSearch] = useState('');
-  const [accPlatform, setAccPlatform] = useState('');
 
   const loadWallet = async (silent = false) => {
     try {
@@ -323,19 +323,6 @@ export default function Dashboard() {
       String(p.platform || '').toLowerCase().includes(q) || String(p.desc || '').toLowerCase().includes(q)
     );
   }, [catalog.accounts, storeSearch]);
-
-  const accountPlatforms = useMemo(() => {
-    const set = new Set();
-    catalog.accounts.forEach((p) => {
-      if (p.platform) set.add(p.platform);
-    });
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [catalog.accounts]);
-
-  const accountsTabList = useMemo(() => {
-    if (!accPlatform) return catalog.accounts;
-    return catalog.accounts.filter((p) => p.platform === accPlatform);
-  }, [catalog.accounts, accPlatform]);
 
   const filteredNumbers = useMemo(() => {
     const q = numbersSearch.trim().toLowerCase();
@@ -760,55 +747,13 @@ export default function Dashboard() {
       {/* ===== ACCOUNTS ===== */}
       {tab === 'accounts' && (
         <div className="space-y-6">
-          <PanelCard
-            title="Social Media Accounts"
-            actions={
-              <div className="w-full max-w-[280px]">
-                <label className="text-[0.72rem] uppercase tracking-wider text-gray-500 font-medium mb-1.5 block">Filter by platform</label>
-                <select value={accPlatform} onChange={(e) => setAccPlatform(e.target.value)} className="w-full px-3.5 py-2.5 bg-[#0d0d0d] border border-gold/20 rounded-[10px] text-white text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all">
-                  <option value="" className="bg-[#141414]">All platforms</option>
-                  {accountPlatforms.map((pl) => (
-                    <option key={pl} value={pl} className="bg-[#141414]">{pl}</option>
-                  ))}
-                </select>
-              </div>
-            }
-          >
-            {accountsTabList.length === 0 ? (
+          <PanelCard title="Social Media Accounts">
+            {catalog.accounts.length === 0 ? (
               <p className="text-gray-500 text-[0.95rem] py-6 text-center">
                 No social accounts are listed right now. Check back soon.
               </p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {accountsTabList.map((p) => {
-                  const Icon = platformIcon(p.platform);
-                  const soldOut = p.available <= 0;
-                  return (
-                    <div key={p.id} className="card-border bg-night/40 rounded-[12px] p-5 flex flex-col">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
-                          <Icon size={20} strokeWidth={1.8} />
-                        </span>
-                        <div className="min-w-0">
-                          <div className="font-medium text-[0.95rem] truncate">{p.platform}</div>
-                          <div className="text-gray-500 text-[0.78rem]">{p.available} available</div>
-                        </div>
-                      </div>
-                      {p.desc && <p className="text-gray-400 text-[0.85rem] mb-3">{p.desc}</p>}
-                      <div className="text-[0.9rem] mb-4">
-                        <span className="text-gold font-semibold text-lg">{fmtNgn(p.price)}</span>
-                      </div>
-                      <button
-                        onClick={() => handleBuyAccount(p)}
-                        disabled={Boolean(busy) || soldOut}
-                        className="btn-gold w-full py-3 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {busy === `buy-${p.id}` ? 'Purchasing...' : soldOut ? 'Sold Out' : 'Buy Account'}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              <CascadingAccounts items={catalog.accounts} onBuy={handleBuyAccount} busy={busy} />
             )}
           </PanelCard>
         </div>

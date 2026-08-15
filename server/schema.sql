@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS number_products (
 CREATE TABLE IF NOT EXISTS account_products (
   id VARCHAR(255) PRIMARY KEY,
   platform VARCHAR(255) NOT NULL,
+  country VARCHAR(100) DEFAULT '',
+  country_name VARCHAR(255) DEFAULT '',
   price NUMERIC(14, 2) NOT NULL,
   currency VARCHAR(10) DEFAULT 'NGN',
   description TEXT DEFAULT '',

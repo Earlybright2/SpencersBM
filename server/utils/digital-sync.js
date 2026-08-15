@@ -1,5 +1,6 @@
 import { ogDigitalProducts } from './onegridhub.js';
 import { pool } from './db.js';
+import { normalizeDigitalProduct, clearDigitalCache } from './digital-catalog.js';
 
 const genId = (prefix) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -94,10 +95,14 @@ export async function syncDigitalProducts({ server, category, search, margin = M
       continue;
     }
 
-    const providerProductId = extractProductId(raw);
-    const name = extractName(raw) || providerProductId;
+    const normalized = normalizeDigitalProduct(raw);
+    const providerProductId = extractProductId(raw) || normalized.id;
+    const name = normalized.name || providerProductId;
+    const platform = normalized.platform;
+    const country = normalized.country;
+    const countryName = normalized.countryName;
     const categoryName = raw.category || category || '';
-    const stock = extractStock(raw);
+    const stock = extractStock(raw) || normalized.stock;
     const sell = Math.ceil((cost * margin) / 100) * 100;
 
     const existing = await pool.query(
@@ -108,23 +113,26 @@ export async function syncDigitalProducts({ server, category, search, margin = M
     if (existing.rows[0]) {
       await pool.query(
         `UPDATE account_products
-         SET price = $1, description = $2, stock = $3, provider_category = $4, enabled = true
-         WHERE id = $5`,
-        [sell, categoryName, stock, categoryName, existing.rows[0].id]
+         SET price = $1, description = $2, stock = $3, provider_category = $4,
+             platform = $5, country = $6, country_name = $7, enabled = true
+         WHERE id = $8`,
+        [sell, name, stock, categoryName, platform, country, countryName, existing.rows[0].id]
       );
       results.updated += 1;
     } else {
       await pool.query(
         `INSERT INTO account_products
-           (id, platform, price, currency, description, enabled, inventory,
+           (id, platform, country, country_name, price, currency, description, enabled, inventory,
             provider_server, provider_product_id, provider_category, stock, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
           genId('ap'),
-          name,
+          platform,
+          country,
+          countryName,
           sell,
           'NGN',
-          categoryName,
+          name,
           true,
           '[]',
           server,
@@ -139,13 +147,17 @@ export async function syncDigitalProducts({ server, category, search, margin = M
 
     results.items.push({
       id: providerProductId,
-      platform: name,
+      platform,
+      country,
+      countryName,
       category: categoryName,
       cost,
       sell,
       stock
     });
   }
+
+  clearDigitalCache(server);
 
   return results;
 }

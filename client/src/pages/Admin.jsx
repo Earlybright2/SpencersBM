@@ -58,9 +58,14 @@ export default function Admin() {
   const [countries, setCountries] = useState([]);
   const [providerPrice, setProviderPrice] = useState(null);
 
+  const [digServers, setDigServers] = useState([]);
+  const [digPlatforms, setDigPlatforms] = useState([]);
+  const [digCountries, setDigCountries] = useState([]);
+  const [digPrice, setDigPrice] = useState(null);
+
   const [numForm, setNumForm] = useState({ server: '', service: '', country: '', price: '' });
-  const [accForm, setAccForm] = useState({ platform: '', price: '', desc: '' });
   const [invForm, setInvForm] = useState({ accountId: '', username: '', password: '' });
+  const [digForm, setDigForm] = useState({ server: '', platform: '', country: '', price: '' });
 
   const [digSync, setDigSync] = useState({ server: '', category: '', search: '' });
   const [digSyncing, setDigSyncing] = useState(false);
@@ -74,6 +79,8 @@ export default function Admin() {
   const [editCountry, setEditCountry] = useState('');
   const [editPrices, setEditPrices] = useState({});
   const [editAccPlatform, setEditAccPlatform] = useState('');
+  const [editAccServer, setEditAccServer] = useState('');
+  const [editAccCountry, setEditAccCountry] = useState('');
 
   const [loading, setLoading] = useState(false);
 
@@ -138,6 +145,7 @@ export default function Admin() {
 
   useEffect(() => {
     if (section === 'numbers' || section === 'accounts') loadServers();
+    if (section === 'accounts') loadDigServers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
 
@@ -165,6 +173,53 @@ export default function Admin() {
     try {
       const res = await api.get('/onegridhub/price', { params: { server, country, service } });
       setProviderPrice(res.data);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const loadDigServers = async () => {
+    try {
+      const res = await api.get('/onegridhub/digital/servers');
+      setDigServers(res.data.servers || []);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const onDigServerChange = async (server) => {
+    setDigForm((f) => ({ ...f, server, platform: '', country: '', price: '' }));
+    setDigPlatforms([]);
+    setDigCountries([]);
+    setDigPrice(null);
+    if (!server) return;
+    try {
+      const res = await api.get('/onegridhub/digital/platforms', { params: { server } });
+      setDigPlatforms(res.data.platforms || []);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const onDigPlatformChange = async (platform) => {
+    setDigForm((f) => ({ ...f, platform, country: '', price: '' }));
+    setDigCountries([]);
+    setDigPrice(null);
+    if (!platform || !digForm.server) return;
+    try {
+      const res = await api.get('/onegridhub/digital/countries', { params: { server: digForm.server, platform } });
+      setDigCountries(res.data.countries || []);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const checkDigProviderPrice = async () => {
+    const { server, platform, country } = digForm;
+    if (!server || !platform || !country) return;
+    try {
+      const res = await api.get('/onegridhub/digital/price', { params: { server, platform, country } });
+      setDigPrice(res.data.price);
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -234,17 +289,45 @@ export default function Admin() {
     }
   };
 
-  const editAccPlatforms = useMemo(() => {
+  const editAccServers = useMemo(() => {
     const set = new Set();
     products.accounts.forEach((p) => {
-      if (p.platform) set.add(p.platform);
+      if (p.providerServer) set.add(p.providerServer);
     });
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [products.accounts]);
 
+  const editAccPlatforms = useMemo(() => {
+    const set = new Set();
+    products.accounts.forEach((p) => {
+      if (editAccServer && p.providerServer !== editAccServer) return;
+      if (p.platform) set.add(p.platform);
+    });
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [products.accounts, editAccServer]);
+
+  const editAccCountries = useMemo(() => {
+    const map = new Map();
+    products.accounts.forEach((p) => {
+      if (editAccServer && p.providerServer !== editAccServer) return;
+      if (editAccPlatform && p.platform !== editAccPlatform) return;
+      const key = p.country || 'Mixed';
+      if (!map.has(key)) map.set(key, p.countryName || key);
+    });
+    return [...map.entries()]
+      .map(([key, name]) => ({ key, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [products.accounts, editAccServer, editAccPlatform]);
+
   const editAccMatches = useMemo(
-    () => products.accounts.filter((p) => !editAccPlatform || p.platform === editAccPlatform),
-    [products.accounts, editAccPlatform]
+    () =>
+      products.accounts.filter((p) => {
+        if (editAccServer && p.providerServer !== editAccServer) return false;
+        if (editAccPlatform && p.platform !== editAccPlatform) return false;
+        if (editAccCountry && (p.country || 'Mixed') !== editAccCountry) return false;
+        return true;
+      }),
+    [products.accounts, editAccServer, editAccPlatform, editAccCountry]
   );
 
   const saveAccountPrice = async (id) => {
@@ -320,18 +403,36 @@ export default function Admin() {
     }
   };
 
-  const addAccountProduct = async (e) => {
+  const addProviderAccountProduct = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
+      const { server, platform, country, price } = digForm;
+      const cheapest = digPrice?.products?.[0];
+      const countryObj = digCountries.find((c) => c.key === country);
+      if (!cheapest) {
+        setError('No provider product matched this selection.');
+        return;
+      }
+      if (Number(price) < Number(digPrice.min)) {
+        setError(`Sell price must be above the provider cost of ${Number(digPrice.min).toLocaleString()} ${digPrice.currency || 'NGN'} (otherwise you lose money per sale).`);
+        return;
+      }
       await api.post('/admin/products/accounts', {
-        platform: accForm.platform,
-        price: Number(accForm.price),
-        desc: accForm.desc
+        server,
+        platform,
+        country,
+        countryName: countryObj?.name || country,
+        price: Number(price),
+        desc: cheapest.name,
+        providerProductId: cheapest.id,
+        stock: cheapest.stock,
+        category: ''
       });
-      setToast('Account product added');
-      setAccForm({ platform: '', price: '', desc: '' });
+      setToast('Social account product added from provider');
+      setDigForm({ server: digForm.server, platform: '', country: '', price: '' });
+      setDigPrice(null);
       loadProducts();
       loadStats();
     } catch (err) {
@@ -409,6 +510,7 @@ export default function Admin() {
       setToast('Social account products synced from provider');
       loadProducts();
       loadStats();
+      loadDigServers();
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -728,8 +830,8 @@ export default function Admin() {
                     <Field label="Provider server">
                       <select value={digSync.server} onChange={(e) => setDigSync((f) => ({ ...f, server: e.target.value }))} className={inputCls}>
                         <option value="" className="bg-[#141414]">Select a server</option>
-                        {servers.map((s) => (
-                          <option key={s.id} value={s.id} className="bg-[#141414]">{s.label} ({s.region})</option>
+                        {digServers.map((s) => (
+                          <option key={s.id} value={s.id} className="bg-[#141414]">{s.label} ({s.products} products)</option>
                         ))}
                       </select>
                     </Field>
@@ -773,13 +875,25 @@ export default function Admin() {
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
                 <h2 className="font-syne text-xl mb-1">Edit Account Prices</h2>
                 <p className="text-gray-500 text-[0.85rem] mb-5">
-                  Pick a platform to see and update the sell price of each account product.
+                  Pick a provider server, then a platform and country, to see and update the sell price of each account product.
                 </p>
-                <div className="mb-4 max-w-[280px]">
-                  <Field label="Platform">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                  <Field label="1. Provider server">
+                    <select
+                      value={editAccServer}
+                      onChange={(e) => { setEditAccServer(e.target.value); setEditAccPlatform(''); setEditAccCountry(''); setEditPrices({}); }}
+                      className={inputCls}
+                    >
+                      <option value="" className="bg-[#141414]">All servers</option>
+                      {editAccServers.map((s) => (
+                        <option key={s} value={s} className="bg-[#141414]">{s}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="2. Platform">
                     <select
                       value={editAccPlatform}
-                      onChange={(e) => { setEditAccPlatform(e.target.value); setEditPrices({}); }}
+                      onChange={(e) => { setEditAccPlatform(e.target.value); setEditAccCountry(''); setEditPrices({}); }}
                       className={inputCls}
                     >
                       <option value="" className="bg-[#141414]">All platforms</option>
@@ -788,18 +902,35 @@ export default function Admin() {
                       ))}
                     </select>
                   </Field>
+                  <Field label="3. Country">
+                    <select
+                      value={editAccCountry}
+                      onChange={(e) => { setEditAccCountry(e.target.value); setEditPrices({}); }}
+                      disabled={!editAccPlatform}
+                      className={`${inputCls} disabled:opacity-50`}
+                    >
+                      <option value="" className="bg-[#141414]">All countries</option>
+                      {editAccCountries.map((c) => (
+                        <option key={c.key} value={c.key} className="bg-[#141414]">{c.name}</option>
+                      ))}
+                    </select>
+                  </Field>
                 </div>
                 {editAccMatches.length === 0 ? (
                   <p className="text-gray-500 text-[0.9rem] py-4 text-center">
-                    No account products to edit yet. Sync from the provider above first.
+                    No account products match this selection. Sync from the provider above or add one below.
                   </p>
                 ) : (
                   <div className="space-y-3">
                     {editAccMatches.map((p) => (
                       <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4 flex flex-wrap items-end gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="text-[0.9rem] font-medium">{p.platform}</div>
-                          <div className="text-gray-500 text-[0.78rem]">Current price: {fmtNgn(p.price)} · {p.stock ?? 0} in stock</div>
+                          <div className="text-[0.9rem] font-medium">
+                            {p.platform}{p.countryName ? ` · ${p.countryName}` : ''}
+                          </div>
+                          <div className="text-gray-500 text-[0.78rem]">
+                            Current price: {fmtNgn(p.price)} · {p.stock ?? 0} in stock{p.providerServer ? ` · ${p.providerServer}` : ''}
+                          </div>
                         </div>
                         <div className="flex items-end gap-2">
                           <Field label="New price (NGN)">
@@ -819,26 +950,65 @@ export default function Admin() {
                 )}
               </div>
 
-              <div className="space-y-6">
-                <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
-                  <h2 className="font-syne text-xl mb-5">Add a Social Account Product</h2>
-                  <form onSubmit={addAccountProduct} className="space-y-4">
-                    <Field label="Platform">
-                      <input type="text" value={accForm.platform} onChange={(e) => setAccForm((f) => ({ ...f, platform: e.target.value }))} placeholder="e.g. Instagram" className={inputCls} />
+              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
+                <h2 className="font-syne text-xl mb-1">Add a Social Account Product</h2>
+                <p className="text-gray-500 text-[0.85rem] mb-5">
+                  Pick a provider server, then a platform and country from OneGridHub, and check the provider cost before setting your sell price.
+                </p>
+                <form onSubmit={addProviderAccountProduct} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Field label="Provider server">
+                      <select value={digForm.server} onChange={(e) => onDigServerChange(e.target.value)} className={inputCls}>
+                        <option value="" className="bg-[#141414]">Select a server</option>
+                        {digServers.map((s) => (
+                          <option key={s.id} value={s.id} className="bg-[#141414]">{s.label} ({s.products} products)</option>
+                        ))}
+                      </select>
                     </Field>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Price (NGN)">
-                        <input type="number" min="1" value={accForm.price} onChange={(e) => setAccForm((f) => ({ ...f, price: e.target.value }))} placeholder="e.g. 15000" className={inputCls} />
-                      </Field>
-                      <Field label="Description">
-                        <input type="text" value={accForm.desc} onChange={(e) => setAccForm((f) => ({ ...f, desc: e.target.value }))} placeholder="e.g. Aged account" className={inputCls} />
-                      </Field>
-                    </div>
-                    <button type="submit" disabled={loading || !accForm.platform || !accForm.price} className="w-full btn-gold py-3.5 text-[0.92rem] disabled:opacity-50 flex items-center justify-center gap-2">
-                      <Plus size={17} strokeWidth={2} /> {loading ? 'Adding...' : 'Add Product'}
+                    <Field label="Platform">
+                      <select value={digForm.platform} onChange={(e) => onDigPlatformChange(e.target.value)} disabled={!digForm.server} className={`${inputCls} disabled:opacity-50`}>
+                        <option value="" className="bg-[#141414]">Select platform</option>
+                        {digPlatforms.map((p) => (
+                          <option key={p.name} value={p.name} className="bg-[#141414]">{p.name} ({p.count})</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Country">
+                      <select value={digForm.country} onChange={(e) => setDigForm((f) => ({ ...f, country: e.target.value }))} disabled={!digForm.platform} className={`${inputCls} disabled:opacity-50`}>
+                        <option value="" className="bg-[#141414]">Select country</option>
+                        {digCountries.map((c) => (
+                          <option key={c.key} value={c.key} className="bg-[#141414]">{c.name} ({c.count})</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                    <Field label="Selling price (NGN)">
+                      <input type="number" min="1" value={digForm.price} onChange={(e) => setDigForm((f) => ({ ...f, price: e.target.value }))} placeholder="e.g. 15000" className={inputCls} />
+                    </Field>
+                    <button type="button" onClick={checkDigProviderPrice} disabled={!digForm.server || !digForm.platform || !digForm.country} className="btn-ghost px-4 py-2.5 text-[0.82rem] disabled:opacity-50">
+                      Check provider price
                     </button>
-                  </form>
-                </div>
+                  </div>
+                  {digPrice && (
+                    <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 space-y-1.5 text-[0.85rem] text-gray-300">
+                      <div>
+                        <span className="text-gold font-semibold">{digForm.platform}</span> · {digCountries.find((c) => c.key === digForm.country)?.name || digForm.country} —{' '}
+                        <span className="text-gold font-semibold">{digPrice.count}</span> provider product{digPrice.count === 1 ? '' : 's'}
+                      </div>
+                      <div>
+                        Provider cost range: <span className="text-gold font-semibold">{Number(digPrice.min).toLocaleString()} – {Number(digPrice.max).toLocaleString()}</span> {digPrice.currency} · avg {Number(digPrice.avg).toLocaleString()}
+                      </div>
+                      {digPrice.products[0] && (
+                        <div className="text-gray-500 truncate">Cheapest option: {digPrice.products[0].name}</div>
+                      )}
+                    </div>
+                  )}
+                  <button type="submit" disabled={loading || !digForm.server || !digForm.platform || !digForm.country || !digForm.price || !digPrice} className="w-full btn-gold py-3.5 text-[0.92rem] disabled:opacity-50 flex items-center justify-center gap-2">
+                    <Plus size={17} strokeWidth={2} /> {loading ? 'Adding...' : 'Add Product'}
+                  </button>
+                </form>
+              </div>
 
                 <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
                   <h2 className="font-syne text-xl mb-5">Add Inventory</h2>
@@ -864,7 +1034,6 @@ export default function Admin() {
                     </button>
                   </form>
                 </div>
-              </div>
 
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
                 <h2 className="font-syne text-xl mb-5">Account Products ({products.accounts.length})</h2>
@@ -880,7 +1049,7 @@ export default function Admin() {
                         <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4">
                           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                             <div>
-                              <div className="font-medium text-[0.95rem]">{p.platform}</div>
+                              <div className="font-medium text-[0.95rem]">{p.platform}{p.countryName ? ` · ${p.countryName}` : ''}</div>
                               <div className="text-gray-500 text-[0.78rem]">{p.desc || '—'}{isProvider ? ` · ${p.providerServer || ''}${p.providerProductId ? ` (${p.providerProductId})` : ''}` : ''}</div>
                             </div>
                             <div className="flex items-center gap-2">
