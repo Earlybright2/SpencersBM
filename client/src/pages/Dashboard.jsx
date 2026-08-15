@@ -510,9 +510,9 @@ export default function Dashboard() {
       {tab === 'numbers' && (
         <div className="space-y-6">
           <div className="flex items-start gap-3 rounded-[12px] border border-gold/20 bg-gold/5 px-4 py-3.5 text-[0.88rem] text-gray-300">
-            <MessageSquare size={17} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
+            <Smartphone size={17} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
             <p>
-              Once a purchase is complete go to the <span className="text-gold font-medium">&quot;Paid Accounts&quot;</span> in the dashboard sidebar and click on it to view account details.
+              Your purchased numbers and their SMS codes appear under <span className="text-gold font-medium">&quot;Your Numbers&quot;</span> below. Social media account credentials are saved under <span className="text-gold font-medium">&quot;Paid Accounts&quot;</span> in the dashboard sidebar.
             </p>
           </div>
           <PanelCard
@@ -602,7 +602,14 @@ export default function Dashboard() {
 
       {/* ===== ACCOUNTS ===== */}
       {tab === 'accounts' && (
-        <PanelCard title="Social Media Accounts">
+        <div className="space-y-6">
+          <div className="flex items-start gap-3 rounded-[12px] border border-gold/20 bg-gold/5 px-4 py-3.5 text-[0.88rem] text-gray-300">
+            <KeyRound size={17} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
+            <p>
+              Once a purchase is complete go to <span className="text-gold font-medium">&quot;Paid Accounts&quot;</span> in the dashboard sidebar and click on it to view account details.
+            </p>
+          </div>
+          <PanelCard title="Social Media Accounts">
           {catalog.accounts.length === 0 ? (
             <p className="text-gray-500 text-[0.95rem] py-6 text-center">
               No social accounts are listed right now. Check back soon.
@@ -641,7 +648,8 @@ export default function Dashboard() {
               })}
             </div>
           )}
-        </PanelCard>
+          </PanelCard>
+        </div>
       )}
 
       {/* ===== PAID ACCOUNTS ===== */}

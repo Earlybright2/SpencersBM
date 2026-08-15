@@ -105,6 +105,28 @@ function orderRows(order) {
   return rows.join('');
 }
 
+export async function sendWelcomeEmail(user) {
+  const content = `
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Hi ${user.name || 'there'},</p>
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Welcome to <strong style="color:#D4AF37;">SpencersBM</strong>! Your account has been created successfully.</p>
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">You can now fund your wallet and buy virtual numbers and premium social media accounts with instant delivery.</p>
+    <p style="color:#a0a0a0;font-size:13px;">If you have any issues or questions, reach out to us 24/7 and we will be happy to help.</p>
+  `;
+  const subject = `Welcome to SpencersBM, ${user.name || ''}`.trim();
+  if (!getTransporter()) {
+    console.log('\n============================================');
+    console.log('DEV MODE — Welcome email for', user.email);
+    console.log('============================================\n');
+    return;
+  }
+  await getTransporter().sendMail({
+    from: EMAIL_FROM(),
+    to: user.email,
+    subject,
+    html: emailShell('Welcome to SpencersBM', 'Welcome', '#D4AF37', content)
+  });
+}
+
 export async function sendPurchaseSuccessEmail(user, order) {
   const product = order.type === 'social_account' ? order.platform : `${order.service} · ${order.country}`;
   const content = `

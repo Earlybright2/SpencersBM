@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { signToken, requireAuth } from '../utils/auth.js';
 import { findByEmail, findById, createUser, updateUser } from '../utils/store.js';
-import { sendPasswordResetEmail, resetUserPassword } from '../utils/mailer.js';
+import { sendPasswordResetEmail, resetUserPassword, sendWelcomeEmail } from '../utils/mailer.js';
 
 const router = Router();
 
@@ -51,6 +51,8 @@ router.post('/register', async (req, res, next) => {
     };
     await createUser(user);
     const token = signToken(user);
+    // Fire-and-forget welcome email so a slow SMTP never blocks registration.
+    sendWelcomeEmail(user).catch((err) => console.error('Welcome email failed:', err.message));
     res.status(201).json({ token, user: publicUser(user) });
   } catch (err) {
     next(err);
