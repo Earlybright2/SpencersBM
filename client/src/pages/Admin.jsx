@@ -44,6 +44,7 @@ export default function Admin() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [section, setSection] = useState('overview');
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
 
@@ -368,7 +369,7 @@ export default function Admin() {
       {SECTIONS.map((s) => (
         <button
           key={s.id}
-          onClick={() => setSection(s.id)}
+          onClick={() => { setSection(s.id); setDrawerOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium transition-all ${
             section === s.id ? 'bg-gold/10 text-gold border border-gold/20' : 'text-gray-400 hover:text-white hover:bg-white/5'
           }`}
@@ -400,11 +401,24 @@ export default function Admin() {
         {sidebar}
       </aside>
 
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/70" onClick={() => setDrawerOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-[280px] bg-[#0b0b0b] border-r border-gold/10 shadow-2xl flex flex-col">
+            <div className="px-6 pt-5 pb-5 border-b border-gold/10">
+              <div className="gold-text font-syne text-2xl font-bold tracking-[-1px]">SpencersBM</div>
+              <p className="text-gray-500 text-[0.7rem] uppercase tracking-[0.2em] mt-1">Admin Panel</p>
+            </div>
+            {sidebar}
+          </aside>
+        </div>
+      )}
+
       <div className="flex-1 lg:pl-[260px] min-w-0">
         <header className="sticky top-0 z-30 bg-[#0a0a0a]/90 backdrop-blur-[10px] border-b border-gold/10">
           <div className="flex items-center justify-between gap-4 px-4 md:px-8 py-4">
             <div className="flex items-center gap-3 min-w-0">
-              <button aria-label="Open menu" className="lg:hidden flex flex-col gap-[5px] p-1" onClick={() => setSection('overview')}>
+              <button aria-label="Open menu" className="lg:hidden flex flex-col gap-[5px] p-1" onClick={() => setDrawerOpen(true)}>
                 <span className="w-[24px] h-[2px] bg-gold" />
                 <span className="w-[24px] h-[2px] bg-gold" />
                 <span className="w-[24px] h-[2px] bg-gold" />
