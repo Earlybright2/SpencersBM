@@ -138,6 +138,7 @@ router.post('/numbers', asyncRoute(async (req, res) => {
     currency: 'NGN',
     status: 'pending',
     purchasedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + NUMBER_EXPIRY_MS).toISOString(),
     raw: providerData
   };
   await addUserOrder(req.user.id, order);
@@ -238,17 +239,26 @@ router.post('/accounts', asyncRoute(async (req, res) => {
   res.status(201).json({ status: 'success', message: 'Account purchased', order, balance: debit.balance });
 }));
 
+// How long a number stays active waiting for its SMS (mirrors the provider's window).
+const NUMBER_EXPIRY_MS = (Number(process.env.NUMBER_EXPIRY_MINUTES) || 20) * 60 * 1000;
+
 // GET /api/orders/status?order_ref= — poll SMS for a purchased number
 router.get('/status', asyncRoute(async (req, res) => {
   const { order_ref } = req.query;
   if (!order_ref) return res.status(400).json({ message: 'order_ref is required' });
   const data = await ogRequest({ endpoint: 'status', order_ref });
   if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
-  const smsCode = data.sms || data.code || data.otp || data.sms_code || data.message || null;
+  const smsCode = data.sms || data.code || data.otp || data.sms_code || null;
   if (smsCode) {
     await updateUserOrder(req.user.id, order_ref, {
       status: 'received',
       sms: String(smsCode),
+      lastCheckedAt: new Date().toISOString()
+    });
+  } else if (data.state && !['pending', 'active', 'waiting', 'rented'].includes(String(data.state).toLowerCase())) {
+    // The provider has closed the number without delivering a code.
+    await updateUserOrder(req.user.id, order_ref, {
+      status: 'expired',
       lastCheckedAt: new Date().toISOString()
     });
   }

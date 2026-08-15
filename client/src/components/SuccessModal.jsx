@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Check, Copy, Download, KeyRound, MessageSquare } from 'lucide-react';
+import { Check, Copy, Download, KeyRound, MessageSquare, Clock } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 import Modal from './Modal.jsx';
+import CountdownTimer from './CountdownTimer.jsx';
 import { platformIcon } from '../data/marketplace.js';
 
 export default function SuccessModal({ open, order, onClose, onViewAccounts, onCheckSms, checkingSms }) {
@@ -50,15 +52,78 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
   };
 
   const downloadReceipt = () => {
-    const blob = new Blob([buildReceiptText()], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `SpencersBM-Receipt-${order.id}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const GOLD = [212, 175, 55];
+
+    doc.setFillColor(...GOLD);
+    doc.rect(0, 0, pageW, 8, 'F');
+    doc.setFillColor(10, 10, 10);
+    doc.rect(0, 8, pageW, 2, 'F');
+
+    doc.setTextColor(...GOLD);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(26);
+    doc.text('SPENCERSBM', margin, 30);
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(13);
+    doc.text('ORDER RECEIPT', margin, 38);
+
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.4);
+    doc.line(margin, 44, pageW - margin, 44);
+
+    const row = (label, value, y) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(10.5);
+      doc.text(label, margin, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(240, 240, 240);
+      doc.text(String(value), pageW - margin, y, { align: 'right' });
+    };
+
+    let y = 56;
+    row('Order ID', order.order_ref || order.id, y); y += 9;
+    row('Product', isAccount ? order.platform : `${order.service} - ${order.country}`, y); y += 9;
+    row('Amount', `${Number(order.price).toLocaleString()} ${order.currency || 'NGN'}`, y); y += 9;
+    row('Date & Time', new Date(order.purchasedAt || Date.now()).toLocaleString(), y); y += 16;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...GOLD);
+    doc.setFontSize(11);
+    doc.text('YOUR PURCHASE', margin, y); y += 8;
+
+    if (isAccount) {
+      row('Platform', order.platform, y); y += 9;
+      row('Username / Email', order.username || '', y); y += 9;
+      row('Password', order.password || '', y); y += 9;
+    } else {
+      row('Phone Number', order.number || '', y); y += 9;
+      row('Service', order.service, y); y += 9;
+      row('Country', order.country, y); y += 9;
+      row('SMS Code', order.sms || 'Not received yet', y); y += 9;
+      row('Status', order.status, y); y += 9;
+    }
+
+    y += 6;
+    doc.setDrawColor(...GOLD);
+    doc.setLineWidth(0.4);
+    doc.line(margin, y, pageW - margin, y);
+    y += 14;
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(11);
+    doc.setTextColor(220, 220, 220);
+    doc.text('Thank you for your purchase!', margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(130, 130, 130);
+    doc.text('Support: spencersbm1@hotmail.com', margin, y + 6);
+
+    doc.save(`SpencersBM-Receipt-${order.id}.pdf`);
   };
 
   const Icon = isAccount ? platformIcon(order.platform) : null;
@@ -122,6 +187,21 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
               <InfoRow label="SMS Code" value="Not received yet" />
             )}
             <InfoRow label="Status" value={order.status} />
+            {order.status !== 'received' && order.status !== 'cancelled' && order.status !== 'expired' && (
+              <div className="mt-4 flex items-center gap-2 rounded-[10px] border border-gold/20 bg-gold/5 px-4 py-3 text-[0.82rem] text-gray-300">
+                <Clock size={15} strokeWidth={1.9} className="text-gold shrink-0" />
+                <span>
+                  SMS code arrives within{' '}
+                  <CountdownTimer
+                    expiresAt={
+                      order.expiresAt ||
+                      new Date(new Date(order.purchasedAt || Date.now()).getTime() + 20 * 60 * 1000).toISOString()
+                    }
+                    className="text-gold font-semibold"
+                  />
+                </span>
+              </div>
+            )}
             {order.status !== 'received' && onCheckSms && (
               <button
                 onClick={() => onCheckSms(order.order_ref || order.id)}

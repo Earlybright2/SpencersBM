@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones } from 'lucide-react';
+import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones, Clock } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import WalletCard from '../components/WalletCard.jsx';
 import SuccessModal from '../components/SuccessModal.jsx';
 import CascadingNumbers from '../components/CascadingNumbers.jsx';
+import CountdownTimer from '../components/CountdownTimer.jsx';
 import { platformIcon } from '../data/marketplace.js';
 
 const TITLES = {
@@ -42,6 +43,13 @@ function PanelCard({ title, children, actions }) {
 
 const fmtNgn = (n) => `\u20A6${Number(n || 0).toLocaleString()}`;
 
+// Numbers keep the same SMS window the provider uses (~20 min). Old orders that
+// predate expiresAt fall back to purchasedAt + 20 minutes.
+const SMS_EXPIRY_MS = 20 * 60 * 1000;
+const smsExpiresAt = (order) =>
+  order.expiresAt ||
+  new Date(new Date(order.purchasedAt || Date.now()).getTime() + SMS_EXPIRY_MS).toISOString();
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -64,6 +72,8 @@ export default function Dashboard() {
   const [copied, setCopied] = useState('');
   const [checkingSms, setCheckingSms] = useState('');
   const [cancelling, setCancelling] = useState('');
+  const [smsNote, setSmsNote] = useState(null);
+  const [expiredIds, setExpiredIds] = useState(() => new Set());
   const [storeView, setStoreView] = useState('numbers');
   const [storeSearch, setStoreSearch] = useState('');
   const [numbersSearch, setNumbersSearch] = useState('');
@@ -190,9 +200,14 @@ export default function Dashboard() {
   const handleCheckSms = async (orderRef) => {
     setError('');
     setCheckingSms(orderRef);
+    setSmsNote(null);
     try {
-      await api.get('/orders/status', { params: { order_ref: orderRef } });
+      const res = await api.get('/orders/status', { params: { order_ref: orderRef } });
       loadOrders(true);
+      const hasCode = Boolean(res.data?.otp || res.data?.sms || res.data?.code || res.data?.sms_code);
+      if (!hasCode) {
+        setSmsNote({ ref: orderRef, message: 'No code yet — it usually arrives within the SMS window below. Keep checking.' });
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -560,7 +575,7 @@ export default function Dashboard() {
                       </div>
                       <span
                         className={`text-[0.72rem] font-semibold uppercase px-3 py-1 rounded-[50px] border ${
-                          order.status === 'cancelled'
+                          order.status === 'cancelled' || order.status === 'expired'
                             ? 'text-[#e0645a] border-[#e0645a]/40 bg-[#e0645a]/10'
                             : order.status === 'received'
                               ? 'text-[#2ecc71] border-[#2ecc71]/40 bg-[#2ecc71]/10'
@@ -573,6 +588,26 @@ export default function Dashboard() {
                     {order.number && <Row label="Number" value={order.number} mono />}
                     <Row label="Amount" value={fmtNgn(order.price)} />
                     {order.sms && <Row label="SMS Code" value={order.sms} mono />}
+
+                    {order.status !== 'received' && order.status !== 'cancelled' && order.status !== 'expired' && (
+                      expiredIds.has(order.id) ? (
+                        <div className="mt-3 pt-3 border-t border-white/5 flex items-start gap-2 text-[0.82rem] text-[#e0645a]">
+                          <AlertTriangle size={14} strokeWidth={1.9} className="shrink-0 mt-0.5" />
+                          <span>SMS window has closed and no code was received. You can cancel for a refund.</span>
+                        </div>
+                      ) : (
+                        <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2 text-[0.82rem] text-gray-400">
+                          <Clock size={14} strokeWidth={1.9} className="text-gold shrink-0" />
+                          <CountdownTimer
+                            expiresAt={smsExpiresAt(order)}
+                            onExpired={() => setExpiredIds((prev) => new Set([...prev, order.id]))}
+                            className="text-gold"
+                          />
+                          <span>left for the SMS code to arrive</span>
+                        </div>
+                      )
+                    )}
+
                     {order.status !== 'cancelled' && order.status !== 'received' && (
                       <div className="flex gap-3 mt-3">
                         <button
@@ -590,6 +625,13 @@ export default function Dashboard() {
                         >
                           {cancelling === order.order_ref ? 'Cancelling...' : 'Cancel'}
                         </button>
+                      </div>
+                    )}
+
+                    {smsNote?.ref === order.order_ref && (
+                      <div className="mt-3 text-[0.8rem] text-gray-400 flex items-start gap-2">
+                        <Clock size={13} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
+                        <span>{smsNote.message}</span>
                       </div>
                     )}
                   </div>
