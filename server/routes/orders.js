@@ -253,6 +253,7 @@ async function buyProviderAccount(req, res, catalog, product) {
     price: cost,
     currency: 'NGN',
     status: account.ready ? 'completed' : 'pending',
+    expiresAt: account.ready ? null : new Date(Date.now() + ACCOUNT_DELIVERY_MS).toISOString(),
     purchasedAt: new Date().toISOString()
   };
   await addUserOrder(req.user.id, order);
@@ -456,6 +457,10 @@ function extractAccountCredentials(detail, buyRes = {}) {
 // How long a number stays active waiting for its SMS (mirrors the provider's window).
 const NUMBER_EXPIRY_MS = (Number(process.env.NUMBER_EXPIRY_MINUTES) || 20) * 60 * 1000;
 
+// Expected window for a provider to prepare and deliver a social media account
+// (credentials arrive by email and in Paid Accounts). Configurable via env.
+const ACCOUNT_DELIVERY_MS = (Number(process.env.ACCOUNT_DELIVERY_MINUTES) || 10) * 60 * 1000;
+
 // GET /api/orders/status?order_ref= — poll SMS for a purchased number
 router.get('/status', asyncRoute(async (req, res) => {
   const { order_ref } = req.query;
@@ -544,9 +549,10 @@ router.get('/account-status', asyncRoute(async (req, res) => {
       status: 'completed',
       username: account.username,
       password: account.password,
+      expiresAt: null,
       lastCheckedAt: new Date().toISOString()
     });
-    return res.json({ status: 'completed', order: { ...order, username: account.username, password: account.password, status: 'completed' } });
+    return res.json({ status: 'completed', order: { ...order, username: account.username, password: account.password, status: 'completed', expiresAt: null } });
   }
 
   await updateUserOrder(req.user.id, order_ref, {

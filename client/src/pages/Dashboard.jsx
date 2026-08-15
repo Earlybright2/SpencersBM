@@ -854,7 +854,13 @@ export default function Dashboard() {
                       <div className="flex items-center justify-between gap-3 flex-wrap bg-night/50 border border-gold/20 rounded-[10px] px-4 py-3">
                         <div className="flex items-center gap-2.5 text-[0.9rem] text-gray-300">
                           <RefreshCw size={16} strokeWidth={1.9} className="text-gold animate-spin" />
-                          Your account is being prepared by the provider. Credentials will appear here once ready.
+                          <span>
+                            Your account is being prepared by the provider. Credentials will be emailed to you and appear in Paid Accounts within{' '}
+                            <CountdownTimer
+                              expiresAt={a.expiresAt || new Date(new Date(a.purchasedAt || Date.now()).getTime() + 10 * 60 * 1000).toISOString()}
+                              className="text-gold font-semibold"
+                            />
+                          </span>
                         </div>
                         <button
                           onClick={() => pollAccountStatus(a.order_ref)}

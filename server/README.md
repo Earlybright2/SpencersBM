@@ -25,6 +25,9 @@ Server runs on **http://localhost:5000**.
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | no | SMTP credentials. If set, password-reset emails are sent. If empty, reset links are logged to the console (dev mode) |
 | `ONEGRIDHUB_BASE_URL` | no | OneGridHub API endpoint |
 | `ONEGRIDHUB_API_KEY` | yes | OneGridHub API key (never sent to the browser) |
+| `NUMBER_EXPIRY_MINUTES` | no | SMS window for virtual numbers (default `20`) |
+| `ACCOUNT_DELIVERY_MINUTES` | no | Expected delivery window for provider-prepared social accounts (default `10`) |
+| `NUMBER_MARKUP` / `DIGITAL_MARKUP` | no | Markup factor applied to provider cost when syncing numbers / social accounts (default `1.35`) |
 
 ## Scripts
 

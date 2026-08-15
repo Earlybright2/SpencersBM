@@ -125,7 +125,11 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
                 <Clock size={15} strokeWidth={1.9} className="text-gold shrink-0" />
                 <span>
                   Your account is being prepared by the provider. The credentials will be delivered to{' '}
-                  <span className="text-gold">Paid Accounts</span> and your email shortly.
+                  <span className="text-gold">Paid Accounts</span> and your email within{' '}
+                  <CountdownTimer
+                    expiresAt={order.expiresAt || new Date(new Date(order.purchasedAt || Date.now()).getTime() + 10 * 60 * 1000).toISOString()}
+                    className="text-gold font-semibold"
+                  />
                 </span>
               </div>
             </>
