@@ -136,7 +136,7 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    if (section === 'numbers') loadServers();
+    if (section === 'numbers' || section === 'accounts') loadServers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
 
@@ -695,13 +695,12 @@ export default function Admin() {
                 <div className="flex flex-col sm:flex-row gap-3 items-end">
                   <div className="flex-1 min-w-[160px]">
                     <Field label="Provider server">
-                      <input
-                        type="text"
-                        value={digSync.server}
-                        onChange={(e) => setDigSync((f) => ({ ...f, server: e.target.value }))}
-                        placeholder="e.g. server6"
-                        className={inputCls}
-                      />
+                      <select value={digSync.server} onChange={(e) => setDigSync((f) => ({ ...f, server: e.target.value }))} className={inputCls}>
+                        <option value="" className="bg-[#141414]">Select a server</option>
+                        {servers.map((s) => (
+                          <option key={s.id} value={s.id} className="bg-[#141414]">{s.label} ({s.region})</option>
+                        ))}
+                      </select>
                     </Field>
                   </div>
                   <div className="flex-1 min-w-[160px]">
