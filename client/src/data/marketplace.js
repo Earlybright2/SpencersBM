@@ -1,4 +1,4 @@
-import { MessageCircle, Send, Search, ThumbsUp, Music2, Camera, Bird, Mail, UserRound } from 'lucide-react';
+import { ThumbsUp, Music2, Camera, Bird, Mail, UserRound } from 'lucide-react';
 
 export const countries = [
   { name: 'USA', flag: '🇺🇸' },
@@ -17,14 +17,6 @@ export const countries = [
   { name: 'UAE', flag: '🇦🇪' },
   { name: 'Sweden', flag: '🇸🇪' },
   { name: 'Japan', flag: '🇯🇵' }
-];
-
-export const services = [
-  { name: 'WhatsApp', icon: MessageCircle },
-  { name: 'Telegram', icon: Send },
-  { name: 'Google', icon: Search },
-  { name: 'Facebook', icon: ThumbsUp },
-  { name: 'TikTok', icon: Music2 }
 ];
 
 // Reference icon map for known social platforms (used in the dashboard + admin).
