@@ -103,7 +103,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
   const currency = method === 'card' ? 'USD' : 'NGN';
   const symbol = currency === 'USD' ? '$' : '\u20A6';
   const numeric = Number(amount);
-  const min = currency === 'USD' ? 1 : 1000;
+  const min = currency === 'USD' ? 1 : 100;
   const valid = Number.isFinite(numeric) && numeric >= min;
 
   const cardValid = /^\d{13,19}$/.test(card.card_number.replace(/\s/g, '')) &&
@@ -111,6 +111,14 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
     /^\d{3,4}$/.test(card.cvv);
 
   const phoneValid = method === 'opay' ? /^0?[789]\d{9}$/.test(phone.replace(/\D/g, '')) : true;
+
+  const cleanBankLabel = (value) => {
+    if (!value) return '—';
+    return String(value)
+      .replace(/Formerly\s+.*$/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim() || 'Bank';
+  };
 
   const copyText = async (text, key) => {
     try {
@@ -328,14 +336,14 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                 ) : va ? (
                   <div className="bg-gold/8 border border-gold/20 rounded-[12px] p-5">
                     <p className="text-[0.8rem] text-muted mb-4">
-                      Transfer <span className="text-gold font-semibold">₦{Number(va.amount || amount).toLocaleString()}</span>{' '}
-                      to this account. Your wallet is credited automatically once the transfer is received.
+                      Send <span className="text-gold font-semibold">₦{Number(va.amount || amount).toLocaleString()}</span>{' '}
+                      to the details below. Your wallet is credited automatically once the transfer is received.
                     </p>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3 bg-field border border-gold/15 rounded-[10px] px-4 py-3">
                         <div>
                           <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">Bank</div>
-                          <div className="font-medium text-[0.95rem]">{va.bank_name || '—'}</div>
+                          <div className="font-medium text-[0.95rem]">{cleanBankLabel(va.bank_name)}</div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-3 bg-field border border-gold/15 rounded-[10px] px-4 py-3">
@@ -360,7 +368,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                       </div>
                     </div>
                     <p className="text-[0.72rem] text-faint mt-4">
-                      Transfer exactly the amount shown using your banking app or USSD. The account number expires after a while, so make the transfer promptly.
+                      Use the exact amount shown above in your banking app or wallet transfer screen. The account details expire after a while, so make the transfer promptly.
                     </p>
 
                     {bankConfirmed ? (

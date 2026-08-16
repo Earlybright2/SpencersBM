@@ -133,7 +133,11 @@ router.post('/virtual-account', async (req, res, next) => {
       await updateFlwCustomer(customerId, { name: merchantDisplayName });
     }
 
-    const result = await createVirtualAccount({ reference, customerId, type: 'dynamic', amount: numAmount });
+    // Flutterwave NGN virtual accounts are typically created as flexible accounts
+    // unless a fixed amount is intentionally required; leaving the amount unset
+    // avoids the invalid-amount failures caused by fixed-amount virtual-account
+    // setups.
+    const result = await createVirtualAccount({ reference, customerId, type: 'dynamic' });
     if (!flwOk(result)) {
       return res.status(result?.statusCode >= 500 ? 502 : 400).json({
         message: result?.message || result?.error?.message || 'Could not generate a bank account number',
