@@ -103,7 +103,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
   const currency = method === 'card' ? 'USD' : 'NGN';
   const symbol = currency === 'USD' ? '$' : '\u20A6';
   const numeric = Number(amount);
-  const min = currency === 'USD' ? 1 : 100;
+  const min = currency === 'USD' ? 1 : 1000;
   const valid = Number.isFinite(numeric) && numeric >= min;
 
   const cardValid = /^\d{13,19}$/.test(card.card_number.replace(/\s/g, '')) &&

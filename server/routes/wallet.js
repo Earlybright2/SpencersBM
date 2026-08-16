@@ -189,6 +189,21 @@ router.post('/fund', async (req, res, next) => {
         return res.status(400).json({ message: 'OPay is only available for NGN payments' });
       }
       paymentMethod = { type: 'opay' };
+      if (phone) {
+        let digits = String(phone).replace(/\D/g, '');
+        let countryCode = '';
+        if (digits.startsWith('234')) {
+          countryCode = '234';
+          digits = digits.slice(3);
+        } else if (digits.startsWith('0')) {
+          countryCode = '234';
+          digits = digits.slice(1);
+        } else if (digits.length === 11) {
+          countryCode = '234';
+          digits = digits.slice(1);
+        }
+        paymentMethod.phone = { country_code: countryCode || '234', number: digits };
+      }
     } else {
       if (!card?.card_number || !card?.expiry_month || !card?.expiry_year || !card?.cvv) {
         return res.status(400).json({ message: 'Card details are incomplete' });
