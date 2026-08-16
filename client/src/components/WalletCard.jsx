@@ -10,7 +10,7 @@ export default function WalletCard({ balance, onFunded }) {
 
   return (
     <>
-      <div className="card-border rounded-[15px] p-6 md:p-7 bg-gradient-to-br from-gold/8 via-[#141414]/95 to-[#0c0c0c] relative overflow-hidden">
+      <div className="card-border rounded-[15px] p-6 md:p-7 bg-wallet relative overflow-hidden">
         <div className="absolute -top-20 -right-20 w-64 h-64 bg-gold/10 rounded-full blur-[80px] pointer-events-none" />
         <div className="absolute -bottom-24 -left-16 w-56 h-56 bg-gold/5 rounded-full blur-[70px] pointer-events-none" />
 
@@ -24,7 +24,7 @@ export default function WalletCard({ balance, onFunded }) {
                 {'\u20A6'}{formatted}
               </span>
             </div>
-            <p className="text-gray-500 text-[0.88rem] mt-3 max-w-[440px]">
+            <p className="text-faint text-[0.88rem] mt-3 max-w-[440px]">
               Fund your wallet by bank transfer to your personal account, OPay, or a US dollar card. Purchases are paid from your balance.
             </p>
           </div>
@@ -40,13 +40,13 @@ export default function WalletCard({ balance, onFunded }) {
         </div>
 
         <div className="relative flex flex-wrap gap-x-8 gap-y-3 mt-7 pt-5 border-t border-gold/10 text-[0.82rem]">
-          <span className="flex items-center gap-2 text-gray-500">
+          <span className="flex items-center gap-2 text-faint">
             <ShieldCheck size={15} strokeWidth={1.8} className="text-gold" /> Secure payments
           </span>
-          <span className="flex items-center gap-2 text-gray-500">
+          <span className="flex items-center gap-2 text-faint">
             <Zap size={15} strokeWidth={1.8} className="text-gold" /> Instant balance
           </span>
-          <span className="flex items-center gap-2 text-gray-500">
+          <span className="flex items-center gap-2 text-faint">
             <DollarSign size={15} strokeWidth={1.8} className="text-gold" /> $1 = ₦{Number(rate).toLocaleString()}
           </span>
         </div>

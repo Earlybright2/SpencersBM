@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones, Clock, Download } from 'lucide-react';
+import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones, Clock, Download, MessageCircle } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
@@ -25,7 +25,7 @@ const TITLES = {
 function Row({ label, value, mono }) {
   return (
     <div className="flex justify-between gap-4 py-1.5">
-      <span className="text-gray-400 text-[0.85rem]">{label}</span>
+      <span className="text-muted text-[0.85rem]">{label}</span>
       <span className={`text-right font-medium ${mono ? 'font-mono' : ''}`}>{value}</span>
     </div>
   );
@@ -430,7 +430,7 @@ export default function Dashboard() {
           <span className="flex items-center gap-2">
             <AlertTriangle size={17} strokeWidth={1.9} /> {error}
           </span>
-          <button onClick={() => setError('')} className="font-bold ml-3 hover:text-white">
+          <button onClick={() => setError('')} className="font-bold ml-3 hover:text-body">
             &times;
           </button>
         </div>
@@ -447,7 +447,7 @@ export default function Dashboard() {
                 <Package size={22} strokeWidth={1.8} />
               </span>
               <div>
-                <div className="text-[0.7rem] uppercase tracking-wider text-gray-500">Total Orders</div>
+                <div className="text-[0.7rem] uppercase tracking-wider text-faint">Total Orders</div>
                 <div className="font-syne text-xl">{orders.length}</div>
               </div>
             </div>
@@ -456,7 +456,7 @@ export default function Dashboard() {
                 <Smartphone size={22} strokeWidth={1.8} />
               </span>
               <div>
-                <div className="text-[0.7rem] uppercase tracking-wider text-gray-500">Active Numbers</div>
+                <div className="text-[0.7rem] uppercase tracking-wider text-faint">Active Numbers</div>
                 <div className="font-syne text-xl">{activeNumbers}</div>
               </div>
             </div>
@@ -465,7 +465,7 @@ export default function Dashboard() {
                 <TrendingUp size={22} strokeWidth={1.8} />
               </span>
               <div>
-                <div className="text-[0.7rem] uppercase tracking-wider text-gray-500">Total Spent</div>
+                <div className="text-[0.7rem] uppercase tracking-wider text-faint">Total Spent</div>
                 <div className="font-syne text-xl">{fmtNgn(totalSpent)}</div>
               </div>
             </div>
@@ -476,11 +476,11 @@ export default function Dashboard() {
             actions={orders.length > 0 && <button onClick={() => setTab('orders')} className="text-[0.85rem] text-gold hover:text-gold-light">View all →</button>}
           >
             {orders.length === 0 ? (
-              <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+              <p className="text-faint text-[0.95rem] py-6 text-center">
                 No orders yet. Buy your first virtual number or account to get started.
               </p>
             ) : (
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-softline">
                 {orders.slice(0, 4).map((order) => (
                   <div key={order.id} className="flex items-center justify-between gap-4 py-3">
                     <div className="flex items-center gap-3 min-w-0">
@@ -491,7 +491,7 @@ export default function Dashboard() {
                         <div className="text-[0.92rem] font-medium truncate">
                           {order.type === 'virtual_number' ? `${order.service} · ${order.country}` : order.platform}
                         </div>
-                        <div className="text-gray-500 text-[0.75rem]">
+                        <div className="text-faint text-[0.75rem]">
                           {order.order_ref || order.id} · {new Date(order.purchasedAt || Date.now()).toLocaleDateString()}
                         </div>
                       </div>
@@ -515,7 +515,7 @@ export default function Dashboard() {
               </span>
               <div>
                 <div className="font-syne text-lg">Marketplace</div>
-                <div className="text-gray-500 text-[0.8rem]">Virtual numbers &amp; social accounts ready to buy</div>
+                <div className="text-faint text-[0.8rem]">Virtual numbers &amp; social accounts ready to buy</div>
               </div>
             </div>
             <div className="flex gap-2 p-1 rounded-full border border-gold/20 bg-gold/5">
@@ -527,7 +527,7 @@ export default function Dashboard() {
                   key={v.key}
                   onClick={() => setStoreView(v.key)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-full text-[0.85rem] font-medium transition-all ${
-                    storeView === v.key ? 'bg-gold text-night' : 'text-gray-400 hover:text-white'
+                    storeView === v.key ? 'bg-gold text-night' : 'text-muted hover:text-body'
                   }`}
                 >
                   <v.icon size={16} strokeWidth={1.9} />
@@ -542,18 +542,18 @@ export default function Dashboard() {
               title="Numbers by Country"
               actions={
                 <div className="relative w-full max-w-[280px]">
-                  <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
                   <input
                     value={storeSearch}
                     onChange={(e) => setStoreSearch(e.target.value)}
                     placeholder="Search country or service…"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-[#0d0d0d] border border-gold/20 rounded-[10px] text-white text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-[#555]"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-subtle"
                   />
                 </div>
               }
             >
               {filteredCountries.length === 0 ? (
-                <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+                <p className="text-faint text-[0.95rem] py-6 text-center">
                   {numbersByCountry.length === 0
                     ? 'No virtual numbers are available right now. Check back soon.'
                     : `No results for "${storeSearch.trim()}".`}
@@ -571,18 +571,18 @@ export default function Dashboard() {
               title="Social Media Accounts"
               actions={
                 <div className="relative w-full max-w-[280px]">
-                  <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                  <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
                   <input
                     value={storeSearch}
                     onChange={(e) => setStoreSearch(e.target.value)}
                     placeholder="Search platform…"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-[#0d0d0d] border border-gold/20 rounded-[10px] text-white text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-[#555]"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-subtle"
                   />
                 </div>
               }
             >
               {filteredAccounts.length === 0 ? (
-                <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+                <p className="text-faint text-[0.95rem] py-6 text-center">
                   {catalog.accounts.length === 0
                     ? 'No social accounts are listed right now. Check back soon.'
                     : `No results for "${storeSearch.trim()}".`}
@@ -592,17 +592,17 @@ export default function Dashboard() {
                   {filteredAccounts.map((p) => {
                     const Icon = platformIcon(p.platform);
                     return (
-                      <div key={p.id} className="card-border bg-night/40 rounded-[12px] p-5 flex flex-col">
+                      <div key={p.id} className="card-border bg-card rounded-[12px] p-5 flex flex-col">
                         <div className="flex items-center gap-3 mb-3">
                           <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
                             <Icon size={20} strokeWidth={1.8} />
                           </span>
                           <div className="min-w-0">
                             <div className="font-medium text-[0.95rem] truncate">{p.platform}</div>
-                            <div className="text-gray-500 text-[0.78rem]">{p.countryName || p.country}</div>
+                            <div className="text-faint text-[0.78rem]">{p.countryName || p.country}</div>
                           </div>
                         </div>
-                        {p.desc && <p className="text-gray-400 text-[0.85rem] mb-3">{p.desc}</p>}
+                        {p.desc && <p className="text-muted text-[0.85rem] mb-3">{p.desc}</p>}
                         <div className="text-[0.9rem] mb-4">
                           <span className="text-gold font-semibold text-lg">{fmtNgn(p.price)}</span>
                         </div>
@@ -626,7 +626,7 @@ export default function Dashboard() {
       {/* ===== NUMBERS ===== */}
       {tab === 'numbers' && (
         <div className="space-y-6">
-          <div className="flex items-start gap-3 rounded-[12px] border border-gold/20 bg-gold/5 px-4 py-3.5 text-[0.88rem] text-gray-300">
+          <div className="flex items-start gap-3 rounded-[12px] border border-gold/20 bg-gold/5 px-4 py-3.5 text-[0.88rem] text-body/80">
             <Smartphone size={17} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
             <p>
               Your purchased numbers and their SMS codes appear under <span className="text-gold font-medium">&quot;Your Numbers&quot;</span> below. Social media account credentials are saved under <span className="text-gold font-medium">&quot;Paid Accounts&quot;</span> in the dashboard sidebar.
@@ -636,18 +636,18 @@ export default function Dashboard() {
             title="Buy a Virtual Number"
             actions={
               <div className="relative w-full max-w-[280px]">
-                <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
                 <input
                   value={numbersSearch}
                   onChange={(e) => setNumbersSearch(e.target.value)}
                   placeholder="Search service or country…"
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-[#0d0d0d] border border-gold/20 rounded-[10px] text-white text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-[#555]"
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-subtle"
                 />
               </div>
             }
           >
             {filteredNumbers.length === 0 ? (
-              <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+              <p className="text-faint text-[0.95rem] py-6 text-center">
                 {catalog.numbers.length === 0
                   ? 'No virtual numbers are available right now. Check back soon.'
                   : `No results for "${numbersSearch.trim()}".`}
@@ -659,7 +659,7 @@ export default function Dashboard() {
 
           <PanelCard title="Your Numbers">
             {numberOrders.length === 0 ? (
-              <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+              <p className="text-faint text-[0.95rem] py-6 text-center">
                 No numbers yet. Buy one above to get started.
               </p>
             ) : (
@@ -671,7 +671,7 @@ export default function Dashboard() {
                         <div className="font-medium text-[0.95rem]">
                           {order.service} · {order.country}
                         </div>
-                        <div className="text-gray-500 text-[0.8rem]">
+                        <div className="text-faint text-[0.8rem]">
                           {order.order_ref || order.id} · {new Date(order.purchasedAt || Date.now()).toLocaleString()}
                         </div>
                       </div>
@@ -693,12 +693,12 @@ export default function Dashboard() {
 
                     {order.status !== 'received' && order.status !== 'cancelled' && order.status !== 'expired' && (
                       expiredIds.has(order.id) ? (
-                        <div className="mt-3 pt-3 border-t border-white/5 flex items-start gap-2 text-[0.82rem] text-[#e0645a]">
+                        <div className="mt-3 pt-3 border-t border-softline flex items-start gap-2 text-[0.82rem] text-[#e0645a]">
                           <AlertTriangle size={14} strokeWidth={1.9} className="shrink-0 mt-0.5" />
                           <span>SMS window has closed and no code was received. You can cancel for a refund.</span>
                         </div>
                       ) : (
-                        <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-2 text-[0.82rem] text-gray-400">
+                        <div className="mt-3 pt-3 border-t border-softline flex items-center gap-2 text-[0.82rem] text-muted">
                           <Clock size={14} strokeWidth={1.9} className="text-gold shrink-0" />
                           <CountdownTimer
                             expiresAt={smsExpiresAt(order)}
@@ -731,7 +731,7 @@ export default function Dashboard() {
                     )}
 
                     {smsNote?.ref === order.order_ref && (
-                      <div className="mt-3 text-[0.8rem] text-gray-400 flex items-start gap-2">
+                      <div className="mt-3 text-[0.8rem] text-muted flex items-start gap-2">
                         <Clock size={13} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
                         <span>{smsNote.message}</span>
                       </div>
@@ -747,7 +747,7 @@ export default function Dashboard() {
       {/* ===== ACCOUNTS ===== */}
       {tab === 'accounts' && (
         <div className="space-y-6">
-          <div className="flex items-start gap-3 rounded-[12px] border border-gold/20 bg-gold/5 px-4 py-3.5 text-[0.88rem] text-gray-300">
+          <div className="flex items-start gap-3 rounded-[12px] border border-gold/20 bg-gold/5 px-4 py-3.5 text-[0.88rem] text-body/80">
             <UserRound size={17} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
             <p>
               Once your payment is successful, your account username and password appear under{' '}
@@ -756,7 +756,7 @@ export default function Dashboard() {
           </div>
           <PanelCard title="Social Media Accounts">
             {catalog.accounts.length === 0 ? (
-              <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+              <p className="text-faint text-[0.95rem] py-6 text-center">
                 No social accounts are listed right now. Check back soon.
               </p>
             ) : (
@@ -777,7 +777,7 @@ export default function Dashboard() {
           {paidAccounts.length === 0 ? (
             <div className="text-center py-10">
               <KeyRound size={42} strokeWidth={1.4} className="text-gold mx-auto mb-4" />
-              <p className="text-gray-500 text-[0.95rem]">
+              <p className="text-faint text-[0.95rem]">
                 You haven&apos;t purchased any social media accounts yet. Your purchased account credentials will appear here.
               </p>
             </div>
@@ -796,7 +796,7 @@ export default function Dashboard() {
                         </span>
                         <div>
                           <div className="font-medium text-[0.95rem]">{a.platform}</div>
-                          <div className="text-gray-500 text-[0.8rem]">
+                          <div className="text-faint text-[0.8rem]">
                             {a.order_ref} · {new Date(a.purchasedAt || Date.now()).toLocaleString()}
                           </div>
                         </div>
@@ -817,15 +817,15 @@ export default function Dashboard() {
                       </div>
                     </div>
                     {cancelled ? (
-                      <div className="flex items-center gap-2.5 text-[0.9rem] text-[#e0645a] bg-night/50 border border-[#e0645a]/20 rounded-[10px] px-4 py-3">
+                      <div className="flex items-center gap-2.5 text-[0.9rem] text-[#e0645a] bg-field border border-[#e0645a]/20 rounded-[10px] px-4 py-3">
                         <AlertTriangle size={16} strokeWidth={1.9} className="shrink-0" />
                         <span>
                           This order was cancelled and <strong>₦{Number(a.price || 0).toLocaleString()}</strong> was refunded to your wallet.
                         </span>
                       </div>
                     ) : pending ? (
-                      <div className="flex items-center justify-between gap-3 flex-wrap bg-night/50 border border-gold/20 rounded-[10px] px-4 py-3">
-                        <div className="flex items-center gap-2.5 text-[0.9rem] text-gray-300">
+                      <div className="flex items-center justify-between gap-3 flex-wrap bg-field border border-gold/20 rounded-[10px] px-4 py-3">
+                        <div className="flex items-center gap-2.5 text-[0.9rem] text-body/80">
                           <RefreshCw size={16} strokeWidth={1.9} className="text-gold animate-spin" />
                           <span>
                             Your account is being prepared by the provider. Credentials will be emailed to you and appear in Paid Accounts within{' '}
@@ -854,18 +854,18 @@ export default function Dashboard() {
                     ) : (
                       <>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
+                          <div className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Username</div>
+                              <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">Username</div>
                               <div className="font-mono text-[0.92rem] break-all">{a.username || '—'}</div>
                             </div>
                             <button onClick={() => copyText(a.username, `u-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
                               {copied === `u-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
                             </button>
                           </div>
-                          <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
+                          <div className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Password</div>
+                              <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">Password</div>
                               <div className="font-mono text-[0.92rem] break-all">{a.password}</div>
                             </div>
                             <button onClick={() => copyText(a.password, `p-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
@@ -874,9 +874,9 @@ export default function Dashboard() {
                           </div>
                         </div>
                         {a.email ? (
-                          <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 mt-3 flex items-center justify-between gap-3">
+                          <div className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 mt-3 flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Account Email</div>
+                              <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">Account Email</div>
                               <div className="font-mono text-[0.92rem] break-all">{a.email}</div>
                             </div>
                             <button onClick={() => copyText(a.email, `e-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
@@ -884,7 +884,7 @@ export default function Dashboard() {
                             </button>
                           </div>
                         ) : null}
-                        <p className="text-[0.75rem] text-gray-500 mt-3 flex items-center gap-1.5">
+                        <p className="text-[0.75rem] text-faint mt-3 flex items-center gap-1.5">
                           <Landmark size={14} strokeWidth={1.8} className="text-gold" />
                           Keep these credentials safe. Store them somewhere secure.
                         </p>
@@ -907,7 +907,7 @@ export default function Dashboard() {
           }
         >
           {paymentHistory.length === 0 ? (
-            <p className="text-gray-500 text-[0.95rem] py-10 text-center">
+            <p className="text-faint text-[0.95rem] py-10 text-center">
               No payments yet. Fund your wallet or make a purchase and it will show up here.
             </p>
           ) : (
@@ -928,7 +928,7 @@ export default function Dashboard() {
                     </span>
                     <div className="min-w-0">
                       <div className="text-[0.92rem] font-medium truncate">{p.title}</div>
-                      <div className="text-gray-500 text-[0.78rem] font-mono truncate">
+                      <div className="text-faint text-[0.78rem] font-mono truncate">
                         {p.ref} · {new Date(p.date).toLocaleString()}
                       </div>
                     </div>
@@ -961,13 +961,13 @@ export default function Dashboard() {
       {tab === 'profile' && (
         <PanelCard title="My Profile">
           <div className="space-y-6">
-            <div className="bg-black/40 border border-gold/10 rounded-[12px] p-6 flex flex-col md:flex-row items-center gap-6">
+            <div className="bg-soft border border-gold/10 rounded-[12px] p-6 flex flex-col md:flex-row items-center gap-6">
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-night font-bold text-3xl shadow-lg">
                 {(user?.name || 'U').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()}
               </div>
               <div className="text-center md:text-left">
                 <h3 className="font-syne text-2xl mb-1">{user?.name}</h3>
-                <p className="text-gray-400 text-[1rem]">{user?.email}</p>
+                <p className="text-muted text-[1rem]">{user?.email}</p>
                 <div className="mt-4 inline-block bg-gold/10 border border-gold/20 text-gold px-4 py-2 rounded-[50px] text-[0.85rem] font-medium">
                   {wallet ? `Wallet: ${fmtNgn(wallet.balance)}` : 'Wallet: Offline'}
                 </div>
@@ -975,12 +975,12 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-black/20 border border-white/5 rounded-[12px] p-5">
-                <div className="text-[0.7rem] uppercase tracking-wider text-gray-500 mb-1">Account ID</div>
+              <div className="bg-soft border border-softline rounded-[12px] p-5">
+                <div className="text-[0.7rem] uppercase tracking-wider text-faint mb-1">Account ID</div>
                 <div className="font-mono text-[0.95rem]">{user?.id || '—'}</div>
               </div>
-              <div className="bg-black/20 border border-white/5 rounded-[12px] p-5">
-                <div className="text-[0.7rem] uppercase tracking-wider text-gray-500 mb-1">Member Since</div>
+              <div className="bg-soft border border-softline rounded-[12px] p-5">
+                <div className="text-[0.7rem] uppercase tracking-wider text-faint mb-1">Member Since</div>
                 <div className="font-medium text-[0.95rem]">{user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}</div>
               </div>
             </div>
@@ -990,13 +990,22 @@ export default function Dashboard() {
                 <Headphones size={18} strokeWidth={1.9} className="text-gold" />
                 Customer Support
               </h4>
-              <p className="text-gray-400 text-[0.9rem] leading-relaxed">
+              <p className="text-muted text-[0.9rem] leading-relaxed">
                 Having any issues with your orders or account? Send us an email at{' '}
                 <a href="mailto:spencersbm1@hotmail.com" className="text-gold hover:text-gold-light break-all">
                   spencersbm1@hotmail.com
                 </a>{' '}
-                and our support team will get back to you promptly.
+                or chat with us on WhatsApp and our support team will get back to you promptly.
               </p>
+              <a
+                href={`https://wa.me/2349138187814?text=${encodeURIComponent("Hey SpencerSBM, I'm a user on your platform, I have an issue with one of my orders")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-ghost mt-5 inline-flex items-center justify-center gap-2 px-6 py-3 text-[0.9rem] w-full sm:w-auto"
+              >
+                <MessageCircle size={18} strokeWidth={1.9} />
+                Chat on WhatsApp
+              </a>
             </div>
           </div>
         </PanelCard>

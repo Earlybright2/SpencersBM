@@ -42,7 +42,7 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-1000 bg-night/95 backdrop-blur-[10px] border-b border-gold/10 px-4 md:px-8 py-4">
+    <header className="sticky top-0 z-1000 bg-page/95 backdrop-blur-[10px] border-b border-gold/10 px-4 md:px-8 py-4">
       <div className="max-w-[1400px] mx-auto flex items-center justify-between">
         <Link to="/" className="gold-text font-syne text-2xl md:text-[1.8rem] font-bold tracking-[-1px]">
           SpencerSBM
@@ -54,7 +54,7 @@ export default function Navbar() {
               <button
                 key={link.label}
                 onClick={() => navigate(target)}
-                className="relative text-[0.95rem] text-gray-300 font-medium hover:text-white after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-[2px] after:bg-gold after:transition-all hover:after:w-full"
+                className="relative text-[0.95rem] text-body/80 font-medium hover:text-body after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-[2px] after:bg-gold after:transition-all hover:after:w-full"
               >
                 {user ? 'Dashboard' : link.label}
               </button>
@@ -62,18 +62,18 @@ export default function Navbar() {
               <div key={link.label} className="relative group">
                 <button
                   onClick={() => navigate(target)}
-                  className="relative flex items-center gap-1 text-[0.95rem] text-gray-300 font-medium hover:text-white after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-[2px] after:bg-gold after:transition-all hover:after:w-full"
+                  className="relative flex items-center gap-1 text-[0.95rem] text-body/80 font-medium hover:text-body after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-[2px] after:bg-gold after:transition-all hover:after:w-full"
                 >
                   {link.label}
                   <ChevronDown size={15} strokeWidth={2} className="transition-transform duration-300 group-hover:rotate-180" />
                 </button>
                 <div className="absolute left-1/2 -translate-x-1/2 top-full pt-3 invisible opacity-0 translate-y-2 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 z-50">
-                  <div className="bg-[#141414] border border-gold/20 rounded-[12px] p-2 min-w-[230px] shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
+                  <div className="bg-surface2 border border-gold/20 rounded-[12px] p-2 min-w-[230px] shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
                     {pricingDropdown.map((item) => (
                       <button
                         key={item.label}
                         onClick={() => navigate(target)}
-                        className="w-full flex items-center gap-3 text-left px-4 py-3 rounded-[8px] text-[0.92rem] text-gray-300 hover:text-gold hover:bg-gold/10 transition-colors"
+                        className="w-full flex items-center gap-3 text-left px-4 py-3 rounded-[8px] text-[0.92rem] text-body/80 hover:text-gold hover:bg-gold/10 transition-colors"
                       >
                         <span className="text-gold">
                           <item.icon size={17} strokeWidth={1.9} />
@@ -88,7 +88,7 @@ export default function Navbar() {
               <button
                 key={link.label}
                 onClick={() => handleAnchor(link.to)}
-                className="relative text-[0.95rem] text-gray-300 font-medium hover:text-white after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-[2px] after:bg-gold after:transition-all hover:after:w-full"
+                className="relative text-[0.95rem] text-body/80 font-medium hover:text-body after:content-[''] after:absolute after:-bottom-1 after:left-0 after:w-0 after:h-[2px] after:bg-gold after:transition-all hover:after:w-full"
               >
                 {link.label}
               </button>
@@ -101,7 +101,7 @@ export default function Navbar() {
             <div className="flex items-center gap-3">
               <NavLink
                 to="/login"
-                className="hidden md:inline-block text-[0.9rem] text-gray-300 font-medium hover:text-gold"
+                className="hidden md:inline-block text-[0.9rem] text-body/80 font-medium hover:text-gold"
               >
                 Login
               </NavLink>
@@ -140,7 +140,7 @@ export default function Navbar() {
             <div key={link.label} className="flex flex-col gap-1">
               <button
                 onClick={() => (link.label === 'Register' ? navigate(target) : handleAnchor(link.to))}
-                className="text-gray-300 text-left hover:text-gold py-1 flex items-center gap-2"
+                className="text-body/80 text-left hover:text-gold py-1 flex items-center gap-2"
               >
                 {link.label === 'Register' && user ? 'Dashboard' : link.label}
                 {link.label === 'Pricing' && (
@@ -155,7 +155,7 @@ export default function Navbar() {
                       setMobileOpen(false);
                       navigate(target);
                     }}
-                    className="flex items-center gap-3 text-[0.9rem] text-gray-400 text-left pl-6 py-1.5 hover:text-gold"
+                    className="flex items-center gap-3 text-[0.9rem] text-muted text-left pl-6 py-1.5 hover:text-gold"
                   >
                     <item.icon size={15} strokeWidth={1.9} className="text-gold" />
                     {item.label}
@@ -177,7 +177,7 @@ export default function Navbar() {
               </button>
             ) : (
               <>
-                <Link to="/login" onClick={() => setMobileOpen(false)} className="text-gray-300 hover:text-gold">
+                <Link to="/login" onClick={() => setMobileOpen(false)} className="text-body/80 hover:text-gold">
                   Login
                 </Link>
                 <Link to="/register" onClick={() => setMobileOpen(false)} className="btn-gold px-5 py-2 text-center">

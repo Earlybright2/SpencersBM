@@ -10,13 +10,13 @@ export default function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-2000 bg-black/70 backdrop-blur-[5px] flex items-center justify-center p-4"
+      className="fixed inset-0 z-2000 bg-overlay backdrop-blur-[5px] flex items-center justify-center p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className={`bg-gradient-to-br from-[#1e1e1e]/98 to-[#141414]/98 border border-gold/20 rounded-[15px] p-6 md:p-8 w-full ${maxWidth} relative animate-fade-in-up max-h-[88vh] flex flex-col`}
+        className={`bg-gradient-to-br from-surface1 to-surface2 border border-gold/20 rounded-[15px] p-6 md:p-8 w-full ${maxWidth} relative animate-fade-in-up max-h-[88vh] flex flex-col`}
       >
         <div className="flex justify-between items-center mb-6 shrink-0">
           <h2 className="font-syne text-xl md:text-[1.8rem]">{title}</h2>

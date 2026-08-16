@@ -95,13 +95,13 @@ export default function ChangePassword() {
         </button>
       </form>
 
-      <p className="text-gray-400 text-[0.95rem] text-center mt-6">
+      <p className="text-muted text-[0.95rem] text-center mt-6">
         Forgot your password?{' '}
         <Link to="/forgot-password" className="text-gold hover:text-gold-light">
           Reset it here
         </Link>
       </p>
-      <Link to="/" className="flex items-center justify-center gap-1 text-[#707070] text-[0.8rem] mt-3 hover:text-gold transition-colors">
+      <Link to="/" className="flex items-center justify-center gap-1 text-subtle text-[0.8rem] mt-3 hover:text-gold transition-colors">
         <ArrowRight size={14} strokeWidth={1.8} />
         Return to the marketplace
       </Link>

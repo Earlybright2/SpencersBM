@@ -19,14 +19,14 @@ export default function FormField({
   return (
     <div className="mb-5">
       <div className="flex items-center justify-between mb-2">
-        <label htmlFor={id} className="block text-[0.85rem] text-gray-400">
+        <label htmlFor={id} className="block text-[0.85rem] text-muted">
           {label}
         </label>
-        {hint && <span className="text-[0.75rem] text-[#707070]">{hint}</span>}
+        {hint && <span className="text-[0.75rem] text-subtle">{hint}</span>}
       </div>
       <div className="relative group">
         {Icon && (
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#707070] group-focus-within:text-gold transition-colors pointer-events-none">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-subtle group-focus-within:text-gold transition-colors pointer-events-none">
             <Icon size={18} strokeWidth={1.8} />
           </span>
         )}
@@ -37,7 +37,7 @@ export default function FormField({
           onChange={onChange}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          className={`w-full py-3.5 bg-[#0d0d0d] border border-gold/20 rounded-[12px] text-white text-[0.95rem] outline-none transition-all placeholder:text-[#555] focus:border-gold focus:ring-2 focus:ring-gold/20 ${
+          className={`w-full py-3.5 bg-input border border-gold/20 rounded-[12px] text-body text-[0.95rem] outline-none transition-all placeholder:text-subtle focus:border-gold focus:ring-2 focus:ring-gold/20 ${
             Icon ? 'pl-11' : 'pl-4'
           } ${isPassword ? 'pr-12' : 'pr-4'}`}
         />
@@ -46,7 +46,7 @@ export default function FormField({
             type="button"
             onClick={() => setShow((v) => !v)}
             aria-label={show ? 'Hide password' : 'Show password'}
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#707070] hover:text-gold transition-colors"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-subtle hover:text-gold transition-colors"
           >
             {show ? <EyeOff size={18} strokeWidth={1.8} /> : <Eye size={18} strokeWidth={1.8} />}
           </button>

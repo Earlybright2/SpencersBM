@@ -51,7 +51,7 @@ export default function App() {
   const hideNavFooter = isDashboard || isAdmin || isAuthPage;
 
   return (
-    <div className="min-h-screen flex flex-col bg-night">
+    <div className="min-h-screen flex flex-col bg-page">
       {!hideNavFooter && <Navbar />}
       <main className={(isDashboard || isAdmin) ? 'flex-1 flex' : 'flex-1'}>
         <Routes>

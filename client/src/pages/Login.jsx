@@ -73,12 +73,12 @@ export default function Login() {
       </form>
 
       <div className="flex items-center gap-3 my-7">
-        <div className="flex-1 h-[1px] bg-white/10" />
-        <span className="text-[0.78rem] text-gray-500">New to SpencerSBM?</span>
-        <div className="flex-1 h-[1px] bg-white/10" />
+        <div className="flex-1 h-[1px] bg-softline" />
+        <span className="text-[0.78rem] text-faint">New to SpencerSBM?</span>
+        <div className="flex-1 h-[1px] bg-softline" />
       </div>
 
-      <p className="text-center text-gray-400 text-[0.95rem]">
+      <p className="text-center text-muted text-[0.95rem]">
         Create an account{' '}
         <Link
           to="/register"
@@ -88,7 +88,7 @@ export default function Login() {
         </Link>
       </p>
 
-      <div className="flex items-center justify-center gap-2 mt-6 text-[0.8rem] text-[#707070]">
+      <div className="flex items-center justify-center gap-2 mt-6 text-[0.8rem] text-subtle">
         <ShieldCheck size={15} strokeWidth={1.8} />
         Protected by encryption · Your data stays private
       </div>

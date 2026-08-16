@@ -93,12 +93,12 @@ export default function Register() {
       </form>
 
       <div className="flex items-center gap-3 my-7">
-        <div className="flex-1 h-[1px] bg-white/10" />
-        <span className="text-[0.78rem] text-gray-500">Already have an account?</span>
-        <div className="flex-1 h-[1px] bg-white/10" />
+        <div className="flex-1 h-[1px] bg-softline" />
+        <span className="text-[0.78rem] text-faint">Already have an account?</span>
+        <div className="flex-1 h-[1px] bg-softline" />
       </div>
 
-      <p className="text-center text-gray-400 text-[0.95rem]">
+      <p className="text-center text-muted text-[0.95rem]">
         Login{' '}
         <Link
           to="/login"

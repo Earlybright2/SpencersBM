@@ -4,7 +4,7 @@ import { countries } from '../data/marketplace.js';
 import { platformIcon } from '../data/marketplace.js';
 
 const inputCls =
-  'w-full px-3.5 py-2.5 bg-[#0d0d0d] border border-gold/20 rounded-[10px] text-white text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-[#555]';
+  'w-full px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-subtle';
 
 const countryFlags = Object.fromEntries(
   countries.map((c) => [c.name.toLowerCase().replace(/\s+/g, ''), c.flag])
@@ -61,7 +61,7 @@ export default function CascadingAccounts({ items, onBuy, busy }) {
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
-          <label className="text-[0.72rem] uppercase tracking-wider text-gray-500 font-medium">1. Select platform</label>
+          <label className="text-[0.72rem] uppercase tracking-wider text-faint font-medium">1. Select platform</label>
           <select value={platform} onChange={(e) => onPlatformChange(e.target.value)} className={inputCls}>
             <option value="">Choose a platform</option>
             {platforms.map((s) => (
@@ -70,7 +70,7 @@ export default function CascadingAccounts({ items, onBuy, busy }) {
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-[0.72rem] uppercase tracking-wider text-gray-500 font-medium">2. Select country</label>
+          <label className="text-[0.72rem] uppercase tracking-wider text-faint font-medium">2. Select country</label>
           <select value={country} onChange={(e) => setCountry(e.target.value)} disabled={!platform} className={`${inputCls} disabled:opacity-50`}>
             <option value="">Choose a country</option>
             {countriesAvailable.map((c) => (
@@ -81,11 +81,11 @@ export default function CascadingAccounts({ items, onBuy, busy }) {
       </div>
 
       {!platform ? (
-        <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+        <p className="text-faint text-[0.95rem] py-6 text-center">
           Pick a platform above to browse available accounts.
         </p>
       ) : !country ? (
-        <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+        <p className="text-faint text-[0.95rem] py-6 text-center">
           Now pick a country to see prices and buy.
         </p>
       ) : (
@@ -93,7 +93,7 @@ export default function CascadingAccounts({ items, onBuy, busy }) {
           {results.map((p) => {
             const Icon = platformIcon(p.platform);
             return (
-              <div key={p.id} className="card-border bg-night/40 rounded-[12px] p-5 flex flex-col">
+              <div key={p.id} className="card-border bg-card rounded-[12px] p-5 flex flex-col">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-[1.4rem] leading-none">{flagFor(p.countryName)}</span>
                   <span className="w-9 h-9 rounded-[9px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
@@ -101,10 +101,10 @@ export default function CascadingAccounts({ items, onBuy, busy }) {
                   </span>
                   <div className="min-w-0">
                     <div className="font-medium text-[0.95rem] truncate">{p.platform}</div>
-                    <div className="text-gray-500 text-[0.78rem]">{p.countryName || p.country}</div>
+                    <div className="text-faint text-[0.78rem]">{p.countryName || p.country}</div>
                   </div>
                 </div>
-                {p.desc && <p className="text-gray-400 text-[0.82rem] mb-3 line-clamp-2">{p.desc}</p>}
+                {p.desc && <p className="text-muted text-[0.82rem] mb-3 line-clamp-2">{p.desc}</p>}
                 <div className="text-[0.9rem] mb-4">
                   <span className="text-gold font-semibold text-lg">{fmtNgn(p.price)}</span>
                 </div>

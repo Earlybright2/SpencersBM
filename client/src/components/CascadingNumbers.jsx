@@ -3,7 +3,7 @@ import { Smartphone } from 'lucide-react';
 import { countries } from '../data/marketplace.js';
 
 const inputCls =
-  'w-full px-3.5 py-2.5 bg-[#0d0d0d] border border-gold/20 rounded-[10px] text-white text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-[#555]';
+  'w-full px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-subtle';
 
 const countryFlags = Object.fromEntries(
   countries.map((c) => [c.name.toLowerCase().replace(/\s+/g, ''), c.flag])
@@ -63,7 +63,7 @@ export default function CascadingNumbers({ items, onBuy, busy }) {
     <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
-          <label className="text-[0.72rem] uppercase tracking-wider text-gray-500 font-medium">1. Select platform / service</label>
+          <label className="text-[0.72rem] uppercase tracking-wider text-faint font-medium">1. Select platform / service</label>
           <select value={service} onChange={(e) => onServiceChange(e.target.value)} className={inputCls}>
             <option value="">Choose a service</option>
             {services.map((s) => (
@@ -72,7 +72,7 @@ export default function CascadingNumbers({ items, onBuy, busy }) {
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label className="text-[0.72rem] uppercase tracking-wider text-gray-500 font-medium">2. Select country</label>
+          <label className="text-[0.72rem] uppercase tracking-wider text-faint font-medium">2. Select country</label>
           <select value={country} onChange={(e) => setCountry(e.target.value)} disabled={!service} className={`${inputCls} disabled:opacity-50`}>
             <option value="">Choose a country</option>
             {countriesAvailable.map((c) => (
@@ -83,22 +83,22 @@ export default function CascadingNumbers({ items, onBuy, busy }) {
       </div>
 
       {!service ? (
-        <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+        <p className="text-faint text-[0.95rem] py-6 text-center">
           Pick a platform above to browse available numbers.
         </p>
       ) : !country ? (
-        <p className="text-gray-500 text-[0.95rem] py-6 text-center">
+        <p className="text-faint text-[0.95rem] py-6 text-center">
           Now pick a country to see prices and buy.
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {results.map((p) => (
-            <div key={p.id} className="card-border bg-night/40 rounded-[12px] p-5 flex flex-col">
+            <div key={p.id} className="card-border bg-card rounded-[12px] p-5 flex flex-col">
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-[1.6rem] leading-none">{flagFor(p.countryName)}</span>
                 <div className="min-w-0">
                   <div className="font-medium text-[0.95rem] truncate">{p.serviceName || p.service}</div>
-                  <div className="text-gray-500 text-[0.78rem]">{p.countryName || p.country}</div>
+                  <div className="text-faint text-[0.78rem]">{p.countryName || p.country}</div>
                 </div>
               </div>
               <div className="text-[0.9rem] mb-4">

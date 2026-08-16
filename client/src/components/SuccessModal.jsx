@@ -79,8 +79,8 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
   const Icon = isAccount ? platformIcon(order.platform) : null;
 
   const InfoRow = ({ label, value, mono }) => (
-    <div className="flex justify-between items-center py-2.5 border-b border-white/5 gap-4 last:border-none">
-      <span className="text-gray-400 text-[0.85rem] whitespace-nowrap">{label}</span>
+    <div className="flex justify-between items-center py-2.5 border-b border-softline gap-4 last:border-none">
+      <span className="text-muted text-[0.85rem] whitespace-nowrap">{label}</span>
       <span className={`text-[0.9rem] font-medium text-right break-words ${mono ? 'font-mono tracking-[0.5px]' : ''}`}>
         {value}
       </span>
@@ -94,11 +94,11 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
           <Check size={38} strokeWidth={2.5} />
         </div>
         <h2 className="font-syne text-[1.6rem] mb-2">Payment Successful</h2>
-        <p className="text-gray-400 text-[0.95rem]">Thank you for your purchase!</p>
+        <p className="text-muted text-[0.95rem]">Thank you for your purchase!</p>
       </div>
 
       <h3 className="font-syne font-bold text-gold text-[0.95rem] tracking-[0.5px] uppercase mb-4 mt-7">Order Information</h3>
-      <div className="bg-white/3 border border-gold/15 rounded-[12px] p-5">
+      <div className="bg-soft border border-gold/15 rounded-[12px] p-5">
         <InfoRow label="Order ID" value={order.order_ref || order.id} mono />
         <InfoRow label="Product" value={isAccount ? order.platform : `${order.service} · ${order.country}`} />
         <InfoRow label="Amount" value={`${Number(order.price).toLocaleString()} ${order.currency || 'NGN'}`} />
@@ -106,11 +106,11 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
       </div>
 
       <h3 className="font-syne font-bold text-gold text-[0.95rem] tracking-[0.5px] uppercase mb-4 mt-7">Your Purchase</h3>
-      <div className="bg-white/3 border border-gold/15 rounded-[12px] p-5">
+      <div className="bg-soft border border-gold/15 rounded-[12px] p-5">
         {isAccount ? (
           order.status === 'pending' || (!order.username && !order.password) ? (
             <>
-              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/5">
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-softline">
                 {Icon && (
                   <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
                     <Icon size={20} strokeWidth={1.8} />
@@ -121,7 +121,7 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
                   <div className="text-gold text-[0.75rem] font-semibold uppercase tracking-wider">Processing</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 rounded-[10px] border border-gold/20 bg-gold/5 px-4 py-3 text-[0.82rem] text-gray-300">
+              <div className="flex items-center gap-2 rounded-[10px] border border-gold/20 bg-gold/5 px-4 py-3 text-[0.82rem] text-body/80">
                 <Clock size={15} strokeWidth={1.9} className="text-gold shrink-0" />
                 <span>
                   Your account is being prepared by the provider. The credentials will be delivered to{' '}
@@ -135,7 +135,7 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
             </>
           ) : (
             <>
-              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-white/5">
+              <div className="flex items-center gap-3 mb-4 pb-4 border-b border-softline">
                 {Icon && (
                   <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
                     <Icon size={20} strokeWidth={1.8} />
@@ -148,7 +148,7 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
               </div>
               <InfoRow label="Username / Email" value={order.username} mono />
               <InfoRow label="Password" value={order.password} mono />
-              <p className="text-[0.78rem] text-gray-500 pt-3">
+              <p className="text-[0.78rem] text-faint pt-3">
                 Your account credentials are also saved under <span className="text-gold">Paid Accounts</span> in the dashboard.
               </p>
             </>
@@ -165,7 +165,7 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
             )}
             <InfoRow label="Status" value={order.status} />
             {order.status !== 'received' && order.status !== 'cancelled' && order.status !== 'expired' && (
-              <div className="mt-4 flex items-center gap-2 rounded-[10px] border border-gold/20 bg-gold/5 px-4 py-3 text-[0.82rem] text-gray-300">
+              <div className="mt-4 flex items-center gap-2 rounded-[10px] border border-gold/20 bg-gold/5 px-4 py-3 text-[0.82rem] text-body/80">
                 <Clock size={15} strokeWidth={1.9} className="text-gold shrink-0" />
                 <span>
                   SMS code arrives within{' '}
@@ -207,7 +207,7 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
         </button>
         <button
           onClick={onClose}
-          className="w-full py-3.5 rounded-[50px] font-semibold text-[0.95rem] bg-transparent text-gray-400 border border-white/15 hover:border-white/40 hover:text-white"
+          className="w-full py-3.5 rounded-[50px] font-semibold text-[0.95rem] bg-transparent text-muted border border-softline hover:border-softline hover:text-body"
         >
           Close
         </button>

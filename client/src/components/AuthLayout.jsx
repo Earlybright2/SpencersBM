@@ -10,13 +10,13 @@ const benefits = [
 
 export default function AuthLayout({ title, subtitle, children }) {
   return (
-    <div className="min-h-screen flex bg-night relative overflow-hidden">
+    <div className="min-h-screen flex bg-page relative overflow-hidden">
       {/* Ambient background glows */}
       <div className="absolute top-[-10%] left-[-5%] w-[45%] h-[45%] bg-gold/10 rounded-full blur-[130px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-5%] w-[45%] h-[45%] bg-gold-dark/10 rounded-full blur-[130px] pointer-events-none" />
 
       {/* Left branding panel (desktop) */}
-      <aside className="hidden lg:flex flex-col justify-between w-[44%] shrink-0 p-12 xl:p-16 relative border-r border-gold/10 bg-gradient-to-br from-[#161616] to-[#0a0a0a] overflow-hidden">
+      <aside className="hidden lg:flex flex-col justify-between w-[44%] shrink-0 p-12 xl:p-16 relative border-r border-gold/10 bg-gradient-to-br from-surface1 to-page overflow-hidden">
         <Link to="/" className="gold-text font-syne text-3xl font-bold tracking-[-1.5px] hover:scale-105 transition-transform inline-block w-fit">
           SpencerSBM
         </Link>
@@ -26,12 +26,12 @@ export default function AuthLayout({ title, subtitle, children }) {
             Your trusted marketplace for{' '}
             <span className="gold-gradient-text">virtual numbers &amp; digital accounts</span>
           </h2>
-          <p className="text-gray-400 text-[1.02rem] font-light mb-10 max-w-[440px]">
+          <p className="text-muted text-[1.02rem] font-light mb-10 max-w-[440px]">
             Buy verification numbers and premium social accounts securely, with instant delivery to your inbox.
           </p>
           <ul className="space-y-4">
             {benefits.map((b) => (
-              <li key={b.text} className="flex items-center gap-3 text-[0.95rem] text-gray-300">
+              <li key={b.text} className="flex items-center gap-3 text-[0.95rem] text-body/80">
                 <span className="w-9 h-9 shrink-0 rounded-[10px] bg-gold/10 border border-gold/20 flex items-center justify-center text-gold">
                   <b.icon size={17} strokeWidth={1.9} />
                 </span>
@@ -41,7 +41,7 @@ export default function AuthLayout({ title, subtitle, children }) {
           </ul>
         </div>
 
-        <div className="flex items-center gap-2 text-[0.85rem] text-gray-500">
+        <div className="flex items-center gap-2 text-[0.85rem] text-faint">
           <div className="flex gap-0.5 text-gold">
             {[0, 1, 2, 3, 4].map((i) => (
               <Star key={i} size={15} className="fill-gold" strokeWidth={1.5} />
@@ -60,10 +60,10 @@ export default function AuthLayout({ title, subtitle, children }) {
           >
             SpencerSBM
           </Link>
-          <h1 className="font-syne text-3xl md:text-[2.2rem] text-white text-center">{title}</h1>
-          {subtitle && <p className="text-gray-400 text-[1rem] mt-3 font-light text-center">{subtitle}</p>}
+          <h1 className="font-syne text-3xl md:text-[2.2rem] text-body text-center">{title}</h1>
+          {subtitle && <p className="text-muted text-[1rem] mt-3 font-light text-center">{subtitle}</p>}
 
-          <div className="bg-[#121212]/85 border border-gold/20 rounded-[24px] p-7 md:p-9 mt-8 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+          <div className="bg-surface1/85 border border-gold/20 rounded-[24px] p-7 md:p-9 mt-8 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
             {children}
           </div>
         </div>

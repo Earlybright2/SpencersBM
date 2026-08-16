@@ -31,8 +31,8 @@ export default function ForgotPassword() {
           <div className="w-16 h-16 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center text-gold mx-auto mb-5">
             <MailCheck size={32} strokeWidth={1.8} />
           </div>
-          <p className="text-gray-300 text-[0.95rem] mb-4">{message}</p>
-          <p className="text-[#707070] text-[0.82rem] mb-7">
+          <p className="text-body/80 text-[0.95rem] mb-4">{message}</p>
+          <p className="text-subtle text-[0.82rem] mb-7">
             In development mode, the reset link is also printed to the server console.
           </p>
           <Link
@@ -72,9 +72,9 @@ export default function ForgotPassword() {
       )}
 
       <div className="flex items-center gap-3 my-7">
-        <div className="flex-1 h-[1px] bg-white/10" />
-        <span className="text-[0.72rem] uppercase tracking-[0.15em] text-[#707070]">Remembered your password?</span>
-        <div className="flex-1 h-[1px] bg-white/10" />
+        <div className="flex-1 h-[1px] bg-softline" />
+        <span className="text-[0.72rem] uppercase tracking-[0.15em] text-subtle">Remembered your password?</span>
+        <div className="flex-1 h-[1px] bg-softline" />
       </div>
 
       <Link

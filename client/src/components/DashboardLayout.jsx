@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Settings, KeyRound, ShoppingBag, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 
 const navItems = [
   { to: '/dashboard?tab=overview', label: 'Overview', icon: LayoutDashboard },
@@ -42,7 +43,7 @@ function SidebarContent({ onNavigate }) {
         <Link to="/" className="gold-text font-syne text-2xl font-bold tracking-[-1px]">
           SpencerSBM
         </Link>
-        <p className="text-gray-500 text-[0.7rem] uppercase tracking-[0.2em] mt-1">Member Dashboard</p>
+        <p className="text-faint text-[0.7rem] uppercase tracking-[0.2em] mt-1">Member Dashboard</p>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-[3px] overflow-y-auto">
@@ -54,7 +55,7 @@ function SidebarContent({ onNavigate }) {
             className={`flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium transition-all ${
               isActive(pathname, search, item)
                 ? 'bg-gold/10 text-gold border border-gold/20'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                : 'text-muted hover:text-body hover:bg-hover'
             }`}
           >
             <span className="text-gold"><item.icon size={18} strokeWidth={1.9} /></span>
@@ -67,7 +68,7 @@ function SidebarContent({ onNavigate }) {
             <Link
               to="/admin"
               onClick={onNavigate}
-              className="flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium text-gray-400 hover:text-white hover:bg-white/5"
+              className="flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium text-muted hover:text-body hover:bg-hover"
             >
               <span className="text-gold"><ShieldCheck size={18} strokeWidth={1.9} /></span>
               Admin Panel
@@ -79,7 +80,7 @@ function SidebarContent({ onNavigate }) {
             className={`flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium transition-all ${
               isActive(pathname, search, { to: '/dashboard?tab=store' })
                 ? 'bg-gold/10 text-gold border border-gold/20'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                : 'text-muted hover:text-body hover:bg-hover'
             }`}
           >
             <span className="text-gold"><ShoppingBag size={18} strokeWidth={1.9} /></span>
@@ -95,7 +96,7 @@ function SidebarContent({ onNavigate }) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-[0.9rem] font-medium truncate">{user?.name}</div>
-            <div className="text-gray-500 text-[0.75rem] truncate">{user?.email}</div>
+            <div className="text-faint text-[0.75rem] truncate">{user?.email}</div>
           </div>
         </div>
         <button
@@ -114,17 +115,17 @@ export default function DashboardLayout({ title, children }) {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-[#080808] flex w-full">
+    <div className="min-h-screen bg-page flex w-full">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-[260px] shrink-0 border-r border-gold/20 bg-gradient-to-b from-[#111111] to-[#0a0a0a] fixed inset-y-0 left-0 z-40 flex-col shadow-[4px_0_24px_rgba(0,0,0,0.5)]">
+      <aside className="hidden lg:flex w-[260px] shrink-0 border-r border-gold/20 bg-gradient-to-b from-surface1 to-page fixed inset-y-0 left-0 z-40 flex-col shadow-[4px_0_24px_rgba(0,0,0,0.5)]">
         <SidebarContent />
       </aside>
 
       {/* Mobile drawer */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setDrawerOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-[280px] bg-[#0b0b0b] border-r border-gold/10 shadow-2xl">
+          <div className="absolute inset-0 bg-overlay" onClick={() => setDrawerOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-[280px] bg-surface2 border-r border-gold/10 shadow-2xl">
             <SidebarContent onNavigate={() => setDrawerOpen(false)} />
           </aside>
         </div>
@@ -133,7 +134,7 @@ export default function DashboardLayout({ title, children }) {
       {/* Main area */}
       <div className="flex-1 lg:pl-[260px] min-w-0">
         {/* Top bar */}
-<header className="sticky top-0 z-30 bg-[#0a0a0a]/90 backdrop-blur-[10px] border-b border-gold/10">
+<header className="sticky top-0 z-30 bg-page/90 backdrop-blur-[10px] border-b border-gold/10">
             <div className="flex items-center justify-between gap-4 px-4 md:px-6 py-4">
               <div className="flex items-center gap-3 min-w-0">
                 <button
@@ -146,6 +147,9 @@ export default function DashboardLayout({ title, children }) {
                   <span className="w-[24px] h-[2px] bg-gold" />
                 </button>
                 <h1 className="font-syne text-lg md:text-xl truncate">{title}</h1>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <ThemeToggle />
               </div>
             </div>
           </header>

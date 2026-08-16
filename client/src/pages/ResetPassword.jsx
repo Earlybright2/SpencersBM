@@ -47,7 +47,7 @@ export default function ResetPassword() {
           <div className="w-16 h-16 rounded-full bg-[#e0645a]/15 border border-[#e0645a]/30 flex items-center justify-center text-[#ff8a80] mx-auto mb-4">
             <ShieldAlert size={30} strokeWidth={1.8} />
           </div>
-          <p className="text-gray-300 text-[0.95rem]">
+          <p className="text-body/80 text-[0.95rem]">
             This password reset link is missing a token. Please request a new one.
           </p>
         </div>

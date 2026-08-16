@@ -32,6 +32,68 @@
   }
 }
 
+/* Theme-aware tokens (resolve at runtime, so they flip with the .light class). */
+@theme inline {
+  --color-page: var(--tw-page);
+  --color-body: var(--tw-body);
+  --color-muted: var(--tw-muted);
+  --color-faint: var(--tw-faint);
+  --color-subtle: var(--tw-subtle);
+  --color-surface1: var(--tw-surface1);
+  --color-surface2: var(--tw-surface2);
+  --color-input: var(--tw-input);
+  --color-card: var(--tw-card);
+  --color-field: var(--tw-field);
+  --color-soft: var(--tw-soft);
+  --color-hover: var(--tw-hover);
+  --color-softline: var(--tw-softline);
+  --color-overlay: var(--tw-overlay);
+}
+
+/* Default = dark mode */
+:root {
+  color-scheme: dark;
+  --tw-page: #0a0a0a;
+  --tw-body: #ffffff;
+  --tw-muted: #9ca3af;
+  --tw-faint: #6b7280;
+  --tw-subtle: #707070;
+  --tw-goldstart: #ffffff;
+  --tw-surface1: #111111;
+  --tw-surface2: #141414;
+  --tw-input: #0d0d0d;
+  --tw-card: rgba(10, 10, 10, 0.4);
+  --tw-field: rgba(10, 10, 10, 0.5);
+  --tw-soft: rgba(255, 255, 255, 0.03);
+  --tw-hover: rgba(255, 255, 255, 0.06);
+  --tw-softline: rgba(255, 255, 255, 0.09);
+  --tw-overlay: rgba(0, 0, 0, 0.7);
+  --tw-sidebar: linear-gradient(180deg, #111111 0%, #0a0a0a 100%);
+  --tw-wallet: linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, rgba(20, 20, 20, 0.95) 45%, #0c0c0c 100%);
+}
+
+/* Light mode overrides */
+html.light {
+  color-scheme: light;
+  --tw-page: #f6f5f0;
+  --tw-body: #16130a;
+  --tw-muted: #6b6350;
+  --tw-faint: #8d8676;
+  --tw-subtle: #96907f;
+  --tw-goldstart: #0d0a02;
+  --tw-surface1: #ffffff;
+  --tw-surface2: #efede6;
+  --tw-input: #ffffff;
+  --tw-card: rgba(255, 255, 255, 0.8);
+  --tw-field: #f2f0e9;
+  --tw-soft: rgba(22, 19, 10, 0.045);
+  --tw-hover: rgba(22, 19, 10, 0.07);
+  --tw-softline: rgba(22, 19, 10, 0.12);
+  --tw-overlay: rgba(22, 18, 8, 0.55);
+  --tw-sidebar: linear-gradient(180deg, #ffffff 0%, #f1efe8 100%);
+  --tw-wallet: linear-gradient(135deg, rgba(212, 175, 55, 0.16) 0%, #fdfcf8 45%, #f6f4ec 100%);
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -42,7 +104,7 @@ html {
 
 ::selection {
   background: rgba(212, 175, 55, 0.3);
-  color: #ffffff;
+  color: var(--tw-body);
 }
 
 input,
@@ -51,15 +113,25 @@ textarea {
   accent-color: var(--color-gold);
 }
 
-/* Kill browser autofill blue tint */
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:active {
+/* Kill browser autofill blue tint (theme aware) */
+html:not(.light) input:-webkit-autofill,
+html:not(.light) input:-webkit-autofill:hover,
+html:not(.light) input:-webkit-autofill:focus,
+html:not(.light) input:-webkit-autofill:active {
   -webkit-text-fill-color: #ffffff;
   -webkit-box-shadow: 0 0 0 1000px #0d0d0d inset;
   transition: background-color 9999s ease-in-out 0s;
   caret-color: #ffffff;
+}
+
+html.light input:-webkit-autofill,
+html.light input:-webkit-autofill:hover,
+html.light input:-webkit-autofill:focus,
+html.light input:-webkit-autofill:active {
+  -webkit-text-fill-color: #16130a;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  transition: background-color 9999s ease-in-out 0s;
+  caret-color: #16130a;
 }
 
 /* Themed scrollbars — avoids default browser (often bluish) tint */
@@ -68,7 +140,7 @@ input:-webkit-autofill:active {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: var(--tw-page);
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(212, 175, 55, 0.35);
@@ -79,13 +151,13 @@ input:-webkit-autofill:active {
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(212, 175, 55, 0.4) #0a0a0a;
+  scrollbar-color: rgba(212, 175, 55, 0.4) var(--tw-page);
 }
 
 body {
   font-family: var(--font-poppins);
-  background: var(--color-night);
-  color: #ffffff;
+  background: var(--tw-page);
+  color: var(--tw-body);
   line-height: 1.6;
   overflow-x: hidden;
 }
@@ -121,7 +193,7 @@ textarea {
 }
 
 .gold-text {
-  background: linear-gradient(135deg, #ffffff 0%, var(--color-gold) 100%);
+  background: linear-gradient(135deg, var(--tw-goldstart) 0%, var(--color-gold) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -158,6 +230,15 @@ textarea {
 
 .card-border {
   border: 1px solid rgba(212, 175, 55, 0.15);
+}
+
+/* Complex fixed-surface panels that need a full gradient swap between themes. */
+.bg-sidebar {
+  background: var(--tw-sidebar);
+}
+
+.bg-wallet {
+  background: var(--tw-wallet);
 }
 
 @keyframes spin {

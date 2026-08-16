@@ -20,7 +20,7 @@ export default function Home() {
           Your Trusted Marketplace For{' '}
           <span className="gold-gradient-text">Virtual Numbers &amp; Digital Accounts</span>
         </h1>
-        <p className="text-gray-400 text-[1.05rem] md:text-[1.3rem] font-light mb-12 max-w-[700px] animate-fade-in-up">
+        <p className="text-muted text-[1.05rem] md:text-[1.3rem] font-light mb-12 max-w-[700px] animate-fade-in-up">
           Buy virtual phone numbers and premium social media accounts securely with instant delivery.
         </p>
         <div className="flex flex-col sm:flex-row gap-6 justify-center flex-wrap items-center animate-fade-in-up w-full sm:w-auto">
@@ -68,7 +68,7 @@ export default function Home() {
               <Smartphone size={34} strokeWidth={1.6} />
             </span>
             <h3 className="text-3xl mb-4">Virtual Numbers</h3>
-            <p className="text-gray-400 text-[1.05rem] mb-8">
+            <p className="text-muted text-[1.05rem] mb-8">
               Get instant access to virtual phone numbers from multiple countries. Perfect for verification, business communications, and global operations.
             </p>
             <button
@@ -93,7 +93,7 @@ export default function Home() {
               <UserRound size={34} strokeWidth={1.6} />
             </span>
             <h3 className="text-3xl mb-4">Social Media Accounts</h3>
-            <p className="text-gray-400 text-[1.05rem] mb-8">
+            <p className="text-muted text-[1.05rem] mb-8">
               Access premium verified social media accounts ready to use. Boost your social presence with authentic, high-quality accounts.
             </p>
             <button onClick={() => go()} className="btn-gold px-8 py-3.5 text-[0.95rem] hover:-translate-y-[2px] hover:shadow-[0_10px_30px_rgba(212,175,55,0.4)]">
@@ -108,7 +108,7 @@ export default function Home() {
         <div className="text-center mb-14">
           <p className="text-gold text-[0.8rem] uppercase tracking-[0.25em] font-semibold mb-3">Global Coverage</p>
           <h2 className="font-syne text-[1.8rem] md:text-[2.5rem]">Countries We Support</h2>
-          <p className="text-gray-400 text-[1.02rem] font-light mt-4 max-w-[600px] mx-auto">
+          <p className="text-muted text-[1.02rem] font-light mt-4 max-w-[600px] mx-auto">
             Virtual accounts and phone numbers available from top countries around the world.
           </p>
         </div>
@@ -122,7 +122,7 @@ export default function Home() {
             >
               <span className="block text-[2.5rem] mb-3 group-hover:scale-110 transition-transform duration-300">{c.flag}</span>
               <div className="text-[0.95rem] font-medium mb-1">{c.name}</div>
-              <div className="text-gray-500 text-[0.78rem]">Virtual accounts</div>
+              <div className="text-faint text-[0.78rem]">Virtual accounts</div>
             </button>
           ))}
         </div>
@@ -147,7 +147,7 @@ export default function Home() {
                 <feature.icon size={30} strokeWidth={1.6} />
               </span>
               <h4 className="text-[1.3rem] mb-4 text-gold">{feature.title}</h4>
-              <p className="text-gray-400 text-[0.95rem]">{feature.desc}</p>
+              <p className="text-muted text-[0.95rem]">{feature.desc}</p>
             </div>
           ))}
         </div>
@@ -158,7 +158,7 @@ export default function Home() {
         <div className="text-center mb-14">
           <p className="text-gold text-[0.8rem] uppercase tracking-[0.25em] font-semibold mb-3">Simple Process</p>
           <h2 className="font-syne text-[1.8rem] md:text-[2.5rem]">How It Works</h2>
-          <p className="text-gray-400 text-[1.02rem] font-light mt-4 max-w-[600px] mx-auto">
+          <p className="text-muted text-[1.02rem] font-light mt-4 max-w-[600px] mx-auto">
             From browsing to delivery in under five minutes.
           </p>
         </div>
@@ -179,7 +179,7 @@ export default function Home() {
                 <s.icon size={28} strokeWidth={1.6} />
               </span>
               <h4 className="text-[1.15rem] mb-3">{s.title}</h4>
-              <p className="text-gray-400 text-[0.9rem]">{s.desc}</p>
+              <p className="text-muted text-[0.9rem]">{s.desc}</p>
             </div>
           ))}
         </div>
@@ -207,14 +207,14 @@ export default function Home() {
                   <Star key={j} size={16} className="fill-gold" strokeWidth={1.5} />
                 ))}
               </div>
-              <p className="text-gray-300 text-[0.95rem] leading-relaxed mb-6">&ldquo;{t.quote}&rdquo;</p>
+              <p className="text-body/80 text-[0.95rem] leading-relaxed mb-6">&ldquo;{t.quote}&rdquo;</p>
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-full bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-night font-bold text-[0.95rem]">
                   {t.name.split(' ').map((p) => p[0]).join('')}
                 </div>
                 <div>
                   <div className="text-[0.95rem] font-medium">{t.name}</div>
-                  <div className="text-gray-500 text-[0.8rem]">{t.role}</div>
+                  <div className="text-faint text-[0.8rem]">{t.role}</div>
                 </div>
               </div>
             </div>
@@ -240,7 +240,7 @@ export default function Home() {
             return (
               <div
                 key={f.q}
-                className={`card-border rounded-[12px] bg-white/2 transition-all duration-300 ${open ? 'border-gold/30 bg-gold/5' : ''}`}
+                className={`card-border rounded-[12px] bg-soft transition-all duration-300 ${open ? 'border-gold/30 bg-gold/5' : ''}`}
               >
                 <button
                   onClick={() => setFaqOpen(open ? -1 : i)}
@@ -254,7 +254,7 @@ export default function Home() {
                     className={`text-gold shrink-0 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
                   />
                 </button>
-                {open && <p className="px-6 pb-5 text-gray-400 text-[0.92rem] leading-relaxed">{f.a}</p>}
+                {open && <p className="px-6 pb-5 text-muted text-[0.92rem] leading-relaxed">{f.a}</p>}
               </div>
             );
           })}
@@ -263,11 +263,11 @@ export default function Home() {
 
       {/* ====== CONTACT / CTA ====== */}
       <section id="contact" className="max-w-[1400px] mx-auto my-24 px-4 md:px-8">
-        <div className="relative overflow-hidden rounded-[20px] border border-gold/25 bg-gradient-to-br from-gold/10 via-[#141414] to-[#0a0a0a] p-10 md:p-16 text-center card-border">
+        <div className="relative overflow-hidden rounded-[20px] border border-gold/25 bg-gradient-to-br from-gold/10 via-surface2 to-page p-10 md:p-16 text-center card-border">
           <div className="absolute top-[-40%] left-1/2 -translate-x-1/2 w-[60%] h-[80%] bg-gold/10 rounded-full blur-[100px] pointer-events-none" />
           <div className="relative z-10">
             <h2 className="font-syne text-[1.8rem] md:text-[2.6rem] mb-4">Have Questions? We&apos;re Here 24/7</h2>
-            <p className="text-gray-400 text-[1.02rem] font-light max-w-[560px] mx-auto mb-10">
+            <p className="text-muted text-[1.02rem] font-light max-w-[560px] mx-auto mb-10">
               Need a bulk quote, a custom account, or just help placing an order? Our support team replies in minutes.
             </p>
             <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">

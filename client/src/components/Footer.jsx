@@ -22,7 +22,7 @@ export default function Footer() {
       ];
 
   return (
-    <footer className="mt-24 border-t border-gold/10 bg-gradient-to-b from-transparent to-[#090909]">
+    <footer className="mt-24 border-t border-gold/10 bg-gradient-to-b from-transparent to-page">
       <div className="max-w-[1400px] mx-auto px-4 md:px-8 pt-14 pb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 pb-10">
           {/* Brand */}
@@ -30,7 +30,7 @@ export default function Footer() {
             <Link to="/" className="gold-text font-syne text-2xl font-bold tracking-[-1px]">
               SpencerSBM
             </Link>
-            <p className="text-gray-400 text-[0.92rem] mt-4 leading-relaxed">
+            <p className="text-muted text-[0.92rem] mt-4 leading-relaxed">
               Your trusted marketplace for virtual numbers, premium social media accounts and
               secure digital solutions — delivered instantly.
             </p>
@@ -61,7 +61,7 @@ export default function Footer() {
             <ul className="space-y-3">
               {company.map((l) => (
                 <li key={l.label}>
-                  <Link to={l.to} className="text-gray-400 text-[0.92rem] hover:text-gold transition-colors">
+                  <Link to={l.to} className="text-muted text-[0.92rem] hover:text-gold transition-colors">
                     {l.label}
                   </Link>
                 </li>
@@ -77,7 +77,7 @@ export default function Footer() {
             <ul className="space-y-3">
               {accountLinks.map((l) => (
                 <li key={l.label}>
-                  <Link to={l.to} className="text-gray-400 text-[0.92rem] hover:text-gold transition-colors">
+                  <Link to={l.to} className="text-muted text-[0.92rem] hover:text-gold transition-colors">
                     {l.label}
                   </Link>
                 </li>
@@ -90,7 +90,7 @@ export default function Footer() {
             <h4 className="text-[0.85rem] uppercase tracking-[0.12em] text-gold font-semibold mb-5">
               Contact Us
             </h4>
-            <ul className="space-y-3 text-gray-400 text-[0.92rem]">
+            <ul className="space-y-3 text-muted text-[0.92rem]">
               <li>
                 <a href="mailto:spencersbm1@hotmail.com" className="hover:text-gold transition-colors">
                   spencersbm1@hotmail.com
@@ -115,7 +115,7 @@ export default function Footer() {
                 type="email"
                 placeholder="Email for updates..."
                 aria-label="Email for updates"
-                className="bg-transparent text-white text-[0.85rem] px-4 py-2.5 outline-none flex-1 min-w-0 placeholder:text-[#707070]"
+                className="bg-transparent text-body text-[0.85rem] px-4 py-2.5 outline-none flex-1 min-w-0 placeholder:text-subtle"
               />
               <button
                 type="submit"
@@ -128,12 +128,12 @@ export default function Footer() {
         </div>
 
         <div className="border-t border-gold/10 pt-6 flex flex-col md:flex-row items-center justify-between gap-3">
-          <p className="text-[#707070] text-[0.82rem]">
+          <p className="text-subtle text-[0.82rem]">
             &copy; {new Date().getFullYear()} SpencerSBM. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
             {['Terms', 'Privacy', 'Refund Policy'].map((p) => (
-              <a key={p} href="#" className="text-[#707070] text-[0.82rem] hover:text-gold transition-colors">
+              <a key={p} href="#" className="text-subtle text-[0.82rem] hover:text-gold transition-colors">
                 {p}
               </a>
             ))}
