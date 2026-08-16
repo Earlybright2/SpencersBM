@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Info, CheckCircle2, Loader2, AlertCircle, CreditCard, Landmark, Copy, Check, Smartphone } from 'lucide-react';
+import { X, Info, CheckCircle2, Loader2, AlertCircle, CreditCard, Landmark, Copy, Check, Smartphone, RefreshCw } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 
 const AVS_FIELDS = [
@@ -63,6 +63,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
   const [loadingVa, setLoadingVa] = useState(false);
   const [copied, setCopied] = useState('');
   const [bankConfirmed, setBankConfirmed] = useState(false);
+  const [bankCheck, setBankCheck] = useState(null);
   const [testFunding, setTestFunding] = useState(false);
 
   useEffect(() => {
@@ -89,6 +90,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
       setVa(null);
       setCopied('');
       setBankConfirmed(false);
+      setBankCheck(null);
     }
   }, [open]);
 
@@ -145,11 +147,33 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
     try {
       const res = await api.post('/wallet/virtual-account', { amount: numeric });
       setVa(res.data.virtualAccount);
+      setBankConfirmed(false);
+      setBankCheck(null);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
       setLoadingVa(false);
     }
+  };
+
+  const checkBankStatus = async () => {
+    if (!va?.reference) {
+      setBankCheck('pending');
+      return;
+    }
+    setBankCheck('checking');
+    try {
+      const res = await api.get(`/wallet/fund-status?reference=${encodeURIComponent(va.reference)}`);
+      const status = String(res.data?.status || '').toLowerCase();
+      setBankCheck(status === 'succeeded' || status === 'completed' ? 'received' : 'pending');
+    } catch {
+      setBankCheck('pending');
+    }
+  };
+
+  const handleSentMoney = async () => {
+    setBankConfirmed(true);
+    await checkBankStatus();
   };
 
   const finish = (charge) => {
@@ -331,6 +355,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                       setAmount(e.target.value);
                       setVa(null);
                       setBankConfirmed(false);
+                      setBankCheck(null);
                       setError('');
                     }}
                     placeholder={`Min. ${symbol}${min.toLocaleString()}`}
@@ -381,26 +406,61 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                     </p>
 
                     {bankConfirmed ? (
-                      <div className="mt-4 bg-[#2ecc71]/10 border border-[#2ecc71]/30 rounded-[12px] px-4 py-3.5 flex items-start gap-3">
-                        <CheckCircle2 size={18} strokeWidth={1.9} className="text-[#2ecc71] shrink-0 mt-[2px]" />
-                        <div>
-                          <p className="text-[0.9rem] font-medium text-[#2ecc71]">Transfer confirmed</p>
-                          <p className="text-[0.8rem] text-body/80 mt-0.5">
-                            Your wallet will be credited automatically as soon as the transfer is received. This usually takes a few minutes. You can keep this window open or check your balance shortly.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={onClose}
-                            className="mt-3 text-[0.82rem] text-gold font-medium hover:text-gold-light"
-                          >
-                            Done — close
-                          </button>
-                        </div>
+                      <div className="mt-4">
+                        {bankCheck === 'checking' ? (
+                          <div className="bg-gold/8 border border-gold/25 rounded-[12px] px-4 py-4 flex items-center gap-3">
+                            <Loader2 size={20} strokeWidth={1.9} className="animate-spin text-gold shrink-0" />
+                            <p className="text-[0.88rem] text-muted">Checking transfer status…</p>
+                          </div>
+                        ) : bankCheck === 'received' ? (
+                          <div className="bg-[#2ecc71]/10 border border-[#2ecc71]/30 rounded-[12px] px-4 py-3.5 flex items-start gap-3">
+                            <CheckCircle2 size={18} strokeWidth={1.9} className="text-[#2ecc71] shrink-0 mt-[2px]" />
+                            <div className="flex-1">
+                              <p className="text-[0.9rem] font-medium text-[#2ecc71]">Transfer received</p>
+                              <p className="text-[0.8rem] text-body/80 mt-0.5">
+                                Your wallet has been credited. You can now make a purchase.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={onClose}
+                                className="mt-3 w-full btn-gold py-3 text-[0.9rem] rounded-[10px]"
+                              >
+                                Done
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-[#f59e0b]/10 border border-[#f59e0b]/30 rounded-[12px] px-4 py-3.5 flex items-start gap-3">
+                            <AlertCircle size={18} strokeWidth={1.9} className="text-[#f59e0b] shrink-0 mt-[2px]" />
+                            <div className="flex-1">
+                              <p className="text-[0.9rem] font-medium text-[#f59e0b]">We haven&apos;t received it yet</p>
+                              <p className="text-[0.8rem] text-body/80 mt-0.5">
+                                Transfers can take a few minutes to confirm. Check again shortly.
+                              </p>
+                              <div className="flex gap-2 mt-3">
+                                <button
+                                  type="button"
+                                  onClick={checkBankStatus}
+                                  className="flex-1 btn-ghost py-3 text-[0.88rem] rounded-[10px] flex items-center justify-center gap-2"
+                                >
+                                  <RefreshCw size={15} strokeWidth={1.9} /> Check again
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={onClose}
+                                  className="flex-1 btn-gold py-3 text-[0.88rem] rounded-[10px]"
+                                >
+                                  Done
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setBankConfirmed(true)}
+                        onClick={handleSentMoney}
                         className="mt-4 w-full btn-gold py-4 text-[0.95rem] rounded-[12px] flex items-center justify-center gap-2"
                       >
                         <Check size={18} strokeWidth={1.9} /> I have sent the money

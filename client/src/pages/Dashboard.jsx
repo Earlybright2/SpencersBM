@@ -69,6 +69,9 @@ function RefreshButton({ onClick, label = 'Refresh' }) {
 
 const fmtNgn = (n) => `\u20A6${Number(n || 0).toLocaleString()}`;
 
+const TRANSFER_NOTICE =
+  'After a successful bank transfer, If you haven\'t seen the funds yet refresh this page and wait up to 5 minutes for your balance to reflect — your order is delivered as soon as the transaction is confirmed. Need help? Go to the Profile tab and contact SpencerSBM.';
+
 // Numbers keep the same SMS window the provider uses (~20 min). Old orders that
 // predate expiresAt fall back to purchasedAt + 20 minutes.
 const SMS_EXPIRY_MS = 20 * 60 * 1000;
@@ -440,6 +443,15 @@ export default function Dashboard() {
       {/* ===== OVERVIEW ===== */}
       {tab === 'overview' && (
         <div className="space-y-6">
+          <div className="overflow-hidden rounded-[12px] border border-gold/25 bg-gold/8">
+            <div className="marquee-track py-3 text-[0.88rem] text-gold">
+              <span className="px-4">{TRANSFER_NOTICE}</span>
+              <span className="px-4 text-gold/40">✦</span>
+              <span className="px-4">{TRANSFER_NOTICE}</span>
+              <span className="px-4 text-gold/40">✦</span>
+            </div>
+          </div>
+
           <WalletCard balance={wallet} onFunded={() => loadWallet(true)} />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
