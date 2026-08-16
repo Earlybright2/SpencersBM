@@ -590,7 +590,6 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {filteredAccounts.map((p) => {
                     const Icon = platformIcon(p.platform);
-                    const soldOut = p.available <= 0;
                     return (
                       <div key={p.id} className="card-border bg-night/40 rounded-[12px] p-5 flex flex-col">
                         <div className="flex items-center gap-3 mb-3">
@@ -599,7 +598,7 @@ export default function Dashboard() {
                           </span>
                           <div className="min-w-0">
                             <div className="font-medium text-[0.95rem] truncate">{p.platform}</div>
-                            <div className="text-gray-500 text-[0.78rem]">{p.available} available</div>
+                            <div className="text-gray-500 text-[0.78rem]">{p.countryName || p.country}</div>
                           </div>
                         </div>
                         {p.desc && <p className="text-gray-400 text-[0.85rem] mb-3">{p.desc}</p>}
@@ -608,10 +607,10 @@ export default function Dashboard() {
                         </div>
                         <button
                           onClick={() => handleBuyAccount(p)}
-                          disabled={Boolean(busy) || soldOut}
+                          disabled={Boolean(busy)}
                           className="btn-gold w-full py-3 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                          {busy === `buy-${p.id}` ? 'Purchasing...' : soldOut ? 'Sold Out' : 'Buy Account'}
+                          {busy === `buy-${p.id}` ? 'Purchasing...' : 'Buy Account'}
                         </button>
                       </div>
                     );

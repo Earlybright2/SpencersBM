@@ -81,11 +81,9 @@ router.get('/catalog', asyncRoute(async (req, res) => {
     }));
   const accounts = catalog.products.accounts
     .filter((p) => p.enabled !== false)
-    .map(({ id, platform, country, countryName, price, currency, desc, inventory, providerServer, providerProductId, stock }) => {
-      const inventoryAvailable = (inventory || []).filter((i) => i.status === 'available').length;
-      const available = providerProductId ? Number(stock) || 0 : inventoryAvailable;
-      return { id, platform, country: country || '', countryName: countryName || '', price, currency: currency || 'NGN', desc, available, provider: Boolean(providerProductId) };
-    });
+    .map(({ id, platform, country, countryName, price, currency, desc }) => ({
+      id, platform, country: country || '', countryName: countryName || '', price, currency: currency || 'NGN', desc
+    }));
   res.json({ numbers, accounts });
 }));
 

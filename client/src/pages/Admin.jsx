@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Users, LogOut, Plus, Trash2, RefreshCw, ShieldCheck, Power, TrendingUp, Package } from 'lucide-react';
+import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Users, LogOut, Trash2, RefreshCw, ShieldCheck, Power, TrendingUp, Package } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -54,16 +54,8 @@ export default function Admin() {
   const [users, setUsers] = useState([]);
 
   const [servers, setServers] = useState([]);
-  const [services, setServices] = useState([]);
-  const [countries, setCountries] = useState([]);
-  const [providerPrice, setProviderPrice] = useState(null);
 
   const [digServers, setDigServers] = useState([]);
-  const [digServices, setDigServices] = useState([]);
-  const [digPrice, setDigPrice] = useState(null);
-
-  const [numForm, setNumForm] = useState({ server: '', service: '', country: '', price: '' });
-  const [digForm, setDigForm] = useState({ server: '', service: '', price: '' });
 
   const [digSync, setDigSync] = useState({ server: '', category: '', search: '' });
   const [digSyncing, setDigSyncing] = useState(false);
@@ -146,65 +138,10 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section]);
 
-  const onServerChange = async (server) => {
-    setNumForm((f) => ({ ...f, server, service: '', country: '' }));
-    setServices([]);
-    setCountries([]);
-    setProviderPrice(null);
-    if (!server) return;
-    try {
-      const [svc, ctr] = await Promise.all([
-        api.get('/onegridhub/services', { params: { server } }),
-        api.get('/onegridhub/countries', { params: { server } })
-      ]);
-      setServices(svc.data.services || []);
-      setCountries(ctr.data.countries || []);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
-  const checkProviderPrice = async () => {
-    const { server, service, country } = numForm;
-    if (!server || !service || !country) return;
-    try {
-      const res = await api.get('/onegridhub/price', { params: { server, country, service } });
-      setProviderPrice(res.data);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
   const loadDigServers = async () => {
     try {
       const res = await api.get('/onegridhub/digital/servers');
       setDigServers(res.data.servers || []);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
-  const onDigServerChange = async (server) => {
-    setDigForm((f) => ({ ...f, server, service: '', price: '' }));
-    setDigServices([]);
-    setDigPrice(null);
-    if (!server) return;
-    try {
-      const res = await api.get('/onegridhub/digital/services', { params: { server } });
-      setDigServices(res.data.services || []);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
-  const checkDigProviderPrice = async () => {
-    const { server, service } = digForm;
-    if (!server || !service) return;
-    const svc = digServices.find((s) => s.key === service);
-    if (!svc) return;
-    try {
-      const res = await api.get('/onegridhub/digital/price', { params: { server, platform: svc.platform, country: svc.country } });
-      setDigPrice(res.data.price);
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -320,40 +257,6 @@ export default function Admin() {
     }
   };
 
-  const addNumberProduct = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const { server, service, country, price } = numForm;
-      if (providerPrice && Number(price) < Number(providerPrice.price)) {
-        setError(`Sell price must be above the provider cost of ${Number(providerPrice.price).toLocaleString()} ${providerPrice.currency || 'NGN'} (otherwise you lose money per sale).`);
-        return;
-      }
-      const serverObj = servers.find((s) => s.id === server);
-      const serviceObj = services.find((s) => s.id === service);
-      const countryObj = countries.find((c) => c.id === country);
-      await api.post('/admin/products/numbers', {
-        server,
-        service,
-        country,
-        serverName: serverObj?.label || server,
-        serviceName: serviceObj?.name || service,
-        countryName: countryObj?.name || country,
-        price: Number(price)
-      });
-      setToast('Number product added');
-      setNumForm({ server: '', service: '', country: '', price: '' });
-      setProviderPrice(null);
-      loadProducts();
-      loadStats();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const updateNumber = async (id, updates) => {
     try {
       await api.put(`/admin/products/numbers/${id}`, updates);
@@ -376,49 +279,6 @@ export default function Admin() {
     }
   };
 
-  const addProviderAccountProduct = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const { server, service, price } = digForm;
-      const svc = digServices.find((s) => s.key === service);
-      if (!svc) {
-        setError('No provider service matched this selection.');
-        return;
-      }
-      const cheapest = digPrice?.products?.[0];
-      if (!cheapest) {
-        setError('Check the provider price before adding the product.');
-        return;
-      }
-      if (Number(price) < Number(digPrice.min)) {
-        setError(`Sell price must be above the provider cost of ${Number(digPrice.min).toLocaleString()} ${digPrice.currency || 'NGN'} (otherwise you lose money per sale).`);
-        return;
-      }
-      await api.post('/admin/products/accounts', {
-        server,
-        platform: svc.platform,
-        country: svc.country,
-        countryName: svc.countryName,
-        price: Number(price),
-        desc: cheapest.name,
-        providerProductId: cheapest.id,
-        stock: cheapest.stock,
-        category: ''
-      });
-      setToast('Social account product added from provider');
-      setDigForm((f) => ({ ...f, service: '', price: '' }));
-      setDigPrice(null);
-      loadProducts();
-      loadStats();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const updateAccount = async (id, updates) => {
     try {
       await api.put(`/admin/products/accounts/${id}`, updates);
@@ -434,17 +294,6 @@ export default function Admin() {
     try {
       await api.delete(`/admin/products/accounts/${id}`);
       setToast('Account product removed');
-      loadProducts();
-      loadStats();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
-  const removeInventory = async (accountId, invId) => {
-    try {
-      await api.delete(`/admin/products/accounts/${accountId}/inventory/${invId}`);
-      setToast('Inventory item removed');
       loadProducts();
       loadStats();
     } catch (err) {
@@ -680,55 +529,7 @@ export default function Admin() {
                 )}
               </div>
 
-              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
-                <h2 className="font-syne text-xl mb-5">Add a Virtual Number Product</h2>
-                <form onSubmit={addNumberProduct} className="space-y-4">
-                  <Field label="Provider server">
-                    <select value={numForm.server} onChange={(e) => onServerChange(e.target.value)} className={inputCls}>
-                      <option value="" className="bg-[#141414]">Select a server</option>
-                      {servers.map((s) => (
-                        <option key={s.id} value={s.id} className="bg-[#141414]">{s.label} ({s.region})</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Service">
-                      <select value={numForm.service} onChange={(e) => setNumForm((f) => ({ ...f, service: e.target.value }))} className={inputCls}>
-                        <option value="" className="bg-[#141414]">Select</option>
-                        {services.map((s) => (
-                          <option key={s.id} value={s.id} className="bg-[#141414]">{s.name}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Country">
-                      <select value={numForm.country} onChange={(e) => setNumForm((f) => ({ ...f, country: e.target.value }))} className={inputCls}>
-                        <option value="" className="bg-[#141414]">Select</option>
-                        {countries.map((c) => (
-                          <option key={c.id} value={c.id} className="bg-[#141414]">{c.name}</option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 items-end">
-                    <Field label="Selling price (NGN)">
-                      <input type="number" min="1" value={numForm.price} onChange={(e) => setNumForm((f) => ({ ...f, price: e.target.value }))} placeholder="e.g. 2500" className={inputCls} />
-                    </Field>
-                    <button type="button" onClick={checkProviderPrice} disabled={!numForm.server || !numForm.service || !numForm.country} className="btn-ghost px-4 py-2.5 text-[0.82rem] disabled:opacity-50">
-                      Check provider price
-                    </button>
-                  </div>
-                  {providerPrice && (
-                    <p className="text-[0.85rem] text-gray-400">
-                      Provider price: <span className="text-gold font-semibold">{Number(providerPrice.price).toLocaleString()} {providerPrice.currency}</span>
-                    </p>
-                  )}
-                  <button type="submit" disabled={loading || !numForm.server || !numForm.service || !numForm.country || !numForm.price} className="w-full btn-gold py-3.5 text-[0.92rem] disabled:opacity-50 flex items-center justify-center gap-2">
-                    <Plus size={17} strokeWidth={2} /> {loading ? 'Adding...' : 'Add Product'}
-                  </button>
-                </form>
-              </div>
-
-              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
+              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
                 <h2 className="font-syne text-xl mb-5">Number Products ({products.numbers.length})</h2>
                 {products.numbers.length === 0 ? (
                   <p className="text-gray-500 text-[0.95rem] py-6 text-center">No number products yet.</p>
@@ -873,7 +674,7 @@ export default function Admin() {
                             {p.platform}{p.countryName ? ` · ${p.countryName}` : ''}
                           </div>
                           <div className="text-gray-500 text-[0.78rem]">
-                            Current price: {fmtNgn(p.price)} · {p.stock ?? 0} in stock{p.providerServer ? ` · ${p.providerServer}` : ''}
+                            Current price: {fmtNgn(p.price)}{p.providerServer ? ` · ${p.providerServer}` : ''}
                           </div>
                         </div>
                         <div className="flex items-end gap-2">
@@ -895,58 +696,6 @@ export default function Admin() {
               </div>
 
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
-                <h2 className="font-syne text-xl mb-1">Add a Social Account Product</h2>
-                <p className="text-gray-500 text-[0.85rem] mb-5">
-                  Pick a provider server, then a service (platform + country) from OneGridHub, and check the provider cost before setting your sell price.
-                </p>
-                <form onSubmit={addProviderAccountProduct} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label="Provider server">
-                      <select value={digForm.server} onChange={(e) => onDigServerChange(e.target.value)} className={inputCls}>
-                        <option value="" className="bg-[#141414]">Select a server</option>
-                        {digServers.map((s) => (
-                          <option key={s.id} value={s.id} className="bg-[#141414]">{s.label} ({s.products} products)</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Service (platform · country)">
-                      <select value={digForm.service} onChange={(e) => setDigForm((f) => ({ ...f, service: e.target.value, price: '' }))} disabled={!digForm.server} className={`${inputCls} disabled:opacity-50`}>
-                        <option value="" className="bg-[#141414]">Select service</option>
-                        {digServices.map((s) => (
-                          <option key={s.key} value={s.key} className="bg-[#141414]">{s.platform} · {s.countryName} ({s.count})</option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                    <Field label="Selling price (NGN)">
-                      <input type="number" min="1" value={digForm.price} onChange={(e) => setDigForm((f) => ({ ...f, price: e.target.value }))} placeholder="e.g. 15000" className={inputCls} />
-                    </Field>
-                    <button type="button" onClick={checkDigProviderPrice} disabled={!digForm.server || !digForm.service} className="btn-ghost px-4 py-2.5 text-[0.82rem] disabled:opacity-50">
-                      Check provider price
-                    </button>
-                  </div>
-                  {digPrice && (
-                    <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 space-y-1.5 text-[0.85rem] text-gray-300">
-                      <div>
-                        <span className="text-gold font-semibold">{digServices.find((s) => s.key === digForm.service)?.platform}</span> · {digServices.find((s) => s.key === digForm.service)?.countryName} —{' '}
-                        <span className="text-gold font-semibold">{digPrice.count}</span> provider product{digPrice.count === 1 ? '' : 's'}
-                      </div>
-                      <div>
-                        Provider cost range: <span className="text-gold font-semibold">{Number(digPrice.min).toLocaleString()} – {Number(digPrice.max).toLocaleString()}</span> {digPrice.currency} · avg {Number(digPrice.avg).toLocaleString()}
-                      </div>
-                      {digPrice.products[0] && (
-                        <div className="text-gray-500 truncate">Cheapest option: {digPrice.products[0].name}</div>
-                      )}
-                    </div>
-                  )}
-                  <button type="submit" disabled={loading || !digForm.server || !digForm.service || !digForm.price || !digPrice} className="w-full btn-gold py-3.5 text-[0.92rem] disabled:opacity-50 flex items-center justify-center gap-2">
-                    <Plus size={17} strokeWidth={2} /> {loading ? 'Adding...' : 'Add Product'}
-                  </button>
-                </form>
-              </div>
-
-              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
                 <h2 className="font-syne text-xl mb-5">Account Products ({products.accounts.length})</h2>
                 {products.accounts.length === 0 ? (
                   <p className="text-gray-500 text-[0.95rem] py-6 text-center">No account products yet.</p>
@@ -954,8 +703,6 @@ export default function Admin() {
                   <div className="space-y-4">
                     {products.accounts.map((p) => {
                       const isProvider = Boolean(p.providerProductId);
-                      const available = (p.inventory || []).filter((i) => i.status === 'available');
-                      const sold = (p.inventory || []).filter((i) => i.status === 'sold');
                       return (
                         <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4">
                           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -975,7 +722,7 @@ export default function Admin() {
                               </button>
                             </div>
                           </div>
-                          <div className="flex flex-wrap items-center gap-3 mb-3">
+                          <div className="flex flex-wrap items-center gap-3">
                             <span className="text-gold font-semibold">{fmtNgn(p.price)}</span>
                             <input
                               type="number"
@@ -987,26 +734,8 @@ export default function Admin() {
                               }}
                               className="w-32 px-3 py-2 bg-[#0d0d0d] border border-gold/20 rounded-[8px] text-white text-[0.88rem] outline-none focus:border-gold"
                             />
-                            <span className="text-[0.75rem] text-gray-500">
-                              {isProvider ? `${p.stock ?? 0} in stock` : `${available.length} available · ${sold.length} sold`}
-                            </span>
+                            <span className="text-[0.75rem] text-gray-500">Edit price, then click away</span>
                           </div>
-                          {!isProvider && (p.inventory || []).length > 0 && (
-                            <div className="space-y-1.5">
-                              {(p.inventory || []).map((slot) => (
-                                <div key={slot.id} className="flex items-center justify-between gap-3 bg-night/50 border border-gold/10 rounded-[8px] px-3 py-2">
-                                  <div className="min-w-0 flex items-center gap-2">
-                                    <span className={`w-2 h-2 rounded-full shrink-0 ${slot.status === 'available' ? 'bg-[#2ecc71]' : 'bg-[#e0645a]'}`} />
-                                    <span className="font-mono text-[0.8rem] truncate">{slot.username}</span>
-                                    {slot.status === 'sold' && <span className="text-[0.68rem] text-gray-500 uppercase">sold</span>}
-                                  </div>
-                                  <button onClick={() => removeInventory(p.id, slot.id)} className="text-[#e0645a] hover:bg-[#e0645a]/10 rounded-[6px] p-1.5">
-                                    <Trash2 size={14} strokeWidth={1.8} />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       );
                     })}

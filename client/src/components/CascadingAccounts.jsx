@@ -92,7 +92,6 @@ export default function CascadingAccounts({ items, onBuy, busy }) {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {results.map((p) => {
             const Icon = platformIcon(p.platform);
-            const soldOut = p.available <= 0;
             return (
               <div key={p.id} className="card-border bg-night/40 rounded-[12px] p-5 flex flex-col">
                 <div className="flex items-center gap-3 mb-3">
@@ -102,7 +101,7 @@ export default function CascadingAccounts({ items, onBuy, busy }) {
                   </span>
                   <div className="min-w-0">
                     <div className="font-medium text-[0.95rem] truncate">{p.platform}</div>
-                    <div className="text-gray-500 text-[0.78rem]">{p.countryName || p.country} · {p.available} available</div>
+                    <div className="text-gray-500 text-[0.78rem]">{p.countryName || p.country}</div>
                   </div>
                 </div>
                 {p.desc && <p className="text-gray-400 text-[0.82rem] mb-3 line-clamp-2">{p.desc}</p>}
@@ -111,11 +110,11 @@ export default function CascadingAccounts({ items, onBuy, busy }) {
                 </div>
                 <button
                   onClick={() => onBuy(p)}
-                  disabled={Boolean(busy) || soldOut}
+                  disabled={Boolean(busy)}
                   className="btn-gold w-full py-3 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <UserRound size={16} strokeWidth={1.8} />
-                  {busy === `buy-${p.id}` ? 'Buying...' : soldOut ? 'Sold Out' : 'Buy Account'}
+                  {busy === `buy-${p.id}` ? 'Buying...' : 'Buy Account'}
                 </button>
               </div>
             );
