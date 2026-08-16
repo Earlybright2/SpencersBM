@@ -1,8 +1,7 @@
 import 'dotenv/config';
-import nodemailer from 'nodemailer';
 import { sendPurchaseSuccessEmail, sendPurchaseFailureEmail } from './utils/mailer.js';
 
-const user = { name: 'Emily', email: 'emily223463@gmail.com' };
+const user = { name: 'Michael', email: 'michealbolu19@gmail.com' };
 
 async function tryBoth() {
   try {

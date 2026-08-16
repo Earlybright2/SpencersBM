@@ -7,7 +7,7 @@ A full-stack marketplace for **virtual phone numbers** and **premium social medi
 | Layer    | Stack |
 |----------|-------|
 | Frontend | React 18, Vite 6, Tailwind CSS 4, React Router 6, lucide-react icons, axios |
-| Backend  | Node.js, Express 4, JWT auth, bcrypt, nodemailer |
+| Backend  | Node.js, Express 4, JWT auth, bcrypt, resend |
 | Data     | PostgreSQL (`pg`) — e.g. Railway Postgres, via `DATABASE_URL` |
 | Provider | OneGridHub API (virtual numbers / SMS verification) proxied server-side |
 
@@ -54,10 +54,8 @@ CLIENT_URL=http://localhost:5173
 JWT_SECRET=<generate-a-long-random-string>
 
 # Email (optional — if empty, reset links print to the server console in dev mode)
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASS=
+RESEND_API_KEY=<your-resend-api-key>
+RESEND_FROM=SpencerSBM <no-reply@your-domain.com>
 
 # OneGridHub (virtual numbers / SMS)
 ONEGRIDHUB_BASE_URL=https://onegridhub.com/api/v1/index.php
@@ -87,7 +85,7 @@ npm run dev
 ## Features
 
 - User **registration, login**, and **JWT-based sessions**
-- **Password reset** via email (real SMTP or dev-mode console link)
+- **Password reset** via email (real Resend or dev-mode console link)
 - Marketplace for **virtual numbers** by country with live provider pricing
 - Marketplace for **social media accounts** (Instagram, X, Facebook, TikTok, Gmail)
 - **Order history** & live SMS/status checking backed by the OneGridHub API

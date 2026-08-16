@@ -22,7 +22,8 @@ Server runs on **http://localhost:5000**.
 | `DATABASE_URL` | yes | PostgreSQL connection string (e.g. from Railway). Schema is created automatically on startup |
 | `CLIENT_URL` | no | Allowed client origin / base for reset links (default `http://localhost:5173`) |
 | `JWT_SECRET` | yes | Secret used to sign auth tokens |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | no | SMTP credentials. If set, password-reset emails are sent. If empty, reset links are logged to the console (dev mode) |
+| `RESEND_API_KEY` | no | Resend API key. If set, transactional emails are sent via Resend. If empty, reset links / emails are logged to the console (dev mode) |
+| `RESEND_FROM` | no | Sender address on your verified Resend domain, e.g. `SpencerSBM <no-reply@spencersbm.com.ng>` (default `SpencerSBM <no-reply@spencersbm.com.ng>`) |
 | `ONEGRIDHUB_BASE_URL` | no | OneGridHub API endpoint |
 | `ONEGRIDHUB_API_KEY` | yes | OneGridHub API key (never sent to the browser) |
 | `NUMBER_EXPIRY_MINUTES` | no | SMS window for virtual numbers (default `20`) |
@@ -47,7 +48,7 @@ server/
 ├── utils/
 │   ├── auth.js         # JWT sign/token helpers + requireAuth middleware
 │   ├── db.js           # PostgreSQL connection pool (DATABASE_URL)
-│   ├── mailer.js       # Nodemailer transport + reset email (or dev console log)
+│   ├── mailer.js       # Resend transport + email templates (or dev console log)
 │   ├── onegridhub.js   # Safe provider client (timeouts, retries, error objects)
 │   └── store.js        # PostgreSQL-backed persistence for users & orders
 ```

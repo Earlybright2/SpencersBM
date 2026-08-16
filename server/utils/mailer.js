@@ -1,30 +1,38 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { findByEmail, findById } from '../utils/store.js';
 
-let transporter = null;
+let resend = null;
 
-function getTransporter() {
-  if (transporter) return transporter;
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      }
-    });
+function getResend() {
+  if (resend) return resend;
+  if (process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
   }
-  return transporter;
+  return resend;
+}
+
+const EMAIL_FROM = () => process.env.RESEND_FROM || 'SpencerSBM <no-reply@spencersbm.com.ng>';
+
+async function sendEmail({ to, subject, html }) {
+  const { data, error } = await getResend().emails.send({
+    from: EMAIL_FROM(),
+    to,
+    subject,
+    html
+  });
+  if (error) {
+    console.error('Resend send failed:', error);
+    return null;
+  }
+  return data;
 }
 
 export async function sendPasswordResetEmail(email, resetLink) {
   const user = await findByEmail(email);
   if (!user) return;
 
-  if (getTransporter()) {
-    await getTransporter().sendMail({
-      from: process.env.SMTP_USER,
+  if (getResend()) {
+    await sendEmail({
       to: email,
       subject: 'Reset your SpencerSBM password',
       html: `
@@ -58,8 +66,6 @@ export async function resetUserPassword(userId, newPasswordHash) {
 }
 
 const fmtNgn = (n) => `\u20A6${Number(n || 0).toLocaleString()}`;
-
-const EMAIL_FROM = () => `SpencerSBM <${process.env.SMTP_USER || 'spencersbm1@hotmail.com'}>`;
 
 function emailShell(title, badge, badgeColor, contentHtml) {
   return `
@@ -113,14 +119,13 @@ export async function sendWelcomeEmail(user) {
     <p style="color:#a0a0a0;font-size:13px;">If you have any issues or questions, reach out to us 24/7 and we will be happy to help.</p>
   `;
   const subject = `Welcome to SpencerSBM, ${user.name || ''}`.trim();
-  if (!getTransporter()) {
+  if (!getResend()) {
     console.log('\n============================================');
     console.log('DEV MODE — Welcome email for', user.email);
     console.log('============================================\n');
     return;
   }
-  await getTransporter().sendMail({
-    from: EMAIL_FROM(),
+  await sendEmail({
     to: user.email,
     subject,
     html: emailShell('Welcome to SpencerSBM', 'Welcome', '#D4AF37', content)
@@ -146,15 +151,14 @@ export async function sendPurchaseSuccessEmail(user, order) {
     <p style="color:#a0a0a0;font-size:13px;">Keep these details safe. For social accounts, save the username and password somewhere secure.</p>
   `;
   const subject = `Payment Successful — ${product}`;
-  if (!getTransporter()) {
+  if (!getResend()) {
     console.log('\n============================================');
     console.log('DEV MODE — Purchase success email for', user.email);
     console.log(JSON.stringify({ subject, order }, null, 2));
     console.log('============================================\n');
     return;
   }
-  await getTransporter().sendMail({
-    from: EMAIL_FROM(),
+  await sendEmail({
     to: user.email,
     subject,
     html: emailShell('Payment Successful', 'Payment Successful', '#2ecc71', content)
@@ -175,15 +179,14 @@ export async function sendPurchaseFailureEmail(user, order, reason) {
     <p style="color:#a0a0a0;font-size:13px;">Make sure your wallet has enough balance, then try the purchase again. Your wallet was not debited.</p>
   `;
   const subject = `Payment Failed — ${product || 'Purchase'}`;
-  if (!getTransporter()) {
+  if (!getResend()) {
     console.log('\n============================================');
     console.log('DEV MODE — Purchase failure email for', user.email);
     console.log(JSON.stringify({ subject, reason, order }, null, 2));
     console.log('============================================\n');
     return;
   }
-  await getTransporter().sendMail({
-    from: EMAIL_FROM(),
+  await sendEmail({
     to: user.email,
     subject,
     html: emailShell('Payment Failed', 'Payment Failed', '#e0645a', content)
@@ -211,15 +214,14 @@ export async function sendRefundEmail(user, order, balance) {
     <p style="color:#a0a0a0;font-size:13px;">If you have any questions, reply to this email or reach us 24/7 on WhatsApp &amp; Telegram.</p>
   `;
   const subject = `Order Cancelled — Refund Issued`;
-  if (!getTransporter()) {
+  if (!getResend()) {
     console.log('\n============================================');
     console.log('DEV MODE — Refund email for', user.email);
     console.log(JSON.stringify({ subject, order, balance }, null, 2));
     console.log('============================================\n');
     return;
   }
-  await getTransporter().sendMail({
-    from: EMAIL_FROM(),
+  await sendEmail({
     to: user.email,
     subject,
     html: emailShell('Refund Issued', 'Refund Issued', '#2ecc71', content)
