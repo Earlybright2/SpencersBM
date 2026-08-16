@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Smartphone, UserRound, Zap, ShieldCheck, Globe, Headphones, Search, ShoppingCart, MessageCircle, CreditCard, Mail, ChevronDown, Star, LayoutDashboard } from 'lucide-react';
-import { TelegramIcon } from '../components/SocialIcons.jsx';
+import { TelegramIcon, TwitterIcon, FacebookIcon, InstagramIcon, YouTubeIcon, TikTokIcon, WhatsAppIcon } from '../components/SocialIcons.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { countries } from '../data/marketplace.js';
 
@@ -124,6 +124,41 @@ export default function Home() {
               <span className="block text-[2.5rem] mb-3 group-hover:scale-110 transition-transform duration-300">{c.flag}</span>
               <div className="text-[0.95rem] font-medium mb-1">{c.name}</div>
               <div className="text-faint text-[0.78rem]">Virtual accounts</div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* ====== PLATFORMS WE SUPPORT ====== */}
+      <section id="platforms" className="max-w-[1400px] mx-auto my-24 px-4 md:px-8">
+        <div className="text-center mb-14">
+          <p className="text-gold text-[0.8rem] uppercase tracking-[0.25em] font-semibold mb-3">Wide Compatibility</p>
+          <h2 className="font-syne text-[1.8rem] md:text-[2.5rem]">Platforms We Support</h2>
+          <p className="text-muted text-[1.02rem] font-light mt-4 max-w-[600px] mx-auto">
+            Accounts and numbers available across the world&apos;s most popular social platforms.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-5">
+          {[
+            { icon: FacebookIcon, name: 'Facebook' },
+            { icon: InstagramIcon, name: 'Instagram' },
+            { icon: TikTokIcon, name: 'TikTok' },
+            { icon: YouTubeIcon, name: 'YouTube' },
+            { icon: WhatsAppIcon, name: 'WhatsApp' },
+            { icon: TelegramIcon, name: 'Telegram' },
+            { icon: TwitterIcon, name: 'Twitter / X' }
+          ].map((p, i) => (
+            <button
+              key={p.name}
+              onClick={() => go()}
+              className="card-border group rounded-[14px] p-6 text-center bg-gradient-to-b from-gold/5 to-gold/1 hover:border-gold/30 hover:bg-gold/5 hover:-translate-y-[5px] transition-all duration-300"
+              style={{ animation: `fadeInUp 0.8s ease ${0.05 * i}s both` }}
+            >
+              <span className="inline-flex w-14 h-14 items-center justify-center rounded-[14px] bg-gold/10 border border-gold/25 text-gold mb-3 group-hover:scale-110 group-hover:text-gold-dark transition-transform duration-300">
+                <p.icon size={28} />
+              </span>
+              <div className="text-[0.95rem] font-medium mb-1">{p.name}</div>
+              <div className="text-faint text-[0.78rem]">Accounts &amp; numbers</div>
             </button>
           ))}
         </div>
