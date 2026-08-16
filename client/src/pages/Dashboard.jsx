@@ -11,6 +11,7 @@ import CountdownTimer from '../components/CountdownTimer.jsx';
 import { platformIcon } from '../data/marketplace.js';
 import CascadingAccounts from '../components/CascadingAccounts.jsx';
 import { downloadReceiptPdf } from '../utils/receipt.js';
+import { TelegramIcon } from '../components/SocialIcons.jsx';
 
 const TITLES = {
   overview: 'Overview',
@@ -990,22 +991,33 @@ export default function Dashboard() {
                 <Headphones size={18} strokeWidth={1.9} className="text-gold" />
                 Customer Support
               </h4>
-              <p className="text-muted text-[0.9rem] leading-relaxed">
-                Having any issues with your orders or account? Send us an email at{' '}
-                <a href="mailto:spencersbm1@hotmail.com" className="text-gold hover:text-gold-light break-all">
-                  spencersbm1@hotmail.com
-                </a>{' '}
-                or chat with us on WhatsApp and our support team will get back to you promptly.
-              </p>
-              <a
-                href={`https://wa.me/2349138187814?text=${encodeURIComponent("Hey SpencerSBM, I'm a user on your platform, I have an issue with one of my orders")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="btn-ghost mt-5 inline-flex items-center justify-center gap-2 px-6 py-3 text-[0.9rem] w-full sm:w-auto"
-              >
-                <MessageCircle size={18} strokeWidth={1.9} />
-                Chat on WhatsApp
-              </a>
+<p className="text-muted text-[0.9rem] leading-relaxed">
+                  Having any issues with your orders or account? Send us an email at{' '}
+                  <a href="mailto:spencersbm1@hotmail.com" className="text-gold hover:text-gold-light break-all">
+                    spencersbm1@hotmail.com
+                  </a>{' '}
+                  or chat with us on WhatsApp and our support team will get back to you promptly.
+                </p>
+                <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                  <a
+                    href={`https://wa.me/2349138187814?text=${encodeURIComponent("Hey SpencerSBM, I'm a user on your platform, I have an issue with one of my orders")}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-ghost inline-flex items-center justify-center gap-2 px-6 py-3 text-[0.9rem] w-full sm:w-auto"
+                  >
+                    <MessageCircle size={18} strokeWidth={1.9} />
+                    Chat on WhatsApp
+                  </a>
+                  <a
+                    href="https://t.me/spencersbm"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-ghost inline-flex items-center justify-center gap-2 px-6 py-3 text-[0.9rem] w-full sm:w-auto"
+                  >
+                    <TelegramIcon size={18} />
+                    Join Telegram Group for More Updates
+                  </a>
+                </div>
             </div>
           </div>
         </PanelCard>

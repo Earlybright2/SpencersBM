@@ -41,6 +41,8 @@ function Field({ label, children }) {
 const inputCls =
   'w-full px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.92rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-subtle';
 
+const PAGE_SIZE = 20;
+
 export default function Admin() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -56,6 +58,9 @@ export default function Admin() {
 
   const [numbersSearch, setNumbersSearch] = useState('');
   const [accountsSearch, setAccountsSearch] = useState('');
+
+  const [numbersPage, setNumbersPage] = useState(1);
+  const [accountsPage, setAccountsPage] = useState(1);
 
   const [servers, setServers] = useState([]);
 
@@ -126,6 +131,14 @@ export default function Admin() {
     const t = setTimeout(() => setToast(''), 2500);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    setNumbersPage(1);
+  }, [numbersSearch]);
+
+  useEffect(() => {
+    setAccountsPage(1);
+  }, [accountsSearch]);
 
   const loadServers = async () => {
     try {
@@ -259,6 +272,13 @@ export default function Admin() {
       `${p.platform || ''} ${p.countryName || p.country || ''} ${p.desc || ''} ${p.price || ''}`.toLowerCase().includes(q)
     );
   }, [products.accounts, accountsSearch]);
+
+  const numbersPageCount = Math.max(1, Math.ceil(filteredNumbers.length / PAGE_SIZE));
+  const accountsPageCount = Math.max(1, Math.ceil(filteredAccounts.length / PAGE_SIZE));
+  const safeNumbersPage = Math.min(numbersPage, numbersPageCount);
+  const safeAccountsPage = Math.min(accountsPage, accountsPageCount);
+  const pageNumbers = filteredNumbers.slice((safeNumbersPage - 1) * PAGE_SIZE, safeNumbersPage * PAGE_SIZE);
+  const pageAccounts = filteredAccounts.slice((safeAccountsPage - 1) * PAGE_SIZE, safeAccountsPage * PAGE_SIZE);
 
   const saveAccountPrice = async (id) => {
     const price = Number(editPrices[id]);
@@ -569,7 +589,7 @@ export default function Admin() {
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {filteredNumbers.map((p) => (
+                    {pageNumbers.map((p) => (
                       <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                           <div>
@@ -606,6 +626,7 @@ export default function Admin() {
                     ))}
                   </div>
                 )}
+                <Pagination page={safeNumbersPage} totalPages={numbersPageCount} onPrev={() => setNumbersPage((p) => Math.max(1, p - 1))} onNext={() => setNumbersPage((p) => Math.min(numbersPageCount, p + 1))} />
               </div>
             </div>
           )}
@@ -748,7 +769,7 @@ export default function Admin() {
                   </p>
                 ) : (
                   <div className="space-y-4">
-                    {filteredAccounts.map((p) => {
+                    {pageAccounts.map((p) => {
                       const isProvider = Boolean(p.providerProductId);
                       return (
                         <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4">
@@ -788,6 +809,7 @@ export default function Admin() {
                     })}
                   </div>
                 )}
+                <Pagination page={safeAccountsPage} totalPages={accountsPageCount} onPrev={() => setAccountsPage((p) => Math.max(1, p - 1))} onNext={() => setAccountsPage((p) => Math.min(accountsPageCount, p + 1))} />
               </div>
             </div>
           )}
@@ -846,6 +868,31 @@ export default function Admin() {
           )}
         </main>
       </div>
+    </div>
+  );
+}
+
+function Pagination({ page, totalPages, onPrev, onNext }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-center gap-4 pt-6">
+      <button
+        onClick={onPrev}
+        disabled={page <= 1}
+        className="btn-ghost px-6 py-2.5 text-[0.85rem] disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        Prev
+      </button>
+      <span className="text-[0.85rem] text-muted">
+        Page {page} of {totalPages}
+      </span>
+      <button
+        onClick={onNext}
+        disabled={page >= totalPages}
+        className="btn-ghost px-6 py-2.5 text-[0.85rem] disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        Next
+      </button>
     </div>
   );
 }

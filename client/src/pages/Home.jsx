@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Smartphone, UserRound, Zap, ShieldCheck, Globe, Headphones, Search, ShoppingCart, MessageCircle, CreditCard, Mail, ChevronDown, Star, LayoutDashboard } from 'lucide-react';
+import { TelegramIcon } from '../components/SocialIcons.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { countries } from '../data/marketplace.js';
 
@@ -286,6 +287,15 @@ export default function Home() {
               >
                 <Mail size={19} strokeWidth={1.8} />
                 Email Support
+              </a>
+              <a
+                href="https://t.me/spencersbm"
+                target="_blank"
+                rel="noreferrer"
+                className="btn-ghost px-9 py-4 text-[0.98rem] flex items-center justify-center gap-2 w-full sm:w-auto"
+              >
+                <TelegramIcon size={19} />
+                Join Telegram Group for More Updates
               </a>
             </div>
           </div>
