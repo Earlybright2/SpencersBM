@@ -144,20 +144,26 @@ router.post('/virtual-account', async (req, res, next) => {
         details: result?.error || null
       });
     }
+    // Flutterwave returns the exact amount the account is configured to collect
+    // (input amount + its processing fee, e.g. 100 -> 102). The user must send
+    // exactly that amount or the transfer is rejected, so surface and persist
+    // the actual configured amount rather than the input amount.
+    const collectAmount =
+      Number(result.data?.amount) > 0 ? Number(result.data?.amount) : numAmount;
     const va = {
       id: result.data?.id || null,
       reference,
       account_number: result.data?.account_number || result.data?.nuban || null,
       bank_name: result.data?.account_bank_name || result.data?.bank_name || null,
       account_name: result.data?.account_name || result.data?.note || null,
-      amount: numAmount,
+      amount: collectAmount,
       status: result.data?.status || null,
       createdAt: new Date().toISOString()
     };
     await setVirtualAccount(user.id, va);
     await setPendingFund(user.id, reference, {
       reference,
-      amount: numAmount,
+      amount: collectAmount,
       currency: 'NGN',
       method: 'bank',
       chargeId: result.data?.id || null,

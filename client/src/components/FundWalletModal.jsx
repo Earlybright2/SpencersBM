@@ -115,9 +115,18 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
   const cleanBankLabel = (value) => {
     if (!value) return '—';
     return String(value)
-      .replace(/Formerly\s+.*$/gi, '')
+      .replace(/\s*\(.*$/gi, '')
       .replace(/\s+/g, ' ')
       .trim() || 'Bank';
+  };
+
+  const cleanAccountName = (value) => {
+    if (!value) return '—';
+    return String(value)
+      .replace(/^please\s+make\s+a\s+bank\s+transfer\s+to\s+/gi, '')
+      .replace(/\s+FLW\s*$/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim() || '—';
   };
 
   const copyText = async (text, key) => {
@@ -349,7 +358,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                       <div className="flex items-center justify-between gap-3 bg-field border border-gold/15 rounded-[10px] px-4 py-3">
                         <div>
                           <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">Account Name</div>
-                          <div className="font-medium text-[0.95rem]">{va.account_name || '—'}</div>
+                          <div className="font-medium text-[0.95rem]">{cleanAccountName(va.account_name)}</div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-3 bg-field border border-gold/15 rounded-[10px] px-4 py-3">
