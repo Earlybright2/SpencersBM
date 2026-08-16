@@ -247,6 +247,7 @@ async function buyProviderAccount(req, res, catalog, product) {
     platform: product.platform,
     username: account.username,
     password: account.password,
+    email: account.email || null,
     account_raw: account.account_raw || null,
     desc: product.desc || null,
     price: cost,
@@ -402,6 +403,7 @@ function extractAccountCredentials(detail, buyRes = {}) {
 
   let username = '';
   let password = '';
+  let email = '';
   let accountRaw = '';
 
   const isScalar = (v) => typeof v === 'string' || typeof v === 'number';
@@ -421,7 +423,7 @@ function extractAccountCredentials(detail, buyRes = {}) {
   }
 
   // OneGridHub delivers accounts as a multi-line `accounts` string whose last
-  // line is a JSON blob: {"account":"user|pass|email|pass|recovery|..."}.
+  // line is a JSON blob: {"account":"user|pass|email|emailpass|recovery|..."}.
   if (!username || !password) {
     for (const d of candidates) {
       const accountsBlob = d?.accounts;
@@ -434,11 +436,13 @@ function extractAccountCredentials(detail, buyRes = {}) {
             if (typeof raw === 'string' && raw.includes('|')) {
               accountRaw = raw;
               const parts = raw.split('|').map((s) => s.trim()).filter(Boolean);
-              // Standard pipe layout: login|password|email|password|...
-              // The first pair is the account's primary login + password.
+              // Standard pipe layout: login|password|email|emailpass|recovery|...
               if (parts.length >= 2) {
                 username = parts[0];
                 password = parts[1];
+                // The email is usually the next pipe field (or the first @ field).
+                const mail = parts.slice(2).find((p) => /@/.test(p) && !/^M\./.test(p) && p.length < 60);
+                email = mail || '';
               } else if (parts.length === 1) {
                 username = parts[0];
               }
@@ -493,7 +497,7 @@ function extractAccountCredentials(detail, buyRes = {}) {
     console.warn('[digital-account] credentials not ready. raw:', JSON.stringify(detail || buyRes).slice(0, 800));
   }
 
-  return { username, password, ready, account_raw: accountRaw || (username && password ? `${username}|${password}` : '') };
+  return { username, password, email, ready, account_raw: accountRaw || (username && password ? `${username}|${password}` : '') };
 }
 
 // How long a number stays active waiting for its SMS (mirrors the provider's window).
@@ -614,11 +618,12 @@ router.get('/account-status', asyncRoute(async (req, res) => {
       status: 'completed',
       username: account.username,
       password: account.password,
+      email: account.email || order.email || null,
       account_raw: account.account_raw || order.account_raw || null,
       expiresAt: null,
       lastCheckedAt: new Date().toISOString()
     });
-    return res.json({ status: 'completed', order: { ...order, username: account.username, password: account.password, account_raw: account.account_raw, status: 'completed', expiresAt: null } });
+    return res.json({ status: 'completed', order: { ...order, username: account.username, password: account.password, email: account.email, account_raw: account.account_raw, status: 'completed', expiresAt: null } });
   }
 
   await updateUserOrder(req.user.id, order_ref, {

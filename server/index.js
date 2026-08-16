@@ -24,8 +24,8 @@ app.use(
 // GET / — welcome + available APIs
 app.get('/', (req, res) => {
   res.json({
-    name: 'SpencersBM Backend API',
-    message: 'Welcome to SpencersBM Backend API',
+    name: 'SpencerSBM Backend API',
+    message: 'Welcome to SpencerSBM Backend API',
     version: '1.0.0',
     baseUrl: req.protocol + '://' + req.get('host'),
     endpoints: {
@@ -129,7 +129,7 @@ app.use((err, req, res, next) => {
 ensureAdmin()
   .then(() => {
     app.listen(PORT, () => {
-      console.log(`SpencersBM API running on http://localhost:${PORT}`);
+      console.log(`SpencerSBM API running on http://localhost:${PORT}`);
     });
   })
   .catch((err) => {

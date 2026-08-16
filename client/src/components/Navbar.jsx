@@ -45,7 +45,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-1000 bg-night/95 backdrop-blur-[10px] border-b border-gold/10 px-4 md:px-8 py-4">
       <div className="max-w-[1400px] mx-auto flex items-center justify-between">
         <Link to="/" className="gold-text font-syne text-2xl md:text-[1.8rem] font-bold tracking-[-1px]">
-          SpencersBM
+          SpencerSBM
         </Link>
 
         <nav className="hidden lg:flex items-center gap-6 xl:gap-8">

@@ -1,6 +1,6 @@
-# SpencersBM — Server
+# SpencerSBM — Server
 
-Express API for the SpencersBM marketplace. Handles authentication, password resets, and proxying of the OneGridHub virtual-number/SMS provider.
+Express API for the SpencerSBM marketplace. Handles authentication, password resets, and proxying of the OneGridHub virtual-number/SMS provider.
 
 ## Quick Start
 

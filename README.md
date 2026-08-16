@@ -1,4 +1,4 @@
-# SpencersBM
+# SpencerSBM
 
 A full-stack marketplace for **virtual phone numbers** and **premium social media accounts**. Buy verification numbers and aged accounts with instant delivery — with wallet-style funding (NGN/USD) coming online via a fintech integration.
 

@@ -152,7 +152,7 @@ export async function ensureAdmin() {
   }
   const admin = {
     id: 'admin-' + Date.now().toString(36),
-    name: 'SpencersBM Admin',
+    name: 'SpencerSBM Admin',
     email,
     password: await bcrypt.hash(password, 10),
     role: 'admin',

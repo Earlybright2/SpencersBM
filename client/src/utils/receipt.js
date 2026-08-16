@@ -78,5 +78,5 @@ export function downloadReceiptPdf({
   doc.setTextColor(130, 130, 130);
   doc.text('Support: spencersbm1@hotmail.com', margin, y + 6);
 
-  doc.save(`SpencersBM-Receipt-${ref}.pdf`);
+  doc.save(`SpencerSBM-Receipt-${ref}.pdf`);
 }

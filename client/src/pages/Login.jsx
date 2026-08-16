@@ -28,7 +28,7 @@ export default function Login() {
   };
 
   return (
-    <AuthLayout title="Welcome Back" subtitle="Log in to continue to SpencersBM">
+    <AuthLayout title="Welcome Back" subtitle="Log in to continue to SpencerSBM">
       {error && (
         <div className="flex items-start gap-3 bg-[#e0645a]/10 border border-[#e0645a]/30 text-[#ff8a80] text-[0.9rem] rounded-[12px] px-4 py-3 mb-6">
           <AlertCircle size={18} strokeWidth={1.9} className="shrink-0 mt-[1px]" />
@@ -74,7 +74,7 @@ export default function Login() {
 
       <div className="flex items-center gap-3 my-7">
         <div className="flex-1 h-[1px] bg-white/10" />
-        <span className="text-[0.78rem] text-gray-500">New to SpencersBM?</span>
+        <span className="text-[0.78rem] text-gray-500">New to SpencerSBM?</span>
         <div className="flex-1 h-[1px] bg-white/10" />
       </div>
 

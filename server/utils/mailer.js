@@ -26,10 +26,10 @@ export async function sendPasswordResetEmail(email, resetLink) {
     await getTransporter().sendMail({
       from: process.env.SMTP_USER,
       to: email,
-      subject: 'Reset your SpencersBM password',
+      subject: 'Reset your SpencerSBM password',
       html: `
         <div style="font-family:Poppins,Arial,sans-serif;background:#0a0a0a;color:#fff;padding:40px 20px;">
-          <h1 style="color:#D4AF37;">SpencersBM</h1>
+          <h1 style="color:#D4AF37;">SpencerSBM</h1>
           <p>Hi ${user.name || 'there'},</p>
           <p>We received a request to reset your password. Click the button below to choose a new one:</p>
           <a href="${resetLink}" style="display:inline-block;background:linear-gradient(135deg,#D4AF37,#c99c2c);color:#0a0a0a;padding:14px 30px;border-radius:50px;font-weight:600;text-decoration:none;margin:20px 0;">
@@ -59,14 +59,14 @@ export async function resetUserPassword(userId, newPasswordHash) {
 
 const fmtNgn = (n) => `\u20A6${Number(n || 0).toLocaleString()}`;
 
-const EMAIL_FROM = () => `SpencersBM <${process.env.SMTP_USER || 'spencersbm1@hotmail.com'}>`;
+const EMAIL_FROM = () => `SpencerSBM <${process.env.SMTP_USER || 'spencersbm1@hotmail.com'}>`;
 
 function emailShell(title, badge, badgeColor, contentHtml) {
   return `
     <div style="font-family:Poppins,Arial,sans-serif;background:#0a0a0a;color:#fff;padding:40px 20px;">
       <div style="max-width:560px;margin:0 auto;background:#141414;border:1px solid rgba(212,175,55,0.25);border-radius:16px;overflow:hidden;">
         <div style="padding:28px 32px;border-bottom:1px solid rgba(212,175,55,0.15);">
-          <div style="font-size:26px;font-weight:700;color:#D4AF37;letter-spacing:-1px;">SpencersBM</div>
+          <div style="font-size:26px;font-weight:700;color:#D4AF37;letter-spacing:-1px;">SpencerSBM</div>
         </div>
         <div style="padding:32px;">
           <div style="display:inline-block;padding:6px 16px;border-radius:50px;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#0a0a0a;background:${badgeColor};margin-bottom:20px;">${badge}</div>
@@ -108,11 +108,11 @@ function orderRows(order) {
 export async function sendWelcomeEmail(user) {
   const content = `
     <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Hi ${user.name || 'there'},</p>
-    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Welcome to <strong style="color:#D4AF37;">SpencersBM</strong>! Your account has been created successfully.</p>
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Welcome to <strong style="color:#D4AF37;">SpencerSBM</strong>! Your account has been created successfully.</p>
     <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">You can now fund your wallet and buy virtual numbers and premium social media accounts with instant delivery.</p>
     <p style="color:#a0a0a0;font-size:13px;">If you have any issues or questions, reach out to us 24/7 and we will be happy to help.</p>
   `;
-  const subject = `Welcome to SpencersBM, ${user.name || ''}`.trim();
+  const subject = `Welcome to SpencerSBM, ${user.name || ''}`.trim();
   if (!getTransporter()) {
     console.log('\n============================================');
     console.log('DEV MODE — Welcome email for', user.email);
@@ -123,7 +123,7 @@ export async function sendWelcomeEmail(user) {
     from: EMAIL_FROM(),
     to: user.email,
     subject,
-    html: emailShell('Welcome to SpencersBM', 'Welcome', '#D4AF37', content)
+    html: emailShell('Welcome to SpencerSBM', 'Welcome', '#D4AF37', content)
   });
 }
 

@@ -32,7 +32,7 @@ export default function Register() {
   };
 
   return (
-    <AuthLayout title="Create Your Account" subtitle="Get started with SpencersBM in seconds">
+    <AuthLayout title="Create Your Account" subtitle="Get started with SpencerSBM in seconds">
       {error && (
         <div className="flex items-start gap-3 bg-[#e0645a]/10 border border-[#e0645a]/30 text-[#ff8a80] text-[0.9rem] rounded-[12px] px-4 py-3 mb-6">
           <AlertCircle size={18} strokeWidth={1.9} className="shrink-0 mt-[1px]" />

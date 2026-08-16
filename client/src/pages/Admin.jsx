@@ -360,7 +360,7 @@ export default function Admin() {
     <div className="min-h-screen bg-[#080808] flex w-full">
       <aside className="hidden lg:flex w-[260px] shrink-0 border-r border-gold/20 bg-gradient-to-b from-[#111111] to-[#0a0a0a] fixed inset-y-0 left-0 z-40 flex-col">
         <div className="px-6 pt-5 pb-5 border-b border-gold/10">
-          <div className="gold-text font-syne text-2xl font-bold tracking-[-1px]">SpencersBM</div>
+          <div className="gold-text font-syne text-2xl font-bold tracking-[-1px]">SpencerSBM</div>
           <p className="text-gray-500 text-[0.7rem] uppercase tracking-[0.2em] mt-1">Admin Panel</p>
         </div>
         {sidebar}
@@ -371,7 +371,7 @@ export default function Admin() {
           <div className="absolute inset-0 bg-black/70" onClick={() => setDrawerOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-[280px] bg-[#0b0b0b] border-r border-gold/10 shadow-2xl flex flex-col">
             <div className="px-6 pt-5 pb-5 border-b border-gold/10">
-              <div className="gold-text font-syne text-2xl font-bold tracking-[-1px]">SpencersBM</div>
+              <div className="gold-text font-syne text-2xl font-bold tracking-[-1px]">SpencerSBM</div>
               <p className="text-gray-500 text-[0.7rem] uppercase tracking-[0.2em] mt-1">Admin Panel</p>
             </div>
             {sidebar}

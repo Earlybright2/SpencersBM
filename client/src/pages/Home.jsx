@@ -130,7 +130,7 @@ export default function Home() {
 
       {/* ====== FEATURES ====== */}
       <section className="max-w-[1400px] mx-auto my-24 px-4 md:px-8 py-8 md:py-16 bg-gradient-to-br from-gold/3 to-gold/1 card-border rounded-[15px] backdrop-blur-[10px]">
-        <h2 className="font-syne text-[1.8rem] md:text-[2.5rem] text-center mb-12">Why Choose SpencersBM</h2>
+        <h2 className="font-syne text-[1.8rem] md:text-[2.5rem] text-center mb-12">Why Choose SpencerSBM</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
           {[
             { icon: Zap, title: 'Instant Delivery', desc: 'Get your virtual numbers and accounts delivered instantly after purchase. No waiting, no delays.' },
@@ -194,7 +194,7 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
             { name: 'Adaeze O.', role: 'Affiliate Marketer', quote: 'The instant SMS verification numbers saved my whole onboarding flow. Delivery was genuinely instant and support answered within minutes.' },
-            { name: 'Marcus T.', role: 'Startup Founder', quote: 'I needed fresh accounts across platforms fast. SpencersBM delivered everything to my inbox with all credentials intact. Flawless.' },
+            { name: 'Marcus T.', role: 'Startup Founder', quote: 'I needed fresh accounts across platforms fast. SpencerSBM delivered everything to my inbox with all credentials intact. Flawless.' },
             { name: 'Lena K.', role: 'Freelancer', quote: 'Clean, professional and so easy to use. I buy Gmail accounts for my clients weekly and the consistent quality never misses.' }
           ].map((t, i) => (
             <div
@@ -272,7 +272,7 @@ export default function Home() {
             </p>
             <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
               <a
-                href={`https://wa.me/2349138187814?text=${encodeURIComponent("Hey Spencersbm, I'm a user on your platform, I have an issue with one of my orders")}`}
+                href={`https://wa.me/2349138187814?text=${encodeURIComponent("Hey SpencerSBM, I'm a user on your platform, I have an issue with one of my orders")}`}
                 target="_blank"
                 rel="noreferrer"
                 className="btn-gold px-9 py-4 text-[0.98rem] flex items-center justify-center gap-2 hover:-translate-y-[2px] hover:shadow-[0_15px_40px_rgba(212,175,55,0.4)] w-full sm:w-auto"

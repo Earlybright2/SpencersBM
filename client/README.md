@@ -1,6 +1,6 @@
-# SpencersBM — Client
+# SpencerSBM — Client
 
-React frontend for the SpencersBM marketplace — the storefront, authentication screens, and the member dashboard.
+React frontend for the SpencerSBM marketplace — the storefront, authentication screens, and the member dashboard.
 
 ## Quick Start
 

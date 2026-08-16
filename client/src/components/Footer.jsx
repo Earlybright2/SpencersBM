@@ -28,7 +28,7 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <Link to="/" className="gold-text font-syne text-2xl font-bold tracking-[-1px]">
-              SpencersBM
+              SpencerSBM
             </Link>
             <p className="text-gray-400 text-[0.92rem] mt-4 leading-relaxed">
               Your trusted marketplace for virtual numbers, premium social media accounts and
@@ -129,7 +129,7 @@ export default function Footer() {
 
         <div className="border-t border-gold/10 pt-6 flex flex-col md:flex-row items-center justify-between gap-3">
           <p className="text-[#707070] text-[0.82rem]">
-            &copy; {new Date().getFullYear()} SpencersBM. All rights reserved.
+            &copy; {new Date().getFullYear()} SpencerSBM. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
             {['Terms', 'Privacy', 'Refund Policy'].map((p) => (

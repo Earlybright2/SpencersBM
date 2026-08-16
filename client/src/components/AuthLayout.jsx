@@ -18,7 +18,7 @@ export default function AuthLayout({ title, subtitle, children }) {
       {/* Left branding panel (desktop) */}
       <aside className="hidden lg:flex flex-col justify-between w-[44%] shrink-0 p-12 xl:p-16 relative border-r border-gold/10 bg-gradient-to-br from-[#161616] to-[#0a0a0a] overflow-hidden">
         <Link to="/" className="gold-text font-syne text-3xl font-bold tracking-[-1.5px] hover:scale-105 transition-transform inline-block w-fit">
-          SpencersBM
+          SpencerSBM
         </Link>
 
         <div>
@@ -58,7 +58,7 @@ export default function AuthLayout({ title, subtitle, children }) {
             to="/"
             className="lg:hidden gold-text font-syne text-[2rem] font-bold tracking-[-1.5px] block text-center mb-10 hover:scale-105 transition-transform"
           >
-            SpencersBM
+            SpencerSBM
           </Link>
           <h1 className="font-syne text-3xl md:text-[2.2rem] text-white text-center">{title}</h1>
           {subtitle && <p className="text-gray-400 text-[1rem] mt-3 font-light text-center">{subtitle}</p>}

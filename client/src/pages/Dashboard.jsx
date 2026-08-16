@@ -856,8 +856,8 @@ export default function Dashboard() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Username / Email</div>
-                              <div className="font-mono text-[0.92rem] break-all">{a.username}</div>
+                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Username</div>
+                              <div className="font-mono text-[0.92rem] break-all">{a.username || '—'}</div>
                             </div>
                             <button onClick={() => copyText(a.username, `u-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
                               {copied === `u-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
@@ -873,17 +873,17 @@ export default function Dashboard() {
                             </button>
                           </div>
                         </div>
-                        {a.account_raw && (
+                        {a.email ? (
                           <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 mt-3 flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Full Credentials</div>
-                              <div className="font-mono text-[0.82rem] break-all whitespace-pre-wrap">{a.account_raw}</div>
+                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Account Email</div>
+                              <div className="font-mono text-[0.92rem] break-all">{a.email}</div>
                             </div>
-                            <button onClick={() => copyText(a.account_raw, `raw-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
-                              {copied === `raw-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
+                            <button onClick={() => copyText(a.email, `e-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
+                              {copied === `e-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
                             </button>
                           </div>
-                        )}
+                        ) : null}
                         <p className="text-[0.75rem] text-gray-500 mt-3 flex items-center gap-1.5">
                           <Landmark size={14} strokeWidth={1.8} className="text-gold" />
                           Keep these credentials safe. Store them somewhere secure.

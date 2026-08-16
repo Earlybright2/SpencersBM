@@ -40,7 +40,7 @@ function SidebarContent({ onNavigate }) {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="px-6 pt-5 pb-5 border-b border-gold/10">
         <Link to="/" className="gold-text font-syne text-2xl font-bold tracking-[-1px]">
-          SpencersBM
+          SpencerSBM
         </Link>
         <p className="text-gray-500 text-[0.7rem] uppercase tracking-[0.2em] mt-1">Member Dashboard</p>
       </div>

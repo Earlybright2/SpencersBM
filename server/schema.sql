@@ -1,4 +1,4 @@
--- Schema definition for SpencersBM PostgreSQL database
+-- Schema definition for SpencerSBM PostgreSQL database
 
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(255) PRIMARY KEY,
