@@ -746,6 +746,13 @@ export default function Dashboard() {
       {/* ===== ACCOUNTS ===== */}
       {tab === 'accounts' && (
         <div className="space-y-6">
+          <div className="flex items-start gap-3 rounded-[12px] border border-gold/20 bg-gold/5 px-4 py-3.5 text-[0.88rem] text-gray-300">
+            <UserRound size={17} strokeWidth={1.9} className="text-gold shrink-0 mt-0.5" />
+            <p>
+              Once your payment is successful, your account username and password appear under{' '}
+              <span className="text-gold font-medium">&quot;Paid Accounts&quot;</span> in the dashboard sidebar.
+            </p>
+          </div>
           <PanelCard title="Social Media Accounts">
             {catalog.accounts.length === 0 ? (
               <p className="text-gray-500 text-[0.95rem] py-6 text-center">
