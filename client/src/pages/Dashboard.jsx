@@ -287,6 +287,7 @@ export default function Dashboard() {
     try {
       await api.post('/orders/cancel', { order_ref: orderRef });
       loadOrders(true);
+      loadPaidAccounts(true);
       loadWallet(true);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -784,7 +785,8 @@ export default function Dashboard() {
             <div className="space-y-4">
               {paidAccounts.map((a) => {
                 const Icon = platformIcon(a.platform);
-                const pending = a.status === 'pending' || (!a.username && !a.password);
+                const cancelled = a.status === 'cancelled';
+                const pending = !cancelled && (a.status === 'pending' || (!a.username && !a.password));
                 return (
                   <div key={a.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -799,9 +801,29 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
-                      <span className="text-[0.9rem] font-semibold text-gold">{fmtNgn(a.price)}</span>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-[0.72rem] font-semibold uppercase px-3 py-1 rounded-[50px] border ${
+                            cancelled
+                              ? 'text-[#e0645a] border-[#e0645a]/40 bg-[#e0645a]/10'
+                              : pending
+                                ? 'text-gold border-gold/40 bg-gold/10'
+                                : 'text-[#2ecc71] border-[#2ecc71]/40 bg-[#2ecc71]/10'
+                          }`}
+                        >
+                          {cancelled ? 'cancelled' : pending ? 'processing' : 'completed'}
+                        </span>
+                        <span className="text-[0.9rem] font-semibold text-gold">{fmtNgn(a.price)}</span>
+                      </div>
                     </div>
-                    {pending ? (
+                    {cancelled ? (
+                      <div className="flex items-center gap-2.5 text-[0.9rem] text-[#e0645a] bg-night/50 border border-[#e0645a]/20 rounded-[10px] px-4 py-3">
+                        <AlertTriangle size={16} strokeWidth={1.9} className="shrink-0" />
+                        <span>
+                          This order was cancelled and <strong>₦{Number(a.price || 0).toLocaleString()}</strong> was refunded to your wallet.
+                        </span>
+                      </div>
+                    ) : pending ? (
                       <div className="flex items-center justify-between gap-3 flex-wrap bg-night/50 border border-gold/20 rounded-[10px] px-4 py-3">
                         <div className="flex items-center gap-2.5 text-[0.9rem] text-gray-300">
                           <RefreshCw size={16} strokeWidth={1.9} className="text-gold animate-spin" />
@@ -813,12 +835,21 @@ export default function Dashboard() {
                             />
                           </span>
                         </div>
-                        <button
-                          onClick={() => pollAccountStatus(a.order_ref)}
-                          className="btn-ghost px-4 py-2 text-[0.8rem]"
-                        >
-                          Check Status
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => pollAccountStatus(a.order_ref)}
+                            className="btn-ghost px-4 py-2 text-[0.8rem]"
+                          >
+                            Check Status
+                          </button>
+                          <button
+                            onClick={() => handleCancel(a.order_ref)}
+                            disabled={Boolean(cancelling)}
+                            className="px-4 py-2 rounded-[50px] font-semibold text-[0.8rem] bg-transparent text-[#e0645a] border border-[#e0645a]/40 hover:bg-[#e0645a]/10 disabled:opacity-60"
+                          >
+                            {cancelling === a.order_ref ? 'Cancelling...' : 'Cancel'}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <>
@@ -842,6 +873,17 @@ export default function Dashboard() {
                             </button>
                           </div>
                         </div>
+                        {a.account_raw && (
+                          <div className="bg-night/50 border border-gold/15 rounded-[10px] px-4 py-3 mt-3 flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-[0.65rem] uppercase tracking-widest text-gray-500 font-semibold">Full Credentials</div>
+                              <div className="font-mono text-[0.82rem] break-all whitespace-pre-wrap">{a.account_raw}</div>
+                            </div>
+                            <button onClick={() => copyText(a.account_raw, `raw-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
+                              {copied === `raw-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
+                            </button>
+                          </div>
+                        )}
                         <p className="text-[0.75rem] text-gray-500 mt-3 flex items-center gap-1.5">
                           <Landmark size={14} strokeWidth={1.8} className="text-gold" />
                           Keep these credentials safe. Store them somewhere secure.

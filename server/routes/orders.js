@@ -211,7 +211,7 @@ async function buyProviderAccount(req, res, catalog, product) {
     return res.status(502).json({ status: 'error', message: reason });
   }
 
-  const providerOrderId = String(
+  const providerOrderId = normalizeProviderOrderId(
     buyRes.order || buyRes.order_id || buyRes.orderid || buyRes.orderId || buyRes.id || ''
   );
 
@@ -247,6 +247,7 @@ async function buyProviderAccount(req, res, catalog, product) {
     platform: product.platform,
     username: account.username,
     password: account.password,
+    account_raw: account.account_raw || null,
     desc: product.desc || null,
     price: cost,
     currency: 'NGN',
@@ -342,6 +343,15 @@ async function buyInventoryAccount(req, res, catalog, product) {
   res.status(201).json({ status: 'success', message: 'Account purchased', order, balance: debit.balance });
 }
 
+// OneGridHub displays digital order references as "DG-23843", but the
+// digital_order endpoint only accepts the bare numeric id ("23843").
+function normalizeProviderOrderId(raw) {
+  const s = String(raw || '').trim();
+  if (/^\d+$/.test(s)) return s;
+  const m = s.match(/(\d+)/);
+  return m ? m[1] : s;
+}
+
 // Best-effort extraction of delivered account credentials from the provider's
 // digital_order / digital_buy response, tolerating unknown response shapes.
 function extractAccountCredentials(detail, buyRes = {}) {
@@ -392,6 +402,7 @@ function extractAccountCredentials(detail, buyRes = {}) {
 
   let username = '';
   let password = '';
+  let accountRaw = '';
 
   const isScalar = (v) => typeof v === 'string' || typeof v === 'number';
 
@@ -407,6 +418,39 @@ function extractAccountCredentials(detail, buyRes = {}) {
       if (d[k] !== undefined && isScalar(d[k]) && String(d[k]) !== '') { password = String(d[k]); break; }
     }
     if (password) break;
+  }
+
+  // OneGridHub delivers accounts as a multi-line `accounts` string whose last
+  // line is a JSON blob: {"account":"user|pass|email|pass|recovery|..."}.
+  if (!username || !password) {
+    for (const d of candidates) {
+      const accountsBlob = d?.accounts;
+      if (typeof accountsBlob === 'string' && accountsBlob.trim()) {
+        const lines = accountsBlob.split('\n').map((l) => l.trim()).filter(Boolean);
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            const raw = parsed?.account || parsed?.credentials || parsed?.data || parsed?.details || parsed?.accounts;
+            if (typeof raw === 'string' && raw.includes('|')) {
+              accountRaw = raw;
+              const parts = raw.split('|').map((s) => s.trim()).filter(Boolean);
+              // Standard pipe layout: login|password|email|password|...
+              // The first pair is the account's primary login + password.
+              if (parts.length >= 2) {
+                username = parts[0];
+                password = parts[1];
+              } else if (parts.length === 1) {
+                username = parts[0];
+              }
+              if (username && password) break;
+            }
+          } catch {
+            // line isn't JSON — keep scanning
+          }
+        }
+        if (username && password) break;
+      }
+    }
   }
 
   // Second pass: deep-search for credentials nested in objects / arrays.
@@ -449,7 +493,7 @@ function extractAccountCredentials(detail, buyRes = {}) {
     console.warn('[digital-account] credentials not ready. raw:', JSON.stringify(detail || buyRes).slice(0, 800));
   }
 
-  return { username, password, ready };
+  return { username, password, ready, account_raw: accountRaw || (username && password ? `${username}|${password}` : '') };
 }
 
 // How long a number stays active waiting for its SMS (mirrors the provider's window).
@@ -491,6 +535,29 @@ router.post('/cancel', asyncRoute(async (req, res) => {
   const order = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
   if (!order) return res.status(404).json({ message: 'Order not found' });
   if (order.status === 'cancelled') return res.status(409).json({ message: 'Order is already cancelled' });
+
+  // Social accounts: only refundable while still processing (no credentials
+  // delivered yet). Once the account is completed it belongs to the buyer.
+  if (order.type === 'social_account') {
+    const delivered = Boolean(order.username && order.password);
+    if (delivered || order.status === 'completed') {
+      return res.status(409).json({ message: 'This account has already been delivered and cannot be refunded.' });
+    }
+    const refund = await creditWallet(req.user.id, {
+      amount: Number(order.price) || 0,
+      reference: `refund-${order_ref}`,
+      meta: { type: 'refund', orderRef: order_ref, service: order.platform }
+    });
+    await updateUserOrder(req.user.id, order_ref, {
+      status: 'cancelled',
+      cancelledAt: new Date().toISOString(),
+      refundedAt: new Date().toISOString(),
+      lastCheckedAt: new Date().toISOString()
+    });
+    notify.refund(req.user.id, { ...order, status: 'cancelled' }, refund?.balance);
+    return res.json({ status: 'success', refunded: true, balance: refund?.balance });
+  }
+
   if (order.status === 'received') {
     return res.status(409).json({ message: 'This order already received its SMS code and cannot be refunded.' });
   }
@@ -529,7 +596,7 @@ router.get('/account-status', asyncRoute(async (req, res) => {
     return res.status(400).json({ message: 'Not a social account order' });
   }
 
-  const providerOrderId = order.provider_order;
+  const providerOrderId = normalizeProviderOrderId(order.provider_order);
   if (!providerOrderId) {
     return res.json({ status: order.status, order });
   }
@@ -547,10 +614,11 @@ router.get('/account-status', asyncRoute(async (req, res) => {
       status: 'completed',
       username: account.username,
       password: account.password,
+      account_raw: account.account_raw || order.account_raw || null,
       expiresAt: null,
       lastCheckedAt: new Date().toISOString()
     });
-    return res.json({ status: 'completed', order: { ...order, username: account.username, password: account.password, status: 'completed', expiresAt: null } });
+    return res.json({ status: 'completed', order: { ...order, username: account.username, password: account.password, account_raw: account.account_raw, status: 'completed', expiresAt: null } });
   }
 
   await updateUserOrder(req.user.id, order_ref, {
