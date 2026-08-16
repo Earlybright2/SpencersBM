@@ -4,11 +4,11 @@ const GOLD = [212, 175, 55];
 
 function row(doc, pageW, margin, label, value, y) {
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(150, 150, 150);
+  doc.setTextColor(0, 0, 0);
   doc.setFontSize(10.5);
   doc.text(label, margin, y);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(240, 240, 240);
+  doc.setTextColor(0, 0, 0);
   doc.text(String(value), pageW - margin, y, { align: 'right' });
 }
 
