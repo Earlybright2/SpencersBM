@@ -21,7 +21,9 @@ import {
   buildCustomer,
   createVirtualAccount,
   getOrCreateCustomer,
-  flwOk
+  updateFlwCustomer,
+  flwOk,
+  getMerchantDisplayName
 } from '../utils/flutterwave.js';
 
 const router = Router();
@@ -103,14 +105,20 @@ router.post('/virtual-account', async (req, res, next) => {
     if (!Number.isFinite(numAmount) || numAmount <= 0) {
       return res.status(400).json({ message: 'Please enter the amount you want to fund.' });
     }
+    if (numAmount < 100) {
+      return res.status(400).json({ message: 'Minimum wallet funding amount is ₦100.' });
+    }
     const user = await findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     const reference = generateReference();
+    const merchantDisplayName = getMerchantDisplayName();
 
     // v4 virtual accounts reference a Flutterwave customer ID.
+    // To keep bank-account names aligned with the merchant identity, we create/update
+    // the customer using the merchant account name rather than the user's personal name.
     let customerId = user.wallet?.flwCustomerId || null;
     if (!customerId) {
-      const customerResult = await getOrCreateCustomer({ name: user.name, email: user.email });
+      const customerResult = await getOrCreateCustomer({ name: merchantDisplayName, email: user.email });
       if (!customerResult.ok) {
         const bad = customerResult.response || {};
         return res.status(bad.statusCode >= 500 ? 502 : 400).json({
@@ -121,6 +129,8 @@ router.post('/virtual-account', async (req, res, next) => {
       }
       customerId = customerResult.customerId;
       await updateUser(user.id, { wallet: { ...user.wallet, flwCustomerId: customerId } });
+    } else {
+      await updateFlwCustomer(customerId, { name: merchantDisplayName });
     }
 
     const result = await createVirtualAccount({ reference, customerId, type: 'dynamic', amount: numAmount });
@@ -173,6 +183,9 @@ router.post('/fund', async (req, res, next) => {
     if (currency !== 'NGN' && currency !== 'USD') {
       return res.status(400).json({ message: 'Currency must be NGN or USD' });
     }
+    if (numAmount < 100) {
+      return res.status(400).json({ message: 'Minimum wallet funding amount is ₦100.' });
+    }
     if (method !== 'opay' && method !== 'card') {
       return res.status(400).json({ message: 'Payment method must be opay or card' });
     }
@@ -188,22 +201,7 @@ router.post('/fund', async (req, res, next) => {
       if (currency !== 'NGN') {
         return res.status(400).json({ message: 'OPay is only available for NGN payments' });
       }
-      paymentMethod = { type: 'opay' };
-      if (phone) {
-        let digits = String(phone).replace(/\D/g, '');
-        let countryCode = '';
-        if (digits.startsWith('234')) {
-          countryCode = '234';
-          digits = digits.slice(3);
-        } else if (digits.startsWith('0')) {
-          countryCode = '234';
-          digits = digits.slice(1);
-        } else if (digits.length === 11) {
-          countryCode = '234';
-          digits = digits.slice(1);
-        }
-        paymentMethod.phone = { country_code: countryCode || '234', number: digits };
-      }
+      paymentMethod = { type: 'opay', opay: {} };
     } else {
       if (!card?.card_number || !card?.expiry_month || !card?.expiry_year || !card?.cvv) {
         return res.status(400).json({ message: 'Card details are incomplete' });

@@ -144,6 +144,10 @@ export function generateReference() {
   return `SBM${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
 }
 
+export function getMerchantDisplayName() {
+  return (process.env.FLW_MERCHANT_NAME || process.env.FLW_ACCOUNT_NAME || process.env.FLW_BUSINESS_NAME || 'Rasheed Bello').trim() || 'Rasheed Bello';
+}
+
 export function buildCustomer({ name, email, phone } = {}) {
   const parts = (name || 'Customer').trim().split(/\s+/);
   const customer = {
@@ -208,6 +212,21 @@ export async function createCustomer({ email, name }) {
   if (parts[0]) body.name.first = parts[0];
   if (parts.length > 1) body.name.last = parts[parts.length - 1];
   return flwRequest('/customers', { method: 'POST', body });
+}
+
+// Update Flutterwave customer name (used to fix incorrect account names on virtual accounts).
+export async function updateFlwCustomer(customerId, { name }) {
+  const parts = (name || 'Customer').trim().split(/\s+/);
+  const body = {
+    name: {
+      first: parts[0] || 'Customer',
+      last: parts.length > 1 ? parts[parts.length - 1] : 'Customer'
+    }
+  };
+  if (parts.length > 2) {
+    body.name.middle = parts.slice(1, -1).join(' ');
+  }
+  return flwRequest(`/customers/${customerId}`, { method: 'PUT', body });
 }
 
 // Returns the existing customer ID for an email, or creates the customer.

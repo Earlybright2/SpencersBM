@@ -110,6 +110,8 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
     expiryOK(card.expiry_month, card.expiry_year) &&
     /^\d{3,4}$/.test(card.cvv);
 
+  const phoneValid = method === 'opay' ? /^0?[789]\d{9}$/.test(phone.replace(/\D/g, '')) : true;
+
   const copyText = async (text, key) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -181,11 +183,15 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
   const handleInitiate = async (e) => {
     e.preventDefault();
     if (!valid) return;
+    if (method === 'opay' && !phone.trim()) {
+      setError('OPay phone number is required');
+      return;
+    }
     setError('');
     setStep('processing');
     try {
       const payload = { currency, amount: numeric, method: method === 'card' ? 'card' : 'opay' };
-      if (method === 'opay' && phone) payload.phone = phone;
+      if (method === 'opay') payload.phone = phone;
       if (method === 'card') {
         payload.card = {
           card_number: card.card_number.replace(/\s/g, ''),
@@ -419,7 +425,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                 {method === 'opay' ? (
                   <div className="mb-5">
                     <label htmlFor="opayPhone" className="block text-[0.8rem] uppercase tracking-wider text-faint mb-2">
-                      OPay phone number (optional)
+                      OPay phone number (required)
                     </label>
                     <input
                       id="opayPhone"
@@ -428,6 +434,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="08012345678"
                       className={inputCls}
+                      required
                     />
                     <p className="text-[0.78rem] text-subtle mt-2">
                       You&apos;ll be redirected to OPay to authorise the payment in the app.
@@ -499,7 +506,7 @@ export default function FundWalletModal({ open, onClose, onFunded, rate = 1500 }
 
                 <button
                   type="submit"
-                  disabled={!valid || (method === 'card' && !cardValid)}
+                  disabled={!valid || (method === 'card' && !cardValid) || (method === 'opay' && !phoneValid)}
                   className="w-full btn-gold py-4 text-[1.02rem] rounded-[14px] disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-1 hover:shadow-[0_10px_40px_rgba(212,175,55,0.4)] transition-all duration-300"
                 >
                   {method === 'opay'
