@@ -100,6 +100,12 @@ function orderRows(order) {
     add('Platform', order.platform || '—');
     add('Username / Email', order.username || '—', true);
     add('Password', order.password || '—', true);
+    add('Account Email', order.email || '—', true);
+    add('Email Password', order.email_password || '—', true);
+    if (order.recovery) add('Recovery', order.recovery, true);
+    if (Array.isArray(order.extra) && order.extra.length) {
+      order.extra.forEach((val, i) => add(`Additional ${i + 1}`, String(val), true));
+    }
   } else {
     add('Service', order.service || '—');
     add('Country', order.country || '—');
@@ -109,6 +115,23 @@ function orderRows(order) {
   add('Amount Paid', fmtNgn(order.price));
   add('Status', order.status || '—');
   return rows.join('');
+}
+
+// Render a list of purchased items into a single table block (used for bulk buys).
+function orderBlocks(orders) {
+  return orders
+    .map((o, i) => {
+      const label = o.type === 'social_account'
+        ? `${o.platform || 'Account'}${i > 0 ? ` (${i + 1})` : ''}`
+        : `${o.service || 'Number'} · ${o.country || ''}${i > 0 ? ` (${i + 1})` : ''}`;
+      return `
+        <h3 style="font-size:15px;margin:24px 0 6px;color:#fff;">${i + 1}. ${label}</h3>
+        <table style="width:100%;border-collapse:collapse;">
+          ${orderRows(o)}
+        </table>
+      `;
+    })
+    .join('');
 }
 
 export async function sendWelcomeEmail(user) {
@@ -132,25 +155,33 @@ export async function sendWelcomeEmail(user) {
   });
 }
 
-export async function sendPurchaseSuccessEmail(user, order) {
-  const product = order.type === 'social_account' ? order.platform : `${order.service} · ${order.country}`;
-  const pending = order.type === 'social_account' && (!order.username || !order.password);
+export async function sendPurchaseSuccessEmail(user, orderOrOrders) {
+  const orders = Array.isArray(orderOrOrders) ? orderOrOrders : [orderOrOrders];
+  const first = orders[0] || {};
+  const product = first.type === 'social_account' ? first.platform : `${first.service} · ${first.country}`;
+  const count = orders.length;
+  const pending = orders.some((o) => o.type === 'social_account' && (!o.username || !o.password));
   const content = pending ? `
     <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Hi ${user.name || 'there'},</p>
     <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Your payment for <strong style="color:#D4AF37;">${product}</strong> was successful.</p>
-    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Your account is currently being prepared by our provider. We will email you the username and password as soon as it is ready (usually within a few minutes).</p>
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Your account${count > 1 ? 's are' : ' is'} currently being prepared by our provider. We will email you the username and password as soon as it${count > 1 ? ' they are' : ' is'} ready (usually within a few minutes).</p>
     <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);border-radius:10px;padding:14px 16px;font-size:13px;color:#cfcfcf;margin:20px 0;">
       Your credentials will also appear under <strong style="color:#D4AF37;">Paid Accounts</strong> in your dashboard.
     </div>
+  ` : count > 1 ? `
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Hi ${user.name || 'there'},</p>
+    <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Your payment for <strong style="color:#D4AF37;">${count} × ${product}</strong> was successful. Here are your purchase details:</p>
+    ${orderBlocks(orders)}
+    <p style="color:#a0a0a0;font-size:13px;">Keep these details safe. For social accounts, save the username and password somewhere secure.</p>
   ` : `
     <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Hi ${user.name || 'there'},</p>
     <p style="color:#cfcfcf;font-size:14px;line-height:1.6;">Your payment for <strong style="color:#D4AF37;">${product}</strong> was successful. Here are your purchase details:</p>
     <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-      ${orderRows(order)}
+      ${orderRows(first)}
     </table>
     <p style="color:#a0a0a0;font-size:13px;">Keep these details safe. For social accounts, save the username and password somewhere secure.</p>
   `;
-  const subject = `Payment Successful — ${product}`;
+  const subject = `Payment Successful — ${count > 1 ? `${count} × ` : ''}${product}`;
   if (!getResend()) {
     console.log('\n============================================');
     console.log('DEV MODE — Purchase success email for', user.email);

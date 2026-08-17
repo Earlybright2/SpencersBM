@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Smartphone } from 'lucide-react';
 import { countries } from '../data/marketplace.js';
+import QuantityStepper from './QuantityStepper.jsx';
 
 const inputCls =
   'w-full px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-subtle';
@@ -22,6 +23,7 @@ const fmtNgn = (n) => `\u20A6${Number(n || 0).toLocaleString()}`;
 export default function CascadingNumbers({ items, onBuy, busy }) {
   const [service, setService] = useState('');
   const [country, setCountry] = useState('');
+  const [qty, setQty] = useState({});
 
   const services = useMemo(() => {
     const map = new Map();
@@ -101,16 +103,29 @@ export default function CascadingNumbers({ items, onBuy, busy }) {
                   <div className="text-faint text-[0.78rem]">{p.countryName || p.country}</div>
                 </div>
               </div>
-              <div className="text-[0.9rem] mb-4">
+              <div className="text-[0.9rem] mb-3">
                 <span className="text-gold font-semibold text-lg">{fmtNgn(p.price)}</span>
+                {(qty[p.id] || 1) > 1 && (
+                  <span className="text-faint text-[0.82rem] ml-2">
+                    × {qty[p.id] || 1} = <span className="text-gold font-semibold">{fmtNgn(p.price * (qty[p.id] || 1))}</span>
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <QuantityStepper
+                  value={qty[p.id] || 1}
+                  onChange={(v) => setQty((prev) => ({ ...prev, [p.id]: v }))}
+                  disabled={Boolean(busy)}
+                />
+                <span className="text-faint text-[0.72rem] uppercase tracking-wider font-medium">Quantity</span>
               </div>
               <button
-                onClick={() => onBuy(p)}
+                onClick={() => onBuy(p, qty[p.id] || 1)}
                 disabled={Boolean(busy)}
                 className="btn-gold w-full py-3 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <Smartphone size={16} strokeWidth={1.8} />
-                {busy === `buy-${p.id}` ? 'Buying...' : 'Buy Number'}
+                {busy === `buy-${p.id}` ? 'Buying...' : (qty[p.id] || 1) > 1 ? `Buy ${qty[p.id] || 1} Numbers` : 'Buy Number'}
               </button>
             </div>
           ))}

@@ -10,6 +10,7 @@ import CascadingNumbers from '../components/CascadingNumbers.jsx';
 import CountdownTimer from '../components/CountdownTimer.jsx';
 import { platformIcon } from '../data/marketplace.js';
 import CascadingAccounts from '../components/CascadingAccounts.jsx';
+import QuantityStepper from '../components/QuantityStepper.jsx';
 import { downloadReceiptPdf } from '../utils/receipt.js';
 import { TelegramIcon } from '../components/SocialIcons.jsx';
 
@@ -109,6 +110,7 @@ export default function Dashboard() {
   const [storeView, setStoreView] = useState('numbers');
   const [storeSearch, setStoreSearch] = useState('');
   const [numbersSearch, setNumbersSearch] = useState('');
+  const [storeQty, setStoreQty] = useState({});
 
   const loadWallet = async (silent = false) => {
     try {
@@ -194,13 +196,13 @@ export default function Dashboard() {
     }
   };
 
-  const handleBuyNumber = async (product) => {
+  const handleBuyNumber = async (product, quantity = 1) => {
     if (busy) return;
     setError('');
     setBusy(`buy-${product.id}`);
     try {
-      const res = await api.post('/orders/numbers', { productId: product.id });
-      setLastPurchase(res.data.order);
+      const res = await api.post('/orders/numbers', { productId: product.id, quantity });
+      setLastPurchase(res.data.orders || [res.data.order]);
       setSuccessOpen(true);
       loadWallet(true);
       loadOrders(true);
@@ -211,20 +213,22 @@ export default function Dashboard() {
     }
   };
 
-  const handleBuyAccount = async (product) => {
+  const handleBuyAccount = async (product, quantity = 1) => {
     if (busy) return;
     setError('');
     setBusy(`buy-${product.id}`);
     try {
-      const res = await api.post('/orders/accounts', { productId: product.id });
-      setLastPurchase(res.data.order);
+      const res = await api.post('/orders/accounts', { productId: product.id, quantity });
+      const orders = res.data.orders || [res.data.order];
+      setLastPurchase(orders);
       setSuccessOpen(true);
       loadWallet(true);
       loadOrders(true);
       loadPaidAccounts(true);
-      if (res.data.order?.status === 'pending') {
-        pollAccountStatus(res.data.order.order_ref);
-      }
+      const pendingRefs = (orders || [])
+        .filter((o) => o.type === 'social_account' && o.status === 'pending' && (!o.username || !o.password))
+        .map((o) => o.order_ref || o.id);
+      pendingRefs.forEach((ref) => pollAccountStatus(ref));
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -385,7 +389,10 @@ export default function Dashboard() {
             : [
                 ['Platform', order.platform],
                 ['Username / Email', order.username],
-                ['Password', order.password]
+                ['Password', order.password],
+                ...(order.email ? [['Account Email', order.email]] : []),
+                ...(order.email_password || order.emailPassword ? [['Email Password', order.email_password || order.emailPassword]] : []),
+                ...(order.recovery ? [['Recovery', order.recovery]] : [])
               ]
           : [['Product', p.title]]
       });
@@ -616,15 +623,28 @@ export default function Dashboard() {
                           </div>
                         </div>
                         {p.desc && <p className="text-muted text-[0.85rem] mb-3">{p.desc}</p>}
-                        <div className="text-[0.9rem] mb-4">
+                        <div className="text-[0.9rem] mb-3">
                           <span className="text-gold font-semibold text-lg">{fmtNgn(p.price)}</span>
+                          {(storeQty[p.id] || 1) > 1 && (
+                            <span className="text-faint text-[0.82rem] ml-2">
+                              × {storeQty[p.id] || 1} = <span className="text-gold font-semibold">{fmtNgn(p.price * (storeQty[p.id] || 1))}</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <QuantityStepper
+                            value={storeQty[p.id] || 1}
+                            onChange={(v) => setStoreQty((prev) => ({ ...prev, [p.id]: v }))}
+                            disabled={Boolean(busy)}
+                          />
+                          <span className="text-faint text-[0.72rem] uppercase tracking-wider font-medium">Quantity</span>
                         </div>
                         <button
-                          onClick={() => handleBuyAccount(p)}
+                          onClick={() => handleBuyAccount(p, storeQty[p.id] || 1)}
                           disabled={Boolean(busy)}
                           className="btn-gold w-full py-3 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                          {busy === `buy-${p.id}` ? 'Purchasing...' : 'Buy Account'}
+                          {busy === `buy-${p.id}` ? 'Purchasing...' : (storeQty[p.id] || 1) > 1 ? `Buy ${storeQty[p.id] || 1} Accounts` : 'Buy Account'}
                         </button>
                       </div>
                     );
@@ -866,37 +886,39 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">Username</div>
-                              <div className="font-mono text-[0.92rem] break-all">{a.username || '—'}</div>
+                        {(() => {
+                          const credFields = [
+                            { label: 'Username', value: a.username || '', key: `u-${a.id}` },
+                            { label: 'Password', value: a.password || '', key: `p-${a.id}` },
+                            { label: 'Account Email', value: a.email || '', key: `e-${a.id}` },
+                            { label: 'Email Password', value: a.email_password || a.emailPassword || '', key: `ep-${a.id}` },
+                            { label: 'Recovery', value: a.recovery || '', key: `r-${a.id}` }
+                          ].filter((f) => f.value);
+                          const extraFields = (Array.isArray(a.extra) ? a.extra : [])
+                            .filter((v) => String(v).trim())
+                            .map((v, i) => ({ label: `Additional Detail ${i + 1}`, value: String(v), key: `x-${a.id}-${i}` }));
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {[...credFields, ...extraFields].map((f) => (
+                                <div key={f.key} className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">{f.label}</div>
+                                    <div className="font-mono text-[0.92rem] break-all">{f.value}</div>
+                                  </div>
+                                  <button onClick={() => copyText(f.value, f.key)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
+                                    {copied === f.key ? <Check size={17} /> : <Copy size={17} />}
+                                  </button>
+                                </div>
+                              ))}
                             </div>
-                            <button onClick={() => copyText(a.username, `u-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
-                              {copied === `u-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
-                            </button>
+                          );
+                        })()}
+                        {a.account_raw && (
+                          <div className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 mt-3">
+                            <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold mb-1">Full Details (from provider)</div>
+                            <div className="font-mono text-[0.88rem] break-all text-body/90">{a.account_raw}</div>
                           </div>
-                          <div className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">Password</div>
-                              <div className="font-mono text-[0.92rem] break-all">{a.password}</div>
-                            </div>
-                            <button onClick={() => copyText(a.password, `p-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
-                              {copied === `p-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
-                            </button>
-                          </div>
-                        </div>
-                        {a.email ? (
-                          <div className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 mt-3 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">Account Email</div>
-                              <div className="font-mono text-[0.92rem] break-all">{a.email}</div>
-                            </div>
-                            <button onClick={() => copyText(a.email, `e-${a.id}`)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
-                              {copied === `e-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
-                            </button>
-                          </div>
-                        ) : null}
+                        )}
                         <p className="text-[0.75rem] text-faint mt-3 flex items-center gap-1.5">
                           <Landmark size={14} strokeWidth={1.8} className="text-gold" />
                           Keep these credentials safe. Store them somewhere secure.

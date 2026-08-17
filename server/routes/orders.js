@@ -39,6 +39,17 @@ const notify = {
   }
 };
 
+// Cap how many of the same product a user can buy in one go.
+const MAX_QUANTITY = 10;
+
+// Parse the +/- stepper quantity from a request body. Returns null when invalid.
+function parseQuantity(q) {
+  if (q === undefined || q === null || q === '') return 1;
+  const n = Number(q);
+  if (!Number.isInteger(n) || n < 1 || n > MAX_QUANTITY) return null;
+  return n;
+}
+
 // Turn raw provider errors into messages a customer can actually understand.
 function friendlyProviderError(data) {
   const code = String(data?.code || '');
@@ -87,10 +98,13 @@ router.get('/catalog', asyncRoute(async (req, res) => {
   res.json({ numbers, accounts });
 }));
 
-// POST /api/orders/numbers { productId } — buy a virtual number, paid from wallet
+// POST /api/orders/numbers { productId, quantity } — buy virtual numbers, paid from wallet
 router.post('/numbers', asyncRoute(async (req, res) => {
-  const { productId } = req.body || {};
+  const { productId, quantity } = req.body || {};
   if (!productId) return res.status(400).json({ message: 'productId is required' });
+
+  const qty = parseQuantity(quantity);
+  if (qty === null) return res.status(400).json({ message: 'quantity must be a whole number between 1 and 10' });
 
   const catalog = await getCatalog();
   const product = catalog.products.numbers.find((p) => p.id === productId);
@@ -99,38 +113,48 @@ router.post('/numbers', asyncRoute(async (req, res) => {
     return res.status(404).json({ message: 'Number product not found' });
   }
 
-  const cost = Number(product.price) || 0;
+  const unitCost = Number(product.price) || 0;
+  const cost = unitCost * qty;
   const wallet = await getUserWallet(req.user.id);
   if ((wallet?.balance || 0) < cost) {
     notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
     return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
   }
 
-  // Place the order with the provider first (holds the number), then debit the wallet.
-  const providerData = await ogRequest({
-    endpoint: 'buy',
-    server: product.server,
-    country: product.country,
-    service: product.service
-  });
-  if (!isOgSuccess(providerData)) {
-    const reason = friendlyProviderError(providerData);
-    notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, reason);
-    return res.status(502).json({ status: 'error', message: reason });
+  // Place each order with the provider first (holds the number), then debit the wallet once.
+  const providerResults = [];
+  for (let i = 0; i < qty; i += 1) {
+    const providerData = await ogRequest({
+      endpoint: 'buy',
+      server: product.server,
+      country: product.country,
+      service: product.service
+    });
+    if (!isOgSuccess(providerData)) {
+      // Best-effort release any numbers already held so they aren't wasted.
+      for (const held of providerResults) {
+        const heldRef = held.order_ref || held.order_id || held.ref || held.order;
+        if (heldRef) await ogRequest({ endpoint: 'cancel', order_ref: heldRef }).catch(() => {});
+      }
+      const reason = friendlyProviderError(providerData);
+      notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, reason);
+      return res.status(502).json({ status: 'error', message: reason });
+    }
+    providerResults.push(providerData);
   }
 
   const purchaseRef = generateReference();
   const debit = await debitWallet(req.user.id, {
     amount: cost,
     reference: purchaseRef,
-    meta: { type: 'number', productId, serviceName: product.serviceName }
+    meta: { type: 'number', productId, quantity: qty, serviceName: product.serviceName }
   });
   if (!debit.ok) {
     notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
     return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
   }
 
-  const order = {
+  const orders = providerResults.map((providerData) => ({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     type: 'virtual_number',
     order_ref: providerData.order_ref || providerData.order_id || providerData.ref || providerData.order || purchaseRef,
@@ -140,39 +164,50 @@ router.post('/numbers', asyncRoute(async (req, res) => {
     country: product.countryName || product.country,
     service_id: product.service,
     service: product.serviceName || product.service,
-    price: cost,
+    price: unitCost,
     currency: 'NGN',
     status: 'pending',
     purchasedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + NUMBER_EXPIRY_MS).toISOString(),
     raw: providerData
-  };
-  await addUserOrder(req.user.id, order);
+  }));
 
   const user = await findById(req.user.id);
-  await recordSale({
-    id: order.id,
-    userId: user.id,
-    userEmail: user.email,
-    userName: user.name,
-    type: 'virtual_number',
-    productId: product.id,
-    productName: `${product.serviceName || product.service} · ${product.countryName || product.country}`,
-    price: cost,
-    currency: 'NGN',
-    status: 'pending',
-    createdAt: new Date().toISOString()
+  for (const order of orders) {
+    await addUserOrder(req.user.id, order);
+    await recordSale({
+      id: order.id,
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+      type: 'virtual_number',
+      productId: product.id,
+      productName: `${product.serviceName || product.service} · ${product.countryName || product.country}`,
+      price: order.price,
+      currency: 'NGN',
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  notify.success(req.user.id, orders);
+
+  res.status(201).json({
+    status: 'success',
+    message: qty > 1 ? `${qty} numbers purchased` : 'Number purchased',
+    orders,
+    quantity: qty,
+    balance: debit.balance
   });
-
-  notify.success(req.user.id, order);
-
-  res.status(201).json({ status: 'success', message: 'Number purchased', order, balance: debit.balance });
 }));
 
-// POST /api/orders/accounts { productId } — buy a social media account from the provider
+// POST /api/orders/accounts { productId, quantity } — buy social media accounts
 router.post('/accounts', asyncRoute(async (req, res) => {
-  const { productId } = req.body || {};
+  const { productId, quantity } = req.body || {};
   if (!productId) return res.status(400).json({ message: 'productId is required' });
+
+  const qty = parseQuantity(quantity);
+  if (qty === null) return res.status(400).json({ message: 'quantity must be a whole number between 1 and 10' });
 
   const catalog = await getCatalog();
   const product = catalog.products.accounts.find((p) => p.id === productId);
@@ -184,109 +219,131 @@ router.post('/accounts', asyncRoute(async (req, res) => {
   // Provider-backed products are bought through OneGridHub. If a product has no
   // provider link (legacy manual inventory), fall back to the old inventory flow.
   if (product.providerServer && product.providerProductId) {
-    return buyProviderAccount(req, res, catalog, product);
+    return buyProviderAccount(req, res, catalog, product, qty);
   }
 
-  return buyInventoryAccount(req, res, catalog, product);
+  return buyInventoryAccount(req, res, catalog, product, qty);
 }));
 
 // Provider-backed purchase: digital_buy then digital_order to retrieve credentials.
-async function buyProviderAccount(req, res, catalog, product) {
-  const cost = Number(product.price) || 0;
+async function buyProviderAccount(req, res, catalog, product, qty = 1) {
+  const unitCost = Number(product.price) || 0;
+  const cost = unitCost * qty;
   const wallet = await getUserWallet(req.user.id);
   if ((wallet?.balance || 0) < cost) {
     notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
     return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
   }
 
-  // Place the order with the provider first, then debit the wallet.
-  const buyRes = await ogDigitalBuy({
-    server: product.providerServer,
-    product: product.providerProductId,
-    quantity: 1
-  });
-  if (!isOgSuccess(buyRes)) {
-    const reason = buyRes.message || 'The account provider could not complete your purchase. Please try again shortly.';
-    notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, reason);
-    return res.status(502).json({ status: 'error', message: reason });
-  }
-
-  const providerOrderId = normalizeProviderOrderId(
-    buyRes.order || buyRes.order_id || buyRes.orderid || buyRes.orderId || buyRes.id || ''
-  );
-
-  // Retrieve the delivered account details from the provider. If the order query
-  // fails but the buy succeeded, proceed with a pending order rather than erroring.
-  let detail = buyRes;
-  if (providerOrderId) {
-    try {
-      const res = await ogDigitalOrder(providerOrderId);
-      if (isOgSuccess(res)) detail = res;
-    } catch {
-      // ignore — order will be marked pending and can be polled later
+  // Place each order with the provider first, then debit the wallet once.
+  const buyResults = [];
+  for (let i = 0; i < qty; i += 1) {
+    const buyRes = await ogDigitalBuy({
+      server: product.providerServer,
+      product: product.providerProductId,
+      quantity: 1
+    });
+    if (!isOgSuccess(buyRes)) {
+      const reason = buyRes.message || 'The account provider could not complete your purchase. Please try again shortly.';
+      notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, reason);
+      return res.status(502).json({ status: 'error', message: reason });
     }
+    buyResults.push(buyRes);
   }
-  const account = extractAccountCredentials(detail, buyRes);
 
   const purchaseRef = generateReference();
   const debit = await debitWallet(req.user.id, {
     amount: cost,
     reference: purchaseRef,
-    meta: { type: 'account', productId: product.id, platform: product.platform, providerOrderId }
+    meta: { type: 'account', productId: product.id, platform: product.platform, quantity: qty }
   });
   if (!debit.ok) {
     notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
     return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
   }
 
-  const order = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    type: 'social_account',
-    order_ref: purchaseRef,
-    provider_order: providerOrderId,
-    platform: product.platform,
-    username: account.username,
-    password: account.password,
-    email: account.email || null,
-    account_raw: account.account_raw || null,
-    desc: product.desc || null,
-    price: cost,
-    currency: 'NGN',
-    status: account.ready ? 'completed' : 'pending',
-    expiresAt: account.ready ? null : new Date(Date.now() + ACCOUNT_DELIVERY_MS).toISOString(),
-    purchasedAt: new Date().toISOString()
-  };
-  await addUserOrder(req.user.id, order);
+  const orders = [];
+  for (const buyRes of buyResults) {
+    const providerOrderId = normalizeProviderOrderId(
+      buyRes.order || buyRes.order_id || buyRes.orderid || buyRes.orderId || buyRes.id || ''
+    );
+
+    // Retrieve the delivered account details from the provider. If the order query
+    // fails but the buy succeeded, proceed with a pending order rather than erroring.
+    let detail = buyRes;
+    if (providerOrderId) {
+      try {
+        const res = await ogDigitalOrder(providerOrderId);
+        if (isOgSuccess(res)) detail = res;
+      } catch {
+        // ignore — order will be marked pending and can be polled later
+      }
+    }
+    const account = extractAccountCredentials(detail, buyRes);
+
+    const order = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      type: 'social_account',
+      order_ref: generateReference(),
+      provider_order: providerOrderId,
+      platform: product.platform,
+      username: account.username,
+      password: account.password,
+      email: account.email || null,
+      email_password: account.emailPassword || null,
+      recovery: account.recovery || null,
+      extra: account.extra || [],
+      account_raw: account.account_raw || null,
+      desc: product.desc || null,
+      price: unitCost,
+      currency: 'NGN',
+      status: account.ready ? 'completed' : 'pending',
+      expiresAt: account.ready ? null : new Date(Date.now() + ACCOUNT_DELIVERY_MS).toISOString(),
+      purchasedAt: new Date().toISOString()
+    };
+    orders.push(order);
+  }
 
   const user = await findById(req.user.id);
-  await recordSale({
-    id: order.id,
-    userId: user.id,
-    userEmail: user.email,
-    userName: user.name,
-    type: 'social_account',
-    productId: product.id,
-    productName: product.platform,
-    price: cost,
-    currency: 'NGN',
-    status: order.status,
-    createdAt: new Date().toISOString()
+  for (const order of orders) {
+    await addUserOrder(req.user.id, order);
+    await recordSale({
+      id: order.id,
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+      type: 'social_account',
+      productId: product.id,
+      productName: product.platform,
+      price: order.price,
+      currency: 'NGN',
+      status: order.status,
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  notify.success(req.user.id, orders);
+
+  res.status(201).json({
+    status: 'success',
+    message: qty > 1 ? `${qty} accounts purchased` : 'Account purchased',
+    orders,
+    quantity: qty,
+    balance: debit.balance
   });
-
-  notify.success(req.user.id, order);
-
-  res.status(201).json({ status: 'success', message: 'Account purchased', order, balance: debit.balance });
 }
 
 // Legacy purchase from manually-entered inventory.
-async function buyInventoryAccount(req, res, catalog, product) {
-  const slot = (product.inventory || []).find((i) => i.status === 'available');
-  if (!slot) {
+async function buyInventoryAccount(req, res, catalog, product, qty = 1) {
+  const slots = (product.inventory || []).filter((i) => i.status === 'available');
+  if (slots.length < qty) {
     notify.failure(req.user.id, { type: 'social_account', platform: product.platform }, `${product.platform} is currently sold out. Please check back soon.`);
     return res.status(409).json({ message: 'This platform is currently sold out. Please check back soon.' });
   }
+  const chosen = slots.slice(0, qty);
 
-  const cost = Number(product.price) || 0;
+  const unitCost = Number(product.price) || 0;
+  const cost = unitCost * qty;
   const wallet = await getUserWallet(req.user.id);
   if ((wallet?.balance || 0) < cost) {
     notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
@@ -297,51 +354,67 @@ async function buyInventoryAccount(req, res, catalog, product) {
   const debit = await debitWallet(req.user.id, {
     amount: cost,
     reference: purchaseRef,
-    meta: { type: 'account', productId: product.id, platform: product.platform }
+    meta: { type: 'account', productId: product.id, platform: product.platform, quantity: qty }
   });
   if (!debit.ok) {
     notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
     return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
   }
 
-  const order = {
+  const orders = chosen.map((slot) => ({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     type: 'social_account',
-    order_ref: purchaseRef,
+    order_ref: generateReference(),
     platform: product.platform,
     username: slot.username,
     password: slot.password,
+    email: slot.email || null,
+    email_password: slot.emailPassword || slot.email_password || null,
+    recovery: slot.recovery || null,
+    extra: slot.extra || [],
+    account_raw: slot.account_raw || null,
     desc: product.desc || null,
-    price: cost,
+    price: unitCost,
     currency: 'NGN',
     status: 'completed',
     purchasedAt: new Date().toISOString()
-  };
-  await addUserOrder(req.user.id, order);
+  }));
 
-  slot.status = 'sold';
-  slot.soldAt = new Date().toISOString();
-  slot.buyerId = req.user.id;
+  for (const order of orders) await addUserOrder(req.user.id, order);
+
+  for (const slot of chosen) {
+    slot.status = 'sold';
+    slot.soldAt = new Date().toISOString();
+    slot.buyerId = req.user.id;
+  }
   await updateAccountProduct(product.id, { inventory: product.inventory });
 
   const user = await findById(req.user.id);
-  await recordSale({
-    id: order.id,
-    userId: user.id,
-    userEmail: user.email,
-    userName: user.name,
-    type: 'social_account',
-    productId: product.id,
-    productName: product.platform,
-    price: cost,
-    currency: 'NGN',
-    status: 'completed',
-    createdAt: new Date().toISOString()
+  for (const order of orders) {
+    await recordSale({
+      id: order.id,
+      userId: user.id,
+      userEmail: user.email,
+      userName: user.name,
+      type: 'social_account',
+      productId: product.id,
+      productName: product.platform,
+      price: order.price,
+      currency: 'NGN',
+      status: 'completed',
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  notify.success(req.user.id, orders);
+
+  res.status(201).json({
+    status: 'success',
+    message: qty > 1 ? `${qty} accounts purchased` : 'Account purchased',
+    orders,
+    quantity: qty,
+    balance: debit.balance
   });
-
-  notify.success(req.user.id, order);
-
-  res.status(201).json({ status: 'success', message: 'Account purchased', order, balance: debit.balance });
 }
 
 // OneGridHub displays digital order references as "DG-23843", but the
@@ -360,6 +433,8 @@ function extractAccountCredentials(detail, buyRes = {}) {
 
   const LOGIN_KEYS = ['username', 'user', 'login', 'email', 'account_username', 'data_username', 'id', 'mail'];
   const PASS_KEYS = ['password', 'pass', 'pwd', 'account_password', 'data_password', 'secret', 'code'];
+  const EMAIL_PASS_KEYS = ['email_password', 'emailpass', 'email_pass', 'mail_password', 'mailpass', 'mail_pass', 'password_email', 'email_password_'];
+  const RECOVERY_KEYS = ['recovery', 'recovery_email', 'recovery_code', 'rec_email', 'twofa', 'two_fa', '2fa', 'phone', 'phone_number'];
 
   const deepFind = (obj, keys, seen = new Set()) => {
     if (obj == null) return '';
@@ -401,9 +476,44 @@ function extractAccountCredentials(detail, buyRes = {}) {
     return '';
   };
 
+  // Parse a pipe-delimited provider credential blob:
+  //   login|password|email|emailpass|recovery|extra...
+  // into named fields, tolerating missing / extra segments.
+  function parsePipeCredentials(raw) {
+    const parts = String(raw || '')
+      .split('|')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const out = { username: '', password: '', email: '', emailPassword: '', recovery: '', extra: [] };
+    if (parts.length >= 1) out.username = parts[0];
+    if (parts.length >= 2) out.password = parts[1];
+    if (parts.length <= 2) return out;
+
+    const rest = parts.slice(2);
+    const emailIdx = rest.findIndex((p) => /@/.test(p) && !/^M\./.test(p) && p.length < 60);
+    if (emailIdx < 0) {
+      out.extra = rest;
+      return out;
+    }
+    out.email = rest[emailIdx];
+    const after = rest[emailIdx + 1];
+    if (after && !/@/.test(after)) {
+      out.emailPassword = after;
+      out.recovery = rest[emailIdx + 2] || '';
+      out.extra = [...rest.slice(0, emailIdx), ...rest.slice(emailIdx + 3)].filter(Boolean);
+    } else {
+      out.recovery = rest[emailIdx + 1] || '';
+      out.extra = [...rest.slice(0, emailIdx), ...rest.slice(emailIdx + 2)].filter(Boolean);
+    }
+    return out;
+  }
+
   let username = '';
   let password = '';
   let email = '';
+  let emailPassword = '';
+  let recovery = '';
+  let extra = [];
   let accountRaw = '';
 
   const isScalar = (v) => typeof v === 'string' || typeof v === 'number';
@@ -421,39 +531,40 @@ function extractAccountCredentials(detail, buyRes = {}) {
     }
     if (password) break;
   }
+  for (const d of candidates) {
+    for (const k of ['email', 'account_email', 'mail', 'data_email']) {
+      const v = d[k];
+      if (v !== undefined && isScalar(v) && /@/.test(String(v))) { email = String(v); break; }
+    }
+    if (email) break;
+  }
 
   // OneGridHub delivers accounts as a multi-line `accounts` string whose last
   // line is a JSON blob: {"account":"user|pass|email|emailpass|recovery|..."}.
-  if (!username || !password) {
-    for (const d of candidates) {
-      const accountsBlob = d?.accounts;
-      if (typeof accountsBlob === 'string' && accountsBlob.trim()) {
-        const lines = accountsBlob.split('\n').map((l) => l.trim()).filter(Boolean);
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line);
-            const raw = parsed?.account || parsed?.credentials || parsed?.data || parsed?.details || parsed?.accounts;
-            if (typeof raw === 'string' && raw.includes('|')) {
-              accountRaw = raw;
-              const parts = raw.split('|').map((s) => s.trim()).filter(Boolean);
-              // Standard pipe layout: login|password|email|emailpass|recovery|...
-              if (parts.length >= 2) {
-                username = parts[0];
-                password = parts[1];
-                // The email is usually the next pipe field (or the first @ field).
-                const mail = parts.slice(2).find((p) => /@/.test(p) && !/^M\./.test(p) && p.length < 60);
-                email = mail || '';
-              } else if (parts.length === 1) {
-                username = parts[0];
-              }
-              if (username && password) break;
-            }
-          } catch {
-            // line isn't JSON — keep scanning
+  for (const d of candidates) {
+    const accountsBlob = d?.accounts;
+    if (typeof accountsBlob === 'string' && accountsBlob.trim()) {
+      const lines = accountsBlob.split('\n').map((l) => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          const raw = parsed?.account || parsed?.credentials || parsed?.data || parsed?.details || parsed?.accounts;
+          if (typeof raw === 'string' && raw.includes('|')) {
+            accountRaw = raw;
+            const creds = parsePipeCredentials(raw);
+            if (!username) username = creds.username;
+            if (!password) password = creds.password;
+            if (!email) email = creds.email;
+            if (!emailPassword) emailPassword = creds.emailPassword;
+            if (!recovery) recovery = creds.recovery;
+            if (extra.length === 0) extra = creds.extra;
+            if (username && password) break;
           }
+        } catch {
+          // line isn't JSON — keep scanning
         }
-        if (username && password) break;
       }
+      if (username && password) break;
     }
   }
 
@@ -476,9 +587,31 @@ function extractAccountCredentials(detail, buyRes = {}) {
           if (!username) username = parts[0];
           if (!password) password = parts[1];
         }
+        if (!accountRaw && blob.includes('|')) accountRaw = blob;
         break;
       }
     }
+  }
+
+  // Fill any remaining named fields from deep keys (email password / recovery).
+  if (!emailPassword || !recovery) {
+    for (const d of candidates) {
+      if (!emailPassword) {
+        const mail = deepFind(d, EMAIL_PASS_KEYS);
+        if (mail && !/@/.test(mail)) emailPassword = mail;
+      }
+      if (!recovery) recovery = deepFind(d, RECOVERY_KEYS);
+      if (emailPassword && recovery) break;
+    }
+  }
+
+  // If a plain pipe blob was stored but not parsed for the full fields, parse it now.
+  if (accountRaw && (!email || !emailPassword) && accountRaw.includes('|')) {
+    const creds = parsePipeCredentials(accountRaw);
+    if (!email) email = creds.email;
+    if (!emailPassword) emailPassword = creds.emailPassword;
+    if (!recovery) recovery = creds.recovery;
+    if (extra.length === 0) extra = creds.extra;
   }
 
   const completed =
@@ -497,7 +630,16 @@ function extractAccountCredentials(detail, buyRes = {}) {
     console.warn('[digital-account] credentials not ready. raw:', JSON.stringify(detail || buyRes).slice(0, 800));
   }
 
-  return { username, password, email, ready, account_raw: accountRaw || (username && password ? `${username}|${password}` : '') };
+  return {
+    username,
+    password,
+    email,
+    emailPassword,
+    recovery,
+    extra,
+    ready,
+    account_raw: accountRaw || (username && password ? `${username}|${password}` : '')
+  };
 }
 
 // How long a number stays active waiting for its SMS (mirrors the provider's window).
@@ -614,16 +756,20 @@ router.get('/account-status', asyncRoute(async (req, res) => {
   const isDone = Boolean(account.username && account.password);
 
   if (isDone) {
-    await updateUserOrder(req.user.id, order_ref, {
+    const updated = {
       status: 'completed',
       username: account.username,
       password: account.password,
       email: account.email || order.email || null,
+      email_password: account.emailPassword || order.email_password || null,
+      recovery: account.recovery || order.recovery || null,
+      extra: (account.extra && account.extra.length ? account.extra : order.extra) || [],
       account_raw: account.account_raw || order.account_raw || null,
       expiresAt: null,
       lastCheckedAt: new Date().toISOString()
-    });
-    return res.json({ status: 'completed', order: { ...order, username: account.username, password: account.password, email: account.email, account_raw: account.account_raw, status: 'completed', expiresAt: null } });
+    };
+    await updateUserOrder(req.user.id, order_ref, updated);
+    return res.json({ status: 'completed', order: { ...order, ...updated } });
   }
 
   await updateUserOrder(req.user.id, order_ref, {
