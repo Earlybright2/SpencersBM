@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones, Clock, Download, MessageCircle } from 'lucide-react';
+import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones, Clock, Download, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
@@ -11,6 +11,7 @@ import CountdownTimer from '../components/CountdownTimer.jsx';
 import { platformIcon } from '../data/marketplace.js';
 import CascadingAccounts from '../components/CascadingAccounts.jsx';
 import QuantityStepper from '../components/QuantityStepper.jsx';
+import Pagination from '../components/Pagination.jsx';
 import { downloadReceiptPdf } from '../utils/receipt.js';
 import { TelegramIcon } from '../components/SocialIcons.jsx';
 
@@ -76,6 +77,9 @@ const TRANSFER_NOTICE =
 // Numbers keep the same SMS window the provider uses (~20 min). Old orders that
 // predate expiresAt fall back to purchasedAt + 20 minutes.
 const SMS_EXPIRY_MS = 20 * 60 * 1000;
+const NUMBERS_PAGE_SIZE = 5;
+const HISTORY_PAGE_SIZE = 20;
+const PAID_PAGE_SIZE = 10;
 const smsExpiresAt = (order) =>
   order.expiresAt ||
   new Date(new Date(order.purchasedAt || Date.now()).getTime() + SMS_EXPIRY_MS).toISOString();
@@ -111,6 +115,10 @@ export default function Dashboard() {
   const [storeSearch, setStoreSearch] = useState('');
   const [numbersSearch, setNumbersSearch] = useState('');
   const [storeQty, setStoreQty] = useState({});
+  const [numbersPage, setNumbersPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [paidPage, setPaidPage] = useState(1);
+  const [openAccounts, setOpenAccounts] = useState(() => new Set());
 
   const loadWallet = async (silent = false) => {
     try {
@@ -425,6 +433,26 @@ export default function Dashboard() {
   const totalSpent = useMemo(() => orders.reduce((s, o) => s + (Number(o.price) || 0), 0), [orders]);
   const activeNumbers = useMemo(() => numberOrders.filter((o) => o.status !== 'cancelled' && o.status !== 'received').length, [numberOrders]);
 
+  const numbersTotalPages = Math.max(1, Math.ceil(numberOrders.length / NUMBERS_PAGE_SIZE));
+  const safeNumbersPage = Math.min(numbersPage, numbersTotalPages);
+  const visibleNumberOrders = numberOrders.slice((safeNumbersPage - 1) * NUMBERS_PAGE_SIZE, safeNumbersPage * NUMBERS_PAGE_SIZE);
+
+  const historyTotalPages = Math.max(1, Math.ceil(paymentHistory.length / HISTORY_PAGE_SIZE));
+  const safeHistoryPage = Math.min(historyPage, historyTotalPages);
+  const visiblePaymentHistory = paymentHistory.slice((safeHistoryPage - 1) * HISTORY_PAGE_SIZE, safeHistoryPage * HISTORY_PAGE_SIZE);
+
+  const paidTotalPages = Math.max(1, Math.ceil(paidAccounts.length / PAID_PAGE_SIZE));
+  const safePaidPage = Math.min(paidPage, paidTotalPages);
+  const visiblePaidAccounts = paidAccounts.slice((safePaidPage - 1) * PAID_PAGE_SIZE, safePaidPage * PAID_PAGE_SIZE);
+
+  const toggleAccount = (id) =>
+    setOpenAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   return (
     <DashboardLayout
       title={tab === 'overview' ? `Welcome, ${user?.name?.split(' ')[0]}` : (TITLES[tab] || 'Dashboard')}
@@ -697,7 +725,7 @@ export default function Dashboard() {
               </p>
             ) : (
               <div className="space-y-4">
-                {numberOrders.map((order) => (
+                {visibleNumberOrders.map((order) => (
                   <div key={order.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                       <div>
@@ -773,6 +801,7 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
+            <Pagination page={safeNumbersPage} totalPages={numbersTotalPages} onChange={setNumbersPage} />
           </PanelCard>
         </div>
       )}
@@ -816,13 +845,14 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {paidAccounts.map((a) => {
+              {visiblePaidAccounts.map((a) => {
                 const Icon = platformIcon(a.platform);
                 const cancelled = a.status === 'cancelled';
                 const pending = !cancelled && (a.status === 'pending' || (!a.username && !a.password));
+                const open = openAccounts.has(a.id);
                 return (
                   <div key={a.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div className={`flex flex-wrap items-center justify-between gap-3 ${open ? 'mb-4' : ''}`}>
                       <div className="flex items-center gap-3">
                         <span className="w-10 h-10 rounded-[10px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
                           <Icon size={18} strokeWidth={1.8} />
@@ -847,9 +877,17 @@ export default function Dashboard() {
                           {cancelled ? 'cancelled' : pending ? 'processing' : 'completed'}
                         </span>
                         <span className="text-[0.9rem] font-semibold text-gold">{fmtNgn(a.price)}</span>
+                        <button
+                          onClick={() => toggleAccount(a.id)}
+                          aria-label={open ? 'Hide account details' : 'Show account details'}
+                          title={open ? 'Hide details' : 'Show details'}
+                          className="w-9 h-9 flex items-center justify-center rounded-[9px] border border-gold/25 bg-gold/10 text-gold hover:bg-gold/20 transition-colors shrink-0"
+                        >
+                          {open ? <ChevronUp size={17} strokeWidth={2} /> : <ChevronDown size={17} strokeWidth={2} />}
+                        </button>
                       </div>
                     </div>
-                    {cancelled ? (
+                    {open && (cancelled ? (
                       <div className="flex items-center gap-2.5 text-[0.9rem] text-[#e0645a] bg-field border border-[#e0645a]/20 rounded-[10px] px-4 py-3">
                         <AlertTriangle size={16} strokeWidth={1.9} className="shrink-0" />
                         <span>
@@ -924,12 +962,13 @@ export default function Dashboard() {
                           Keep these credentials safe. Store them somewhere secure.
                         </p>
                       </>
-                    )}
+                    ))}
                   </div>
                 );
               })}
             </div>
           )}
+          <Pagination page={safePaidPage} totalPages={paidTotalPages} onChange={setPaidPage} />
         </PanelCard>
       )}
 
@@ -947,7 +986,7 @@ export default function Dashboard() {
             </p>
           ) : (
             <div className="space-y-3">
-              {paymentHistory.map((p) => (
+              {visiblePaymentHistory.map((p) => (
                 <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] px-5 py-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <span
@@ -989,6 +1028,7 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+          <Pagination page={safeHistoryPage} totalPages={historyTotalPages} onChange={setHistoryPage} />
         </PanelCard>
       )}
 
