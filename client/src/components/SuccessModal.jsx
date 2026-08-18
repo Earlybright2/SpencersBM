@@ -1,11 +1,19 @@
 import { useState } from 'react';
-import { Check, Copy, Download, KeyRound, MessageSquare, Clock } from 'lucide-react';
+import { AlertTriangle, Check, Copy, Download, KeyRound, MessageSquare, Clock } from 'lucide-react';
 import Modal from './Modal.jsx';
 import CountdownTimer from './CountdownTimer.jsx';
 import { platformIcon } from '../data/marketplace.js';
 import { downloadReceiptPdf } from '../utils/receipt.js';
 
 const accountPending = (o) => o && o.type === 'social_account' && (o.status === 'pending' || (!o.username && !o.password));
+
+// The provider sometimes returns only part of the SMS code (e.g. "447" instead
+// of the full "447684"). Codes shorter than 4 digits are treated as incomplete.
+const isIncompleteSms = (o) => {
+  if (!o?.sms) return false;
+  const digits = String(o.sms).replace(/\D/g, '');
+  return digits.length >= 1 && digits.length < 4;
+};
 
 // Build the account credential rows (username, password, email, email password,
 // recovery, and any extra fields the provider returned).
@@ -204,6 +212,12 @@ export default function SuccessModal({ open, order, onClose, onViewAccounts, onC
         <InfoRow label="SMS Code" value={o.sms} mono />
       ) : (
         <InfoRow label="SMS Code" value="Not received yet" />
+      )}
+      {isIncompleteSms(o) && (
+        <div className="mt-3 rounded-[10px] border border-[#e0645a]/30 bg-[#e0645a]/10 px-4 py-3 text-[0.82rem] text-[#ff8a80] flex items-start gap-2">
+          <AlertTriangle size={15} strokeWidth={1.9} className="shrink-0 mt-0.5" />
+          <span>This SMS code looks incomplete — the provider only delivered part of it. Check the Virtual Numbers tab or contact support for a refund.</span>
+        </div>
       )}
       <InfoRow label="Status" value={o.status} />
       {o.status !== 'received' && o.status !== 'cancelled' && o.status !== 'expired' && (

@@ -84,6 +84,15 @@ const smsExpiresAt = (order) =>
   order.expiresAt ||
   new Date(new Date(order.purchasedAt || Date.now()).getTime() + SMS_EXPIRY_MS).toISOString();
 
+// OneGridHub sometimes delivers only part of the code (e.g. "447" instead of the
+// full "447684"). Codes shorter than 4 digits are flagged as incomplete so users
+// don't mistake a broken code for the real one.
+const isIncompleteSms = (order) => {
+  if (!order?.sms) return false;
+  const digits = String(order.sms).replace(/\D/g, '');
+  return digits.length >= 1 && digits.length < 4;
+};
+
 const isSuccessfulPayment = (p) =>
   !['cancelled', 'expired', 'failed', 'initiated'].includes(String(p.status || '').toLowerCase());
 
@@ -270,7 +279,13 @@ export default function Dashboard() {
       const res = await api.get('/orders/status', { params: { order_ref: orderRef } });
       loadOrders(true);
       const hasCode = Boolean(res.data?.otp || res.data?.sms || res.data?.code || res.data?.sms_code);
-      if (!hasCode) {
+      if (hasCode) {
+        const raw = res.data?.otp || res.data?.sms || res.data?.code || res.data?.sms_code;
+        const digits = String(raw || '').replace(/\D/g, '');
+        if (digits.length && digits.length < 4) {
+          setSmsNote({ ref: orderRef, message: 'The provider returned an incomplete code (it got cut short). Keep checking, or cancel for a full refund.' });
+        }
+      } else {
         setSmsNote({ ref: orderRef, message: 'No code yet — it usually arrives within the SMS window below. Keep checking.' });
       }
     } catch (err) {
@@ -751,6 +766,14 @@ export default function Dashboard() {
                     {order.number && <Row label="Number" value={order.number} mono />}
                     <Row label="Amount" value={fmtNgn(order.price)} />
                     {order.sms && <Row label="SMS Code" value={order.sms} mono />}
+                    {isIncompleteSms(order) && (
+                      <div className="mt-3 rounded-[10px] border border-[#e0645a]/30 bg-[#e0645a]/10 px-4 py-3 text-[0.82rem] text-[#ff8a80] flex items-start gap-2">
+                        <AlertTriangle size={15} strokeWidth={1.9} className="shrink-0 mt-0.5" />
+                        <span>
+                          This SMS code looks incomplete — the provider only delivered part of it. Click &quot;Check SMS&quot; again, or cancel for a full refund.
+                        </span>
+                      </div>
+                    )}
 
                     {order.status !== 'received' && order.status !== 'cancelled' && order.status !== 'expired' && (
                       expiredIds.has(order.id) ? (
@@ -771,7 +794,7 @@ export default function Dashboard() {
                       )
                     )}
 
-                    {order.status !== 'cancelled' && order.status !== 'received' && (
+                    {order.status !== 'cancelled' && (order.status !== 'received' || isIncompleteSms(order)) && (
                       <div className="flex gap-3 mt-3">
                         <button
                           onClick={() => handleCheckSms(order.order_ref)}

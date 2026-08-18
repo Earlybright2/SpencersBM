@@ -649,17 +649,38 @@ const NUMBER_EXPIRY_MS = (Number(process.env.NUMBER_EXPIRY_MINUTES) || 20) * 60 
 // (credentials arrive by email and in Paid Accounts). Configurable via env.
 const ACCOUNT_DELIVERY_MS = (Number(process.env.ACCOUNT_DELIVERY_MINUTES) || 10) * 60 * 1000;
 
+// A complete verification code for these services is normally 4–8 digits.
+// OneGridHub's `otp` field sometimes only contains part of the code (e.g. "447"
+// instead of the full "447684"), so codes shorter than 4 digits are treated as
+// incomplete — we keep the order pending instead of marking it received.
+function isPlausibleOtp(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 4;
+}
+
 // GET /api/orders/status?order_ref= — poll SMS for a purchased number
 router.get('/status', asyncRoute(async (req, res) => {
   const { order_ref } = req.query;
   if (!order_ref) return res.status(400).json({ message: 'order_ref is required' });
+
   const data = await ogRequest({ endpoint: 'status', order_ref });
   if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
+
   const smsCode = data.sms || data.code || data.otp || data.sms_code || null;
   if (smsCode) {
+    const code = String(smsCode);
+    const orders = await getUserOrders(req.user.id);
+    const existing = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
+    const existingCode = existing?.sms ? String(existing.sms) : '';
+    // Never downgrade a longer, complete code with a shorter one the provider
+    // returns later (its `otp` extraction can be truncated).
+    const stored = code.length >= existingCode.length ? code : existingCode;
+
+    // A truncated code (e.g. "447" instead of "447684") is not a usable code.
+    // Keep the order pending so the user can keep checking or cancel for a refund.
     await updateUserOrder(req.user.id, order_ref, {
-      status: 'received',
-      sms: String(smsCode),
+      status: isPlausibleOtp(stored) ? 'received' : 'pending',
+      sms: stored,
       lastCheckedAt: new Date().toISOString()
     });
   } else if (data.state && !['pending', 'active', 'waiting', 'rented'].includes(String(data.state).toLowerCase())) {
@@ -704,7 +725,10 @@ router.post('/cancel', asyncRoute(async (req, res) => {
     return res.json({ status: 'success', refunded: true, balance: refund?.balance });
   }
 
-  if (order.status === 'received') {
+  // A "received" order is normally non-refundable, but if the code the provider
+  // delivered was truncated (e.g. "447" instead of "447684") the user got nothing
+  // usable, so let them cancel and get their money back.
+  if (order.status === 'received' && isPlausibleOtp(order.sms)) {
     return res.status(409).json({ message: 'This order already received its SMS code and cannot be refunded.' });
   }
 

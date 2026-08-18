@@ -12,7 +12,8 @@ import {
   removeNumberProduct,
   addAccountProduct,
   updateAccountProduct,
-  removeAccountProduct
+  removeAccountProduct,
+  findById
 } from '../utils/store.js';
 
 const router = Router();
@@ -227,6 +228,33 @@ router.delete('/products/accounts/:id/inventory/:invId', asyncRoute(async (req, 
   product.inventory = (product.inventory || []).filter((i) => i.id !== req.params.invId);
   await updateAccountProduct(product.id, { inventory: product.inventory });
   res.json({ deleted: true });
+}));
+
+// POST /api/admin/orders/sms { userId, orderRef, sms }
+// Manually correct/backfill an order's SMS code. OneGridHub's API sometimes
+// returns a truncated code (e.g. "447" instead of the full "447684" that shows
+// on the OneGridHub dashboard), so admins can paste the complete code here.
+router.post('/orders/sms', asyncRoute(async (req, res) => {
+  const { userId, orderRef, sms } = req.body || {};
+  if (!userId || !orderRef || !sms) {
+    return res.status(400).json({ message: 'userId, orderRef and sms are required' });
+  }
+  const code = String(sms).trim();
+  if (!code) return res.status(400).json({ message: 'sms is required' });
+
+  const user = await findById(userId);
+  if (!user || !Array.isArray(user.orders)) return res.status(404).json({ message: 'User not found' });
+  const idx = user.orders.findIndex((o) => o.order_ref === orderRef || o.ref === orderRef);
+  if (idx === -1) return res.status(404).json({ message: 'Order not found' });
+
+  user.orders[idx] = {
+    ...user.orders[idx],
+    sms: code,
+    status: 'received',
+    lastCheckedAt: new Date().toISOString()
+  };
+  await pool.query('UPDATE users SET orders = $1 WHERE id = $2', [JSON.stringify(user.orders), userId]);
+  res.json({ order: user.orders[idx] });
 }));
 
 export default router;
