@@ -665,6 +665,7 @@ router.get('/status', asyncRoute(async (req, res) => {
 
   const data = await ogRequest({ endpoint: 'status', order_ref });
   if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
+  console.log('[DEBUG] OneGridHub status response:', JSON.stringify(data));
 
   const smsCode = data.sms || data.code || data.otp || data.sms_code || null;
   if (smsCode) {

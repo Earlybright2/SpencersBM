@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
 import WalletCard from '../components/WalletCard.jsx';
 import SuccessModal from '../components/SuccessModal.jsx';
+import Modal from '../components/Modal.jsx';
 import CascadingNumbers from '../components/CascadingNumbers.jsx';
 import CountdownTimer from '../components/CountdownTimer.jsx';
 import { platformIcon } from '../data/marketplace.js';
@@ -128,6 +129,17 @@ export default function Dashboard() {
   const [historyPage, setHistoryPage] = useState(1);
   const [paidPage, setPaidPage] = useState(1);
   const [openAccounts, setOpenAccounts] = useState(() => new Set());
+
+  // OneGridHub has been delivering truncated SMS codes (e.g. "447" instead of
+  // "447684") for some services. Show a one-time notice on the overview so users
+  // know to reach out to support when their code looks incomplete.
+  const [providerNoticeOpen, setProviderNoticeOpen] = useState(
+    () => !sessionStorage.getItem('sbmProviderNoticeDismissed')
+  );
+  const dismissProviderNotice = () => {
+    sessionStorage.setItem('sbmProviderNoticeDismissed', '1');
+    setProviderNoticeOpen(false);
+  };
 
   const loadWallet = async (silent = false) => {
     try {
@@ -1119,6 +1131,45 @@ export default function Dashboard() {
           </div>
         </PanelCard>
       )}
+
+      <Modal
+        open={tab === 'overview' && providerNoticeOpen}
+        onClose={dismissProviderNotice}
+        title="Virtual Numbers Notice"
+        maxWidth="max-w-[520px]"
+      >
+        <div className="rounded-[12px] border border-[#e0645a]/30 bg-[#e0645a]/10 px-4 py-3 mb-5 flex items-start gap-2.5">
+          <AlertTriangle size={17} strokeWidth={1.9} className="text-[#ff8a80] shrink-0 mt-0.5" />
+          <p className="text-[0.9rem] text-[#ff8a80] leading-relaxed">
+            SpencerSBM provider for virtual numbers is currently experiencing issues. If the OTP sent to you is not
+            complete, kindly contact us on WhatsApp or Telegram.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <a
+            href={`https://wa.me/2349138187814?text=${encodeURIComponent("Hey SpencerSBM, the OTP I received for my virtual number is incomplete. Please help.")}`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn-gold w-full py-3.5 text-[0.9rem] flex items-center justify-center gap-2"
+          >
+            <MessageCircle size={18} strokeWidth={1.9} /> Chat on WhatsApp
+          </a>
+          <a
+            href="https://t.me/spencersbm"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-ghost w-full py-3.5 text-[0.9rem] flex items-center justify-center gap-2"
+          >
+            <TelegramIcon size={18} /> Telegram
+          </a>
+          <button
+            onClick={dismissProviderNotice}
+            className="w-full py-3 rounded-[50px] font-semibold text-[0.9rem] bg-transparent text-muted border border-softline hover:border-softline hover:text-body"
+          >
+            Dismiss
+          </button>
+        </div>
+      </Modal>
 
       <SuccessModal
         open={successOpen}
