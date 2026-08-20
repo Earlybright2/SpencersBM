@@ -131,15 +131,11 @@ export default function Dashboard() {
   const [openAccounts, setOpenAccounts] = useState(() => new Set());
 
   // OneGridHub has been delivering truncated SMS codes (e.g. "447" instead of
-  // "447684") for some services. Show a one-time notice on the overview so users
-  // know to reach out to support when their code looks incomplete.
-  const [providerNoticeOpen, setProviderNoticeOpen] = useState(
-    () => !sessionStorage.getItem('sbmProviderNoticeDismissed')
-  );
-  const dismissProviderNotice = () => {
-    sessionStorage.setItem('sbmProviderNoticeDismissed', '1');
-    setProviderNoticeOpen(false);
-  };
+  // "447684") for some services. Show the notice on the overview every time the
+  // user logs in (fresh page load), so customers know to reach out to support
+  // when their code looks incomplete. It is only removed when this code is deleted.
+  const [providerNoticeOpen, setProviderNoticeOpen] = useState(true);
+  const dismissProviderNotice = () => setProviderNoticeOpen(false);
 
   const loadWallet = async (silent = false) => {
     try {
