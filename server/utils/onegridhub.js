@@ -107,6 +107,21 @@ async function digitalFetch(url, init = {}) {
     };
     const res = await fetch(url, { ...init, headers: mergedHeaders, signal: controller.signal });
     const text = await res.text();
+    // Non-2xx responses: if the body isn't JSON, surface a clear error instead
+    // of trying to parse HTML/XML error pages.
+    if (!res.ok) {
+      let parsed = null;
+      try { parsed = JSON.parse(text); } catch { /* not JSON */ }
+      if (parsed) return parsed; // JSON error body with useful fields
+      return {
+        status: 'error',
+        code: res.status >= 500 ? 'provider_server_error' : 'provider_request_error',
+        retryable: res.status >= 500,
+        message: res.status >= 500
+          ? 'The account provider returned a server error. Please try again shortly.'
+          : `The account provider rejected the request (${res.status}). Please try again or choose a different option.`
+      };
+    }
     try {
       return JSON.parse(text);
     } catch {

@@ -51,16 +51,23 @@ function parseQuantity(q) {
 }
 
 // Turn raw provider errors into messages a customer can actually understand.
+// Used for both virtual number and social account purchases.
 function friendlyProviderError(data) {
   const code = String(data?.code || '');
   const msg = String(data?.message || '').toLowerCase();
-  if (code === 'unavailable' || msg.includes('service not found')) {
-    return 'This virtual number is temporarily unavailable from our provider. Please try again later or choose another option.';
+  if (code === 'unavailable' || msg.includes('service not found') || msg.includes('not available') || msg.includes('out of stock') || msg.includes('sold out')) {
+    return 'This product is temporarily unavailable from our provider. Please try again later or choose another option.';
   }
-  if (code === 'insufficient_funds' || msg.includes('insufficient balance') || msg.includes('insufficient_funds')) {
-    return 'Our number provider is temporarily low on funds. Please try again shortly or contact support.';
+  if (code === 'insufficient_funds' || msg.includes('insufficient balance') || msg.includes('insufficient_funds') || msg.includes('insufficient funds')) {
+    return 'Our provider is temporarily low on funds. Please try again shortly or contact support.';
   }
-  return data?.message || 'The numbers provider could not complete the purchase. Please try again in a moment.';
+  if (msg.includes('order has been created successfully') || msg.includes('order has been created')) {
+    return 'Your order was placed with the provider but could not be confirmed immediately. We are processing it now — check back in a moment.';
+  }
+  if (msg.includes('unauthorized') || msg.includes('invalid api') || msg.includes('access denied')) {
+    return 'There was an issue connecting to our provider. Please try again shortly or contact support.';
+  }
+  return data?.message || 'The provider could not complete your purchase. Please try again in a moment.';
 }
 
 // GET /api/orders — current user's purchase history (numbers + accounts)
@@ -282,13 +289,49 @@ async function buyProviderAccount(req, res, catalog, product, qty = 1) {
       quantity: 1
     });
     console.log('[digital-buy] response:', JSON.stringify(buyRes).slice(0, 600));
+
+    // Even when the provider returns a non-success status, it may have created
+    // the order (OneGridHub sometimes returns status: 'error' with 'order has
+    // been created successfully'). Check for an order ID before treating it as
+    // a hard failure — if one exists we can still track the order as pending.
+    const buyOrderId = normalizeProviderOrderId(
+      buyRes.order || buyRes.order_id || buyRes.orderid || buyRes.orderId || buyRes.id ||
+      buyRes.data?.order || buyRes.data?.order_id || buyRes.data?.orderid || buyRes.data?.orderId || buyRes.data?.id ||
+      buyRes.order?.id || buyRes.order?.order_id || ''
+    );
     if (!isOgSuccess(buyRes)) {
-      let reason = buyRes.message || 'The account provider could not complete your purchase. Please try again shortly.';
-      if (reason.toLowerCase().includes('order has been created successfully')) {
-        reason = 'The provider is processing your order, but we could not confirm it immediately. Please check back later or contact support if the issue persists.';
+      const msgLower = String(buyRes.message || '').toLowerCase();
+      const code = String(buyRes.code || '').toLowerCase();
+
+      // Always surface known hard errors immediately — these will never
+      // resolve by polling.
+      const isKnownError =
+        code === 'insufficient_funds' || msgLower.includes('insufficient balance') || msgLower.includes('insufficient funds') ||
+        code === 'unavailable' || msgLower.includes('service not found') || msgLower.includes('not available') || msgLower.includes('sold out') ||
+        code === 'unauthorized' || msgLower.includes('invalid api') || msgLower.includes('access denied');
+
+      // If the response contains an order ID, or the message explicitly says
+      // the order was created, keep going — we'll save as pending and poll.
+      const looksCreated = Boolean(buyOrderId) ||
+        msgLower.includes('order has been created') ||
+        msgLower.includes('order created');
+
+      if (isKnownError && !buyOrderId) {
+        const reason = friendlyProviderError(buyRes);
+        console.warn('[digital-buy] hard error:', code || msgLower.slice(0, 120));
+        notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, reason);
+        return res.status(502).json({ status: 'error', message: reason });
       }
-      notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, reason);
-      return res.status(502).json({ status: 'error', message: reason });
+      if (looksCreated) {
+        // The provider says the order was created — continue as pending.
+        console.warn('[digital-buy] non-success but order looks created:', buyOrderId || 'no-id', buyRes.message || '');
+      } else {
+        // Unknown error with no order ID — surface the provider message.
+        const reason = friendlyProviderError(buyRes);
+        console.warn('[digital-buy] unknown error:', JSON.stringify(buyRes).slice(0, 300));
+        notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, reason);
+        return res.status(502).json({ status: 'error', message: reason });
+      }
     }
     buyResults.push(buyRes);
   }
