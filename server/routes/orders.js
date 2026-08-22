@@ -75,10 +75,48 @@ router.get('/payments', asyncRoute(async (req, res) => {
   res.json({ transactions: wallet?.transactions || [] });
 }));
 
-// GET /api/orders/paid-accounts — purchased social media accounts with credentials
+// GET /api/orders/paid-accounts — purchased social media accounts with credentials.
+// Automatically re-queries the provider for any pending orders so that credentials
+// delivered while the user was away are surfaced immediately.
 router.get('/paid-accounts', asyncRoute(async (req, res) => {
   const orders = await getUserOrders(req.user.id);
   const accounts = orders.filter((o) => o.type === 'social_account');
+
+  // Fire-and-forget: re-check up to 3 pending provider orders in parallel so
+  // recently-delivered credentials appear without requiring a manual poll.
+  const pending = accounts.filter((o) => o.status === 'pending' && o.provider_order).slice(0, 3);
+  if (pending.length) {
+    await Promise.allSettled(
+      pending.map(async (order) => {
+        try {
+          const providerOrderId = normalizeProviderOrderId(order.provider_order);
+          if (!providerOrderId) return;
+          const detail = await ogDigitalOrder(providerOrderId);
+          if (!isOgSuccess(detail)) return;
+          const acct = extractAccountCredentials(detail, {});
+          if (acct.username && acct.password) {
+            const updated = {
+              status: 'completed',
+              username: acct.username,
+              password: acct.password,
+              email: acct.email || order.email || null,
+              email_password: acct.emailPassword || order.email_password || null,
+              recovery: acct.recovery || order.recovery || null,
+              extra: (acct.extra && acct.extra.length ? acct.extra : order.extra) || [],
+              account_raw: acct.account_raw || order.account_raw || null,
+              expiresAt: null,
+              lastCheckedAt: new Date().toISOString()
+            };
+            await updateUserOrder(req.user.id, order.order_ref, updated);
+            Object.assign(order, updated);
+          }
+        } catch {
+          // provider query failed — leave order as-is
+        }
+      })
+    );
+  }
+
   res.json({ accounts });
 }));
 
@@ -243,6 +281,7 @@ async function buyProviderAccount(req, res, catalog, product, qty = 1) {
       product: product.providerProductId,
       quantity: 1
     });
+    console.log('[digital-buy] response:', JSON.stringify(buyRes).slice(0, 600));
     if (!isOgSuccess(buyRes)) {
       let reason = buyRes.message || 'The account provider could not complete your purchase. Please try again shortly.';
       if (reason.toLowerCase().includes('order has been created successfully')) {
@@ -268,8 +307,11 @@ async function buyProviderAccount(req, res, catalog, product, qty = 1) {
   const orders = [];
   for (const buyRes of buyResults) {
     const providerOrderId = normalizeProviderOrderId(
-      buyRes.order || buyRes.order_id || buyRes.orderid || buyRes.orderId || buyRes.id || ''
+      buyRes.order || buyRes.order_id || buyRes.orderid || buyRes.orderId || buyRes.id ||
+      buyRes.data?.order || buyRes.data?.order_id || buyRes.data?.orderid || buyRes.data?.orderId || buyRes.data?.id ||
+      buyRes.order?.id || buyRes.order?.order_id || ''
     );
+    console.log('[digital-buy] providerOrderId:', providerOrderId);
 
     // Retrieve the delivered account details from the provider. If the order query
     // fails but the buy succeeded, proceed with a pending order rather than erroring.
@@ -277,12 +319,15 @@ async function buyProviderAccount(req, res, catalog, product, qty = 1) {
     if (providerOrderId) {
       try {
         const res = await ogDigitalOrder(providerOrderId);
+        console.log('[digital-order] response for', providerOrderId, ':', JSON.stringify(res).slice(0, 600));
         if (isOgSuccess(res)) detail = res;
-      } catch {
+      } catch (err) {
+        console.error('[digital-order] query failed for', providerOrderId, ':', err.message);
         // ignore — order will be marked pending and can be polled later
       }
     }
     const account = extractAccountCredentials(detail, buyRes);
+    console.log('[digital-account] extracted:', JSON.stringify({ username: account.username, password: account.password ? '***' : '', ready: account.ready }).slice(0, 200));
 
     const order = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -544,9 +589,27 @@ function extractAccountCredentials(detail, buyRes = {}) {
 
   // OneGridHub delivers accounts as a multi-line `accounts` string whose last
   // line is a JSON blob: {"account":"user|pass|email|emailpass|recovery|..."}.
+  // The blob may be at the top level or nested inside a `data` / `order` object.
+  function findAccountsString(obj, depth) {
+    if (depth > 6 || obj == null || typeof obj !== 'object') return '';
+    if (typeof obj.accounts === 'string' && obj.accounts.trim()) return obj.accounts;
+    if (Array.isArray(obj)) {
+      for (const item of obj) {
+        const found = findAccountsString(item, depth + 1);
+        if (found) return found;
+      }
+      return '';
+    }
+    for (const v of Object.values(obj)) {
+      const found = findAccountsString(v, depth + 1);
+      if (found) return found;
+    }
+    return '';
+  }
+
   for (const d of candidates) {
-    const accountsBlob = d?.accounts;
-    if (typeof accountsBlob === 'string' && accountsBlob.trim()) {
+    const accountsBlob = findAccountsString(d, 0);
+    if (accountsBlob) {
       const lines = accountsBlob.split('\n').map((l) => l.trim()).filter(Boolean);
       for (const line of lines) {
         try {
@@ -564,7 +627,20 @@ function extractAccountCredentials(detail, buyRes = {}) {
             if (username && password) break;
           }
         } catch {
-          // line isn't JSON — keep scanning
+          // line isn't JSON — try parsing as a raw pipe-delimited credential string
+          if (line.includes('|')) {
+            const creds = parsePipeCredentials(line);
+            if (creds.username && creds.password) {
+              accountRaw = line;
+              if (!username) username = creds.username;
+              if (!password) password = creds.password;
+              if (!email) email = creds.email;
+              if (!emailPassword) emailPassword = creds.emailPassword;
+              if (!recovery) recovery = creds.recovery;
+              if (extra.length === 0) extra = creds.extra;
+              if (username && password) break;
+            }
+          }
         }
       }
       if (username && password) break;
@@ -583,8 +659,8 @@ function extractAccountCredentials(detail, buyRes = {}) {
   // Some providers hand back a single string blob: "user:pass" or "user|pass".
   if (!username || !password) {
     for (const d of candidates) {
-      const blob = d?.account ?? d?.details ?? d?.credentials ?? d?.data ?? d?.info;
-      if (typeof blob === 'string' && (blob.includes(':') || blob.includes('|') || blob.includes('\n'))) {
+      const blob = d?.account ?? d?.accounts ?? d?.details ?? d?.credentials ?? d?.info ?? (typeof d?.data === 'string' ? d.data : '');
+      if (typeof blob === 'string' && blob.trim() && (blob.includes(':') || blob.includes('|') || blob.includes('\n'))) {
         const parts = blob.split(/[:|\n]/).map((s) => s.trim()).filter(Boolean);
         if (parts.length >= 2) {
           if (!username) username = parts[0];
@@ -775,13 +851,29 @@ router.get('/account-status', asyncRoute(async (req, res) => {
     return res.json({ status: order.status, order });
   }
 
-  const detail = await ogDigitalOrder(providerOrderId);
+  let detail;
+  try {
+    detail = await ogDigitalOrder(providerOrderId);
+  } catch (err) {
+    console.error('[account-status] provider query threw for order', order_ref, ':', err.message);
+    return res.json({ status: order.status, order });
+  }
+
+  // If the provider returns an error or is still processing, don't 502 —
+  // return the current pending status so the frontend can keep retrying.
   if (!isOgSuccess(detail)) {
-    return res.status(502).json(ogError(detail));
+    console.warn('[account-status] provider returned non-success for order', order_ref, ':', JSON.stringify(detail).slice(0, 400));
+    return res.json({ status: order.status, order });
   }
 
   const account = extractAccountCredentials(detail, {});
   const isDone = Boolean(account.username && account.password);
+  console.log('[account-status] poll result for', order_ref, ':', JSON.stringify({
+    providerOrderId,
+    ready: isDone,
+    username: account.username || '',
+    hasPassword: Boolean(account.password)
+  }));
 
   if (isDone) {
     const updated = {

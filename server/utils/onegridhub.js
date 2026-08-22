@@ -100,7 +100,12 @@ async function digitalFetch(url, init = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { ...init, signal: controller.signal });
+    const apiKey = process.env.ONEGRIDHUB_API_KEY || '';
+    const mergedHeaders = {
+      Authorization: `Bearer ${apiKey}`,
+      ...init.headers
+    };
+    const res = await fetch(url, { ...init, headers: mergedHeaders, signal: controller.signal });
     const text = await res.text();
     try {
       return JSON.parse(text);
