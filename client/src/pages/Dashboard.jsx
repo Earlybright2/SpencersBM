@@ -270,6 +270,13 @@ export default function Dashboard() {
         loadOrders(true);
         loadPaidAccounts(true);
         if (res.data.status === 'completed') {
+          setLastPurchase((prev) => {
+            if (!prev) return prev;
+            const isArray = Array.isArray(prev);
+            const arr = isArray ? prev : [prev];
+            const updated = arr.map(o => (o.order_ref === orderRef || o.id === orderRef) ? { ...o, ...res.data.order } : o);
+            return isArray ? updated : updated[0];
+          });
           loadWallet(true);
           return;
         }
@@ -928,13 +935,9 @@ export default function Dashboard() {
                     ) : pending ? (
                       <div className="flex items-center justify-between gap-3 flex-wrap bg-field border border-gold/20 rounded-[10px] px-4 py-3">
                         <div className="flex items-center gap-2.5 text-[0.9rem] text-body/80">
-                          <RefreshCw size={16} strokeWidth={1.9} className="text-gold animate-spin" />
+                          <RefreshCw size={16} strokeWidth={1.9} className="text-gold animate-spin shrink-0" />
                           <span>
-                            Your account is being prepared by the provider. Credentials will be emailed to you and appear in Paid Accounts within{' '}
-                            <CountdownTimer
-                              expiresAt={a.expiresAt || new Date(new Date(a.purchasedAt || Date.now()).getTime() + 10 * 60 * 1000).toISOString()}
-                              className="text-gold font-semibold"
-                            />
+                            Your account is being prepared by the provider. Credentials will appear here shortly.
                           </span>
                         </div>
                         <div className="flex items-center gap-2">

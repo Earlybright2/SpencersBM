@@ -244,7 +244,10 @@ async function buyProviderAccount(req, res, catalog, product, qty = 1) {
       quantity: 1
     });
     if (!isOgSuccess(buyRes)) {
-      const reason = buyRes.message || 'The account provider could not complete your purchase. Please try again shortly.';
+      let reason = buyRes.message || 'The account provider could not complete your purchase. Please try again shortly.';
+      if (reason.toLowerCase().includes('order has been created successfully')) {
+        reason = 'The provider is processing your order, but we could not confirm it immediately. Please check back later or contact support if the issue persists.';
+      }
       notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, reason);
       return res.status(502).json({ status: 'error', message: reason });
     }
