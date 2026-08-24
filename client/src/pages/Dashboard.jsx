@@ -301,7 +301,7 @@ export default function Dashboard() {
           setSmsNote({ ref: orderRef, message: 'The provider returned an incomplete code (it got cut short). Keep checking, or cancel for a full refund.' });
         }
       } else {
-        setSmsNote({ ref: orderRef, message: 'No code yet — it usually arrives within the SMS window below. Keep checking.' });
+        setSmsNote({ ref: orderRef, message: 'No code yet — it usually arrives within the SMS window Above. Keep checking.' });
       }
     } catch (err) {
       setError(getErrorMessage(err));
@@ -778,7 +778,21 @@ export default function Dashboard() {
                         {order.status}
                       </span>
                     </div>
-                    {order.number && <Row label="Number" value={order.number} mono />}
+                    {order.number && (
+                      <div className="flex justify-between gap-4 py-1.5">
+                        <span className="text-muted text-[0.85rem]">Number</span>
+                        <span className="text-right font-medium font-mono flex items-center gap-2">
+                          {order.number}
+                          <button
+                            onClick={() => copyText(order.number, `num-${order.id}`)}
+                            className="text-gold hover:bg-gold/10 rounded-[6px] p-1 shrink-0 transition-colors"
+                            title="Copy number"
+                          >
+                            {copied === `num-${order.id}` ? <Check size={14} strokeWidth={2.2} /> : <Copy size={14} strokeWidth={2.2} />}
+                          </button>
+                        </span>
+                      </div>
+                    )}
                     <Row label="Amount" value={fmtNgn(order.price)} />
                     {order.sms && <Row label="SMS Code" value={order.sms} mono />}
                     {isIncompleteSms(order) && (

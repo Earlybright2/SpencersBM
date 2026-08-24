@@ -855,8 +855,47 @@ router.post('/cancel', asyncRoute(async (req, res) => {
     return res.status(409).json({ message: 'This order already received its SMS code and cannot be refunded.' });
   }
 
+  // An "expired" order means the provider's SMS window closed without delivering
+  // a code. The provider has already cancelled/released the number on their end,
+  // so there is nothing to cancel there — just refund immediately.
+  if (order.status === 'expired') {
+    const refund = await creditWallet(req.user.id, {
+      amount: Number(order.price) || 0,
+      reference: `refund-${order_ref}`,
+      meta: { type: 'refund', orderRef: order_ref, service: order.service || order.platform }
+    });
+    await updateUserOrder(req.user.id, order_ref, {
+      status: 'cancelled',
+      cancelledAt: new Date().toISOString(),
+      refundedAt: new Date().toISOString(),
+      lastCheckedAt: new Date().toISOString()
+    });
+    notify.refund(req.user.id, { ...order, status: 'cancelled' }, refund?.balance);
+    return res.json({ status: 'success', refunded: true, balance: refund?.balance });
+  }
+
   const data = await ogRequest({ endpoint: 'cancel', order_ref });
-  if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
+  const providerCancelled = !isOgSuccess(data);
+  const providerMsg = String(data?.message || '').toLowerCase();
+  const providerAlreadyDone =
+    providerCancelled && (
+      providerMsg.includes('already cancelled') ||
+      providerMsg.includes('already finalized') ||
+      providerMsg.includes('already refunded') ||
+      providerMsg.includes('order not found') ||
+      providerMsg.includes('order has expired') ||
+      providerMsg.includes('order expired') ||
+      providerMsg.includes('already used')
+    );
+  // If the provider returned a hard error (not just "already done"), abort.
+  if (providerCancelled && !providerAlreadyDone) {
+    return res.status(502).json(ogError(data));
+  }
+  // If the provider says it's already cancelled/finalized/expired, we can
+  // still refund the user — they never received a usable code.
+  if (providerAlreadyDone) {
+    console.warn('[cancel] provider says order already handled for', order_ref, ':', data?.message || '');
+  }
 
   const refund = await creditWallet(req.user.id, {
     amount: Number(order.price) || 0,
@@ -873,7 +912,7 @@ router.post('/cancel', asyncRoute(async (req, res) => {
 
   notify.refund(req.user.id, { ...order, status: 'cancelled' }, refund?.balance);
 
-  res.json({ ...data, refunded: true, balance: refund?.balance });
+  res.json({ status: 'success', refunded: true, balance: refund?.balance });
 }));
 
 // GET /api/orders/account-status?order_ref= — poll the provider for a pending
