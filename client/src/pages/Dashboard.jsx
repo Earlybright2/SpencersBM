@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones, Clock, Download, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, Smartphone, UserRound, MessageSquare, RefreshCw, Check, Copy, Landmark, Wallet, TrendingUp, Package, KeyRound, X, Store, Search, Headphones, Clock, Download, MessageCircle, ChevronDown, ChevronUp, Server } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import DashboardLayout from '../components/DashboardLayout.jsx';
@@ -129,6 +129,12 @@ export default function Dashboard() {
   const [historyPage, setHistoryPage] = useState(1);
   const [paidPage, setPaidPage] = useState(1);
   const [openAccounts, setOpenAccounts] = useState(() => new Set());
+  const [selectedServer, setSelectedServer] = useState('');
+  const [availableServers, setAvailableServers] = useState([]);
+  const [liveNumbers, setLiveNumbers] = useState([]);
+  const [liveAccounts, setLiveAccounts] = useState([]);
+  const [loadingServers, setLoadingServers] = useState(false);
+  const [loadingLive, setLoadingLive] = useState(false);
 
   // OneGridHub has been delivering truncated SMS codes (e.g. "447" instead of
   // "447684") for some services. Show the notice on the overview every time the
@@ -173,11 +179,81 @@ export default function Dashboard() {
     }
   };
 
+  const loadAvailableServers = async () => {
+    setLoadingServers(true);
+    try {
+      const res = await api.get('/servers');
+      const servers = res.data?.servers || res.data?.data || [];
+      setAvailableServers(Array.isArray(servers) ? servers : []);
+    } catch {
+      // Silently fail — server browsing will fall back to catalog
+    } finally {
+      setLoadingServers(false);
+    }
+  };
+
+  // When a server is selected, fetch live products for that server
+  useEffect(() => {
+    if (!selectedServer) {
+      setLiveNumbers([]);
+      setLiveAccounts([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingLive(true);
+
+    const fetchLive = async () => {
+      try {
+        const [numbersRes, accountsRes] = await Promise.allSettled([
+          api.get(`/servers/${selectedServer}/prices`),
+          api.get(`/servers/${selectedServer}/digital`)
+        ]);
+        if (cancelled) return;
+        if (numbersRes.status === 'fulfilled') {
+          const items = numbersRes.value.data?.items || [];
+          setLiveNumbers(items.map((p, i) => ({
+            id: `live-num-${i}-${p.service}-${p.country}`,
+            server: selectedServer,
+            service: p.service,
+            serviceName: p.serviceName,
+            country: p.country,
+            countryName: p.countryName,
+            price: p.price,
+            currency: p.currency || 'NGN',
+            live: true
+          })));
+        }
+        if (accountsRes.status === 'fulfilled') {
+          const prods = accountsRes.value.data?.products || [];
+          setLiveAccounts(prods.map((p, i) => ({
+            id: p.id || `live-acc-${i}`,
+            server: selectedServer,
+            platform: p.platform,
+            country: p.country || '',
+            countryName: p.countryName || '',
+            price: p.price,
+            currency: p.currency || 'NGN',
+            desc: p.name || '',
+            stock: p.stock || 0,
+            live: true
+          })));
+        }
+      } catch {
+        if (!cancelled) setError('Could not load products for this server. Please try again.');
+      } finally {
+        if (!cancelled) setLoadingLive(false);
+      }
+    };
+    fetchLive();
+    return () => { cancelled = true; };
+  }, [selectedServer]);
+
   useEffect(() => {
     loadWallet(true);
     loadCatalog();
     loadOrders();
     loadPaidAccounts();
+    loadAvailableServers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -226,7 +302,19 @@ export default function Dashboard() {
     setError('');
     setBusy(`buy-${product.id}`);
     try {
-      const res = await api.post('/orders/numbers', { productId: product.id, quantity });
+      let res;
+      if (product.live || product.server) {
+        // Live provider purchase — use the server-scoped endpoint
+        res = await api.post('/servers/buy-number', {
+          server: product.server,
+          service: product.service,
+          country: product.country,
+          quantity
+        });
+      } else {
+        // Pre-synced catalog purchase
+        res = await api.post('/orders/numbers', { productId: product.id, quantity });
+      }
       setLastPurchase(res.data.orders || [res.data.order]);
       setSuccessOpen(true);
       loadWallet(true);
@@ -243,7 +331,18 @@ export default function Dashboard() {
     setError('');
     setBusy(`buy-${product.id}`);
     try {
-      const res = await api.post('/orders/accounts', { productId: product.id, quantity });
+      let res;
+      if (product.live || product.server) {
+        // Live provider purchase
+        res = await api.post('/servers/buy-digital', {
+          server: product.server,
+          productId: product.id,
+          quantity
+        });
+      } else {
+        // Pre-synced catalog purchase
+        res = await api.post('/orders/accounts', { productId: product.id, quantity });
+      }
       const orders = res.data.orders || [res.data.order];
       setLastPurchase(orders);
       setSuccessOpen(true);
@@ -346,13 +445,17 @@ export default function Dashboard() {
 
   const numbersByCountry = useMemo(() => {
     const map = {};
-    catalog.numbers.forEach((p) => {
+    storeNumbers.forEach((p) => {
       const key = p.country || 'unknown';
       if (!map[key]) map[key] = { country: key, countryName: p.countryName || key, items: [] };
       map[key].items.push(p);
     });
     return Object.values(map);
-  }, [catalog.numbers]);
+  }, [storeNumbers]);
+
+  // Use live data when a server is selected, otherwise fall back to catalog
+  const storeNumbers = selectedServer ? liveNumbers : catalog.numbers;
+  const storeAccounts = selectedServer ? liveAccounts : catalog.accounts;
 
   const filteredCountries = useMemo(() => {
     const q = storeSearch.trim().toLowerCase();
@@ -365,20 +468,21 @@ export default function Dashboard() {
 
   const filteredAccounts = useMemo(() => {
     const q = storeSearch.trim().toLowerCase();
-    if (!q) return catalog.accounts;
-    return catalog.accounts.filter((p) =>
+    if (!q) return storeAccounts;
+    return storeAccounts.filter((p) =>
       String(p.platform || '').toLowerCase().includes(q) || String(p.desc || '').toLowerCase().includes(q)
     );
-  }, [catalog.accounts, storeSearch]);
+  }, [storeAccounts, storeSearch]);
 
   const filteredNumbers = useMemo(() => {
     const q = numbersSearch.trim().toLowerCase();
-    if (!q) return catalog.numbers;
-    return catalog.numbers.filter((p) =>
+    const source = selectedServer ? liveNumbers : catalog.numbers;
+    if (!q) return source;
+    return source.filter((p) =>
       String(p.serviceName || p.service || '').toLowerCase().includes(q) ||
       String(p.countryName || p.country || '').toLowerCase().includes(q)
     );
-  }, [catalog.numbers, numbersSearch]);
+  }, [selectedServer, liveNumbers, catalog.numbers, numbersSearch]);
 
   // Order History = every payment: purchases (numbers/accounts) + wallet funding credits.
   const paymentHistory = useMemo(() => {
@@ -615,9 +719,49 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Server Selection */}
+          <div className="card-border bg-gold/3 rounded-[15px] p-5 md:p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="w-9 h-9 rounded-[9px] bg-gold/10 border border-gold/25 text-gold flex items-center justify-center shrink-0">
+                <Server size={18} strokeWidth={1.9} />
+              </span>
+              <div>
+                <div className="font-medium text-[0.95rem]">Choose a Provider Server</div>
+                <div className="text-faint text-[0.78rem]">Different servers have different services, prices and availability</div>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 items-start">
+              <select
+                value={selectedServer}
+                onChange={(e) => {
+                  setSelectedServer(e.target.value);
+                  setStoreSearch('');
+                }}
+                className="w-full sm:max-w-[320px] px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all"
+              >
+                <option value="">Browse All (Pre-synced Catalog)</option>
+                {availableServers.map((s) => (
+                  <option key={s.id || s} value={s.id || s}>{s.name || s.label || s.id || s} {s.products ? `(${s.products} products)` : ''}</option>
+                ))}
+              </select>
+              {selectedServer && (
+                <span className="text-[0.78rem] text-gold bg-gold/10 border border-gold/25 px-3 py-1.5 rounded-full whitespace-nowrap">
+                  Live from provider
+                </span>
+              )}
+            </div>
+          </div>
+
+          {loadingLive && (
+            <div className="flex items-center justify-center gap-3 py-8 text-[0.9rem] text-muted">
+              <RefreshCw size={18} className="animate-spin text-gold" />
+              Loading products from {selectedServer}...
+            </div>
+          )}
+
           {storeView === 'numbers' ? (
             <PanelCard
-              title="Numbers by Country"
+              title={selectedServer ? `Numbers — ${selectedServer}` : 'Numbers by Country'}
               actions={
                 <div className="relative w-full max-w-[280px]">
                   <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
@@ -661,8 +805,8 @@ export default function Dashboard() {
             >
               {filteredAccounts.length === 0 ? (
                 <p className="text-faint text-[0.95rem] py-6 text-center">
-                  {catalog.accounts.length === 0
-                    ? 'No social accounts are listed right now. Check back soon.'
+                  {storeAccounts.length === 0
+                    ? (selectedServer ? 'No social accounts available on this server. Try a different server.' : 'No social accounts are listed right now. Check back soon.')
                     : `No results for "${storeSearch.trim()}".`}
                 </p>
               ) : (
@@ -739,8 +883,8 @@ export default function Dashboard() {
           >
             {filteredNumbers.length === 0 ? (
               <p className="text-faint text-[0.95rem] py-6 text-center">
-                {catalog.numbers.length === 0
-                  ? 'No virtual numbers are available right now. Check back soon.'
+                {(selectedServer ? liveNumbers : catalog.numbers).length === 0
+                  ? (selectedServer ? `No virtual numbers available on ${selectedServer}. Try a different server or browse all.` : 'No virtual numbers are available right now. Check back soon.')
                   : `No results for "${numbersSearch.trim()}".`}
               </p>
             ) : (
@@ -869,12 +1013,12 @@ export default function Dashboard() {
             </p>
           </div>
           <PanelCard title="Social Media Accounts">
-            {catalog.accounts.length === 0 ? (
+            {storeAccounts.length === 0 ? (
               <p className="text-faint text-[0.95rem] py-6 text-center">
-                No social accounts are listed right now. Check back soon.
+                {selectedServer ? `No social accounts available on ${selectedServer}. Try a different server or browse all.` : 'No social accounts are listed right now. Check back soon.'}
               </p>
             ) : (
-              <CascadingAccounts items={catalog.accounts} onBuy={handleBuyAccount} busy={busy} />
+              <CascadingAccounts items={storeAccounts} onBuy={handleBuyAccount} busy={busy} />
             )}
           </PanelCard>
         </div>

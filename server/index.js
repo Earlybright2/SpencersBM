@@ -7,6 +7,7 @@ import walletRoutes from './routes/wallet.js';
 import webhookRoutes from './routes/webhook.js';
 import ordersRoutes from './routes/orders.js';
 import adminRoutes from './routes/admin.js';
+import serversRoutes from './routes/servers.js';
 import { getUsers, ensureAdmin } from './utils/store.js';
 
 const app = express();
@@ -118,6 +119,7 @@ app.use('/api/onegridhub', onegridhubRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/servers', serversRoutes);
 app.use('/api/webhook', webhookRoutes);
 
 // Global error handler
