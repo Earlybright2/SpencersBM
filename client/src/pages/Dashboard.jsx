@@ -97,13 +97,13 @@ const isIncompleteSms = (order) => {
 const isSuccessfulPayment = (p) =>
   !['cancelled', 'expired', 'failed', 'initiated'].includes(String(p.status || '').toLowerCase());
 
-function ServerSelector({ selectedServer, availableServers, onSelect, filterType }) {
+function ServerSelector({ selectedServer, availableServers, onSelect, filterType, loading }) {
   const filtered = filterType ? availableServers.filter((s) => s.type === filterType) : availableServers;
   return (
     <div className="card-border bg-gold/3 rounded-[15px] p-5 md:p-6">
       <div className="flex items-center gap-3 mb-3">
         <span className="w-9 h-9 rounded-[9px] bg-gold/10 border border-gold/25 text-gold flex items-center justify-center shrink-0">
-          <Server size={18} strokeWidth={1.9} />
+          {loading ? <RefreshCw size={18} strokeWidth={1.9} className="animate-spin" /> : <Server size={18} strokeWidth={1.9} />}
         </span>
         <div>
           <div className="font-medium text-[0.95rem]">Choose a Provider Server</div>
@@ -114,9 +114,10 @@ function ServerSelector({ selectedServer, availableServers, onSelect, filterType
         <select
           value={selectedServer}
           onChange={(e) => onSelect(e.target.value)}
-          className="w-full sm:max-w-[320px] px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all"
+          disabled={loading}
+          className="w-full sm:max-w-[320px] px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <option value="">Browse All (Pre-synced Catalog)</option>
+          <option value="">{loading ? 'Loading servers...' : 'Browse All (Pre-synced Catalog)'}</option>
           {filterType ? (
             filtered.map((s) => (
               <option key={s.id} value={s.id}>{s.label || s.name || s.id}{s.products ? ` (${s.products} products)` : ''}</option>
@@ -254,54 +255,91 @@ export default function Dashboard() {
     }
     let cancelled = false;
     setLoadingLive(true);
+    setError(''); // Clear previous errors when switching servers
 
     const serverType = availableServers.find((s) => (s.id || s) === selectedServer)?.type || 'sms';
 
     const fetchLive = async () => {
+      let hasError = false;
+      let errorMessage = '';
+
       try {
-        const fetches = [];
         if (serverType === 'sms') {
-          fetches.push(api.get(`/servers/${selectedServer}/prices`).catch(() => null));
-          fetches.push(Promise.resolve(null));
+          // Fetch SMS numbers
+          try {
+            const numbersRes = await api.get(`/servers/${selectedServer}/prices`);
+            if (cancelled) return;
+            if (numbersRes?.data?.items) {
+              const items = numbersRes.data.items;
+              setLiveNumbers(items.map((p, i) => ({
+                id: `live-num-${i}-${p.service}-${p.country}`,
+                server: selectedServer,
+                service: p.service,
+                serviceName: p.serviceName,
+                country: p.country,
+                countryName: p.countryName,
+                price: p.price,
+                currency: p.currency || 'NGN',
+                live: true
+              })));
+            } else if (numbersRes?.data?.status === 'error') {
+              hasError = true;
+              errorMessage = numbersRes.data.message || 'Service temporarily unavailable.';
+            }
+          } catch (err) {
+            if (cancelled) return;
+            hasError = true;
+            const status = err?.response?.status;
+            const serverMsg = err?.response?.data?.message;
+            if (status === 503 || status === 502) {
+              errorMessage = serverMsg || 'The service provider is temporarily unavailable. Please try again shortly.';
+            } else {
+              errorMessage = serverMsg || 'Could not load products for this server. Please try again.';
+            }
+          }
         } else {
-          fetches.push(Promise.resolve(null));
-          fetches.push(api.get(`/servers/${selectedServer}/digital`).catch(() => null));
-        }
-        const [numbersRes, accountsRes] = await Promise.all(fetches);
-        if (cancelled) return;
-        if (numbersRes?.data?.items) {
-          const items = numbersRes.data.items;
-          setLiveNumbers(items.map((p, i) => ({
-            id: `live-num-${i}-${p.service}-${p.country}`,
-            server: selectedServer,
-            service: p.service,
-            serviceName: p.serviceName,
-            country: p.country,
-            countryName: p.countryName,
-            price: p.price,
-            currency: p.currency || 'NGN',
-            live: true
-          })));
-        }
-        if (accountsRes?.data?.products) {
-          const prods = accountsRes.data.products;
-          setLiveAccounts(prods.map((p, i) => ({
-            id: p.id || `live-acc-${i}`,
-            server: selectedServer,
-            platform: p.platform,
-            country: p.country || '',
-            countryName: p.countryName || '',
-            price: p.price,
-            currency: p.currency || 'NGN',
-            desc: p.name || '',
-            stock: p.stock || 0,
-            live: true
-          })));
+          // Fetch digital accounts
+          try {
+            const accountsRes = await api.get(`/servers/${selectedServer}/digital`);
+            if (cancelled) return;
+            if (accountsRes?.data?.products) {
+              const prods = accountsRes.data.products;
+              setLiveAccounts(prods.map((p, i) => ({
+                id: p.id || `live-acc-${i}`,
+                server: selectedServer,
+                platform: p.platform,
+                country: p.country || '',
+                countryName: p.countryName || '',
+                price: p.price,
+                currency: p.currency || 'NGN',
+                desc: p.name || '',
+                stock: p.stock || 0,
+                live: true
+              })));
+            }
+          } catch (err) {
+            if (cancelled) return;
+            hasError = true;
+            const status = err?.response?.status;
+            const serverMsg = err?.response?.data?.message;
+            if (status === 503 || status === 502) {
+              errorMessage = serverMsg || 'The service provider is temporarily unavailable. Please try again shortly.';
+            } else {
+              errorMessage = serverMsg || 'Could not load products for this server. Please try again.';
+            }
+          }
         }
       } catch {
-        if (!cancelled) setError('Could not load products for this server. Please try again.');
+        if (cancelled) return;
+        hasError = true;
+        errorMessage = 'Could not load products for this server. Please try again.';
       } finally {
-        if (!cancelled) setLoadingLive(false);
+        if (!cancelled) {
+          if (hasError) {
+            setError(errorMessage);
+          }
+          setLoadingLive(false);
+        }
       }
     };
     fetchLive();
@@ -659,13 +697,26 @@ export default function Dashboard() {
       )}
 
       {error && (
-        <div className="bg-[#e0645a]/10 border border-[#e0645a]/30 text-[#ff8a80] text-[0.9rem] rounded-[10px] px-4 py-3 mb-6 flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <AlertTriangle size={17} strokeWidth={1.9} /> {error}
-          </span>
-          <button onClick={() => setError('')} className="font-bold ml-3 hover:text-body">
-            &times;
-          </button>
+        <div className="bg-[#e0645a]/10 border border-[#e0645a]/30 text-[#ff8a80] text-[0.9rem] rounded-[10px] px-4 py-3 mb-6">
+          <div className="flex items-start justify-between gap-3">
+            <span className="flex items-start gap-2 flex-1">
+              <AlertTriangle size={17} strokeWidth={1.9} className="shrink-0 mt-0.5" /> 
+              <span>{error}</span>
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {selectedServer && error.includes('unavailable') && (
+                <button 
+                  onClick={() => { setError(''); setSelectedServer(''); setTimeout(() => setSelectedServer(selectedServer), 100); }}
+                  className="px-3 py-1.5 text-[0.8rem] font-medium bg-[#e0645a]/20 hover:bg-[#e0645a]/30 rounded-lg transition-colors"
+                >
+                  Retry
+                </button>
+              )}
+              <button onClick={() => setError('')} className="font-bold ml-1 hover:text-body">
+                &times;
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -784,12 +835,19 @@ export default function Dashboard() {
             selectedServer={selectedServer}
             availableServers={availableServers}
             onSelect={(val) => { setSelectedServer(val); setStoreSearch(''); }}
+            loading={loadingServers || loadingLive}
           />
 
           {loadingLive && (
-            <div className="flex items-center justify-center gap-3 py-8 text-[0.9rem] text-muted">
-              <RefreshCw size={18} className="animate-spin text-gold" />
-              Loading products from {selectedServer}...
+            <div className="flex flex-col items-center justify-center gap-3 py-10">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full border-3 border-gold/20 border-t-gold animate-spin" />
+                <Server size={20} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-gold" />
+              </div>
+              <div className="text-center">
+                <div className="text-[0.95rem] font-medium text-body">Loading from {selectedServer}...</div>
+                <div className="text-[0.8rem] text-muted mt-1">Fetching products and prices from provider</div>
+              </div>
             </div>
           )}
 
@@ -906,6 +964,7 @@ export default function Dashboard() {
             availableServers={availableServers}
             onSelect={(val) => { setSelectedServer(val); setNumbersSearch(''); }}
             filterType="sms"
+            loading={loadingServers || loadingLive}
           />
           <PanelCard
             title="Buy a Virtual Number"
@@ -1057,6 +1116,7 @@ export default function Dashboard() {
             availableServers={availableServers}
             onSelect={(val) => { setSelectedServer(val); }}
             filterType="digital"
+            loading={loadingServers || loadingLive}
           />
           <PanelCard title="Social Media Accounts">
             {storeAccounts.length === 0 ? (
