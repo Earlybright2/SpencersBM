@@ -15,6 +15,8 @@ const DIGITAL_MARKUP = Number(process.env.DIGITAL_MARKUP) || 1.35;
 // In-memory cache for the expensive /prices endpoint.
 // Each server's prices are cached for PRICE_CACHE_TTL_MS (default 10 min).
 const PRICE_CACHE_TTL_MS = Number(process.env.PRICE_CACHE_TTL_MS) || 10 * 60 * 1000;
+// Allow stale cache to be served for an extra 30 min after expiry (when provider is down).
+const STALE_GRACE_MS = 30 * 60 * 1000;
 const priceCache = new Map(); // key: server id, value: { data, expiresAt }
 
 // Fire-and-forget purchase emails so a slow SMTP never blocks the API response.
@@ -107,74 +109,120 @@ router.get('/:server/price', asyncRoute(async (req, res) => {
 // This fetches services, countries, then prices in batches. Returns the full catalog
 // for the server with markup applied.
 // Results are cached in memory for PRICE_CACHE_TTL_MS to avoid repeated heavy lookups.
+// A stale-grace window serves expired cache when the provider is temporarily down.
 router.get('/:server/prices', asyncRoute(async (req, res) => {
   const { server } = req.params;
 
-  // Serve from cache when available
+  // Serve fresh cache when available
   const cached = priceCache.get(server);
-  if (cached && Date.now() < cached.expiresAt) {
+  const now = Date.now();
+  if (cached && now < cached.expiresAt) {
     return res.json(cached.data);
   }
 
-  // Fetch services and countries in parallel
-  const [servicesRes, countriesRes] = await Promise.all([
-    ogRequest({ endpoint: 'services', server }),
-    ogRequest({ endpoint: 'countries', server })
-  ]);
+  // Route-level timeout — stay under Render's 30s proxy limit.
+  const ROUTE_TIMEOUT_MS = 25_000;
+  let timedOut = false;
+  const routeTimer = setTimeout(() => { timedOut = true; }, ROUTE_TIMEOUT_MS);
 
-  if (!isOgSuccess(servicesRes)) return res.status(502).json(ogError(servicesRes));
-  if (!isOgSuccess(countriesRes)) return res.status(502).json(ogError(countriesRes));
+  try {
+    // Fetch services and countries in parallel (allSettled so one slow call
+    // doesn't cancel the other).
+    const [servicesRes, countriesRes] = await Promise.allSettled([
+      ogRequest({ endpoint: 'services', server }),
+      ogRequest({ endpoint: 'countries', server })
+    ]);
 
-  const services = servicesRes.services || [];
-  const countries = countriesRes.countries || [];
+    const servicesData = servicesRes.status === 'fulfilled' ? servicesRes.value : null;
+    const countriesData = countriesRes.status === 'fulfilled' ? countriesRes.value : null;
 
-  // Fetch prices in batches of 10 to avoid hammering the provider
-  const BATCH_SIZE = 10;
-  const results = [];
-  const combos = [];
+    const servicesOk = isOgSuccess(servicesData);
+    const countriesOk = isOgSuccess(countriesData);
 
-  for (const service of services) {
-    for (const country of countries) {
-      combos.push({ service, country });
+    // If both failed and we have stale cache, serve it instead of erroring.
+    if ((!servicesOk && !countriesOk) && cached) {
+      return res.json({ ...cached.data, _stale: true });
     }
-  }
+    // If both failed with no cache at all, return a clear error.
+    if (!servicesOk && !countriesOk) {
+      return res.status(503).json({
+        status: 'error',
+        message: 'The numbers provider is temporarily unavailable. Please try again shortly.',
+        retryable: true
+      });
+    }
 
-  for (let i = 0; i < combos.length; i += BATCH_SIZE) {
-    const batch = combos.slice(i, i + BATCH_SIZE);
-    const priceResults = await Promise.allSettled(
-      batch.map(({ service, country }) =>
-        ogRequest({ endpoint: 'price', server, service: service.id, country: country.id })
-          .then((data) => {
-            if (!isOgSuccess(data)) return null;
-            const cost = Number(data.price) || 0;
-            if (cost <= 0) return null;
-            return {
-              service: service.id,
-              serviceName: service.name,
-              country: country.id,
-              countryName: country.name,
-              cost,
-              price: applyMarkup(cost, NUMBER_MARKUP),
-              currency: 'NGN'
-            };
-          })
-          .catch(() => null)
-      )
-    );
+    const services = (servicesData?.services || []);
+    const countries = (countriesData?.countries || []);
 
-    for (const result of priceResults) {
-      if (result.status === 'fulfilled' && result.value) {
-        results.push(result.value);
+    if (!services.length || !countries.length) {
+      // Return stale cache if we have it, otherwise a meaningful error.
+      if (cached) return res.json({ ...cached.data, _stale: true });
+      return res.status(503).json({
+        status: 'error',
+        message: 'The numbers provider returned no services or countries. Please try again shortly.',
+        retryable: true
+      });
+    }
+
+    // Fetch prices in batches of 10 to avoid hammering the provider
+    const BATCH_SIZE = 10;
+    const results = [];
+    const combos = [];
+
+    for (const service of services) {
+      for (const country of countries) {
+        combos.push({ service, country });
       }
     }
+
+    for (let i = 0; i < combos.length; i += BATCH_SIZE) {
+      if (timedOut) break; // stop early if we're about to hit Render's limit
+
+      const batch = combos.slice(i, i + BATCH_SIZE);
+      const priceResults = await Promise.allSettled(
+        batch.map(({ service, country }) =>
+          ogRequest({ endpoint: 'price', server, service: service.id, country: country.id }, { timeoutMs: 8000 })
+            .then((data) => {
+              if (!isOgSuccess(data)) return null;
+              const cost = Number(data.price) || 0;
+              if (cost <= 0) return null;
+              return {
+                service: service.id,
+                serviceName: service.name,
+                country: country.id,
+                countryName: country.name,
+                cost,
+                price: applyMarkup(cost, NUMBER_MARKUP),
+                currency: 'NGN'
+              };
+            })
+            .catch(() => null)
+        )
+      );
+
+      for (const result of priceResults) {
+        if (result.status === 'fulfilled' && result.value) {
+          results.push(result.value);
+        }
+      }
+    }
+
+    const responsePayload = {
+      status: 'success',
+      server,
+      count: results.length,
+      items: results,
+      ...(timedOut ? { _partial: true, _message: 'Response was partial due to timeout. Some prices may be missing.' } : {})
+    };
+
+    // Store in cache (even partial results — better than nothing)
+    priceCache.set(server, { data: responsePayload, expiresAt: Date.now() + PRICE_CACHE_TTL_MS });
+
+    res.json(responsePayload);
+  } finally {
+    clearTimeout(routeTimer);
   }
-
-  const responsePayload = { status: 'success', server, count: results.length, items: results };
-
-  // Store in cache
-  priceCache.set(server, { data: responsePayload, expiresAt: Date.now() + PRICE_CACHE_TTL_MS });
-
-  res.json(responsePayload);
 }));
 
 // ----- Social / digital accounts -----

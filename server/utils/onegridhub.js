@@ -13,7 +13,7 @@ async function fetchWithTimeout(url, { headers, timeoutMs }) {
   }
 }
 
-export async function ogRequest(params = {}) {
+export async function ogRequest(params = {}, { timeoutMs = CONNECT_TIMEOUT_MS } = {}) {
   const apiKey = process.env.ONEGRIDHUB_API_KEY || '';
   if (!apiKey) {
     return {
@@ -37,7 +37,7 @@ export async function ogRequest(params = {}) {
   let lastError = null;
   for (let attempt = 0; attempt <= RETRIES; attempt += 1) {
     try {
-      const res = await fetchWithTimeout(url.toString(), { headers, timeoutMs: CONNECT_TIMEOUT_MS });
+      const res = await fetchWithTimeout(url.toString(), { headers, timeoutMs });
       const text = await res.text();
       try {
         return JSON.parse(text);
