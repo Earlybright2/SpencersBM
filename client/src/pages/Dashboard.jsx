@@ -97,7 +97,8 @@ const isIncompleteSms = (order) => {
 const isSuccessfulPayment = (p) =>
   !['cancelled', 'expired', 'failed', 'initiated'].includes(String(p.status || '').toLowerCase());
 
-function ServerSelector({ selectedServer, availableServers, onSelect }) {
+function ServerSelector({ selectedServer, availableServers, onSelect, filterType }) {
+  const filtered = filterType ? availableServers.filter((s) => s.type === filterType) : availableServers;
   return (
     <div className="card-border bg-gold/3 rounded-[15px] p-5 md:p-6">
       <div className="flex items-center gap-3 mb-3">
@@ -116,24 +117,32 @@ function ServerSelector({ selectedServer, availableServers, onSelect }) {
           className="w-full sm:max-w-[320px] px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all"
         >
           <option value="">Browse All (Pre-synced Catalog)</option>
-          {availableServers.some((s) => s.type === 'sms') && (
-            <optgroup label="Virtual Numbers">
-              {availableServers.filter((s) => s.type === 'sms').map((s) => (
-                <option key={s.id} value={s.id}>{s.label || s.name || s.id}</option>
-              ))}
-            </optgroup>
-          )}
-          {availableServers.some((s) => s.type === 'digital') && (
-            <optgroup label="Social Accounts">
-              {availableServers.filter((s) => s.type === 'digital').map((s) => (
-                <option key={s.id} value={s.id}>{s.label || s.name || s.id}{s.products ? ` (${s.products} products)` : ''}</option>
-              ))}
-            </optgroup>
-          )}
-          {availableServers.length > 0 && availableServers.every((s) => !s.type) && (
-            availableServers.map((s) => (
-              <option key={s.id || s} value={s.id || s}>{s.name || s.label || s.id || s}{s.products ? ` (${s.products} products)` : ''}</option>
+          {filterType ? (
+            filtered.map((s) => (
+              <option key={s.id} value={s.id}>{s.label || s.name || s.id}{s.products ? ` (${s.products} products)` : ''}</option>
             ))
+          ) : (
+            <>
+              {availableServers.some((s) => s.type === 'sms') && (
+                <optgroup label="Virtual Numbers">
+                  {availableServers.filter((s) => s.type === 'sms').map((s) => (
+                    <option key={s.id} value={s.id}>{s.label || s.name || s.id}</option>
+                  ))}
+                </optgroup>
+              )}
+              {availableServers.some((s) => s.type === 'digital') && (
+                <optgroup label="Social Accounts">
+                  {availableServers.filter((s) => s.type === 'digital').map((s) => (
+                    <option key={s.id} value={s.id}>{s.label || s.name || s.id}{s.products ? ` (${s.products} products)` : ''}</option>
+                  ))}
+                </optgroup>
+              )}
+              {availableServers.length > 0 && availableServers.every((s) => !s.type) && (
+                availableServers.map((s) => (
+                  <option key={s.id || s} value={s.id || s}>{s.name || s.label || s.id || s}{s.products ? ` (${s.products} products)` : ''}</option>
+                ))
+              )}
+            </>
           )}
         </select>
         {selectedServer && (
@@ -896,6 +905,7 @@ export default function Dashboard() {
             selectedServer={selectedServer}
             availableServers={availableServers}
             onSelect={(val) => { setSelectedServer(val); setNumbersSearch(''); }}
+            filterType="sms"
           />
           <PanelCard
             title="Buy a Virtual Number"
@@ -1046,6 +1056,7 @@ export default function Dashboard() {
             selectedServer={selectedServer}
             availableServers={availableServers}
             onSelect={(val) => { setSelectedServer(val); }}
+            filterType="digital"
           />
           <PanelCard title="Social Media Accounts">
             {storeAccounts.length === 0 ? (
