@@ -443,6 +443,10 @@ export default function Dashboard() {
 
   const numberOrders = useMemo(() => orders.filter((o) => o.type === 'virtual_number'), [orders]);
 
+  // Use live data when a server is selected, otherwise fall back to catalog
+  const storeNumbers = selectedServer ? liveNumbers : catalog.numbers;
+  const storeAccounts = selectedServer ? liveAccounts : catalog.accounts;
+
   const numbersByCountry = useMemo(() => {
     const map = {};
     storeNumbers.forEach((p) => {
@@ -452,10 +456,6 @@ export default function Dashboard() {
     });
     return Object.values(map);
   }, [storeNumbers]);
-
-  // Use live data when a server is selected, otherwise fall back to catalog
-  const storeNumbers = selectedServer ? liveNumbers : catalog.numbers;
-  const storeAccounts = selectedServer ? liveAccounts : catalog.accounts;
 
   const filteredCountries = useMemo(() => {
     const q = storeSearch.trim().toLowerCase();
