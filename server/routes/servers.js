@@ -12,6 +12,11 @@ const router = Router();
 const NUMBER_MARKUP = Number(process.env.NUMBER_MARKUP) || 1.35;
 const DIGITAL_MARKUP = Number(process.env.DIGITAL_MARKUP) || 1.35;
 
+// In-memory cache for the expensive /prices endpoint.
+// Each server's prices are cached for PRICE_CACHE_TTL_MS (default 10 min).
+const PRICE_CACHE_TTL_MS = Number(process.env.PRICE_CACHE_TTL_MS) || 10 * 60 * 1000;
+const priceCache = new Map(); // key: server id, value: { data, expiresAt }
+
 // Fire-and-forget purchase emails so a slow SMTP never blocks the API response.
 const notify = {
   success: (userId, order) => {
@@ -101,8 +106,15 @@ router.get('/:server/price', asyncRoute(async (req, res) => {
 // GET /api/servers/:server/prices — get prices for all service+country combos on a server
 // This fetches services, countries, then prices in batches. Returns the full catalog
 // for the server with markup applied.
+// Results are cached in memory for PRICE_CACHE_TTL_MS to avoid repeated heavy lookups.
 router.get('/:server/prices', asyncRoute(async (req, res) => {
   const { server } = req.params;
+
+  // Serve from cache when available
+  const cached = priceCache.get(server);
+  if (cached && Date.now() < cached.expiresAt) {
+    return res.json(cached.data);
+  }
 
   // Fetch services and countries in parallel
   const [servicesRes, countriesRes] = await Promise.all([
@@ -157,7 +169,12 @@ router.get('/:server/prices', asyncRoute(async (req, res) => {
     }
   }
 
-  res.json({ status: 'success', server, count: results.length, items: results });
+  const responsePayload = { status: 'success', server, count: results.length, items: results };
+
+  // Store in cache
+  priceCache.set(server, { data: responsePayload, expiresAt: Date.now() + PRICE_CACHE_TTL_MS });
+
+  res.json(responsePayload);
 }));
 
 // ----- Social / digital accounts -----
