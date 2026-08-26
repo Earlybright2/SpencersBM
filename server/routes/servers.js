@@ -4,7 +4,7 @@ import { ogRequest, ogDigitalProducts, ogDigitalBuy, ogDigitalOrder, isOgSuccess
 import { generateReference } from '../utils/flutterwave.js';
 import { findById, debitWallet, addUserOrder, recordSale } from '../utils/store.js';
 import { sendPurchaseSuccessEmail, sendPurchaseFailureEmail, sendRefundEmail } from '../utils/mailer.js';
-import { normalizeDigitalProduct } from '../utils/digital-catalog.js';
+import { normalizeDigitalProduct, getDigitalServers } from '../utils/digital-catalog.js';
 
 const router = Router();
 
@@ -40,11 +40,31 @@ function applyMarkup(cost, markup = NUMBER_MARKUP) {
 
 // ----- Public browsing endpoints (no auth required) -----
 
-// GET /api/servers — list all available OneGridHub servers
+// GET /api/servers — list all available OneGridHub servers (SMS + digital)
 router.get('/', asyncRoute(async (_req, res) => {
-  const data = await ogRequest({ endpoint: 'servers' });
-  if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
-  res.json(data);
+  const [smsRes, digitalServers] = await Promise.allSettled([
+    ogRequest({ endpoint: 'servers' }),
+    getDigitalServers()
+  ]);
+
+  const smsServers = (smsRes.status === 'fulfilled' && isOgSuccess(smsRes.value))
+    ? (smsRes.value.servers || []).map((s) => ({
+        ...s,
+        type: 'sms',
+        label: s.name || s.label || s.id || String(s),
+        id: s.id || String(s)
+      }))
+    : [];
+
+  const digServers = (digitalServers.status === 'fulfilled')
+    ? (digitalServers.value || []).map((s) => ({
+        ...s,
+        type: 'digital',
+        label: s.label || `Server ${s.id}`
+      }))
+    : [];
+
+  res.json({ status: 'success', servers: [...smsServers, ...digServers] });
 }));
 
 // GET /api/servers/:server/services — list services for a server

@@ -97,6 +97,55 @@ const isIncompleteSms = (order) => {
 const isSuccessfulPayment = (p) =>
   !['cancelled', 'expired', 'failed', 'initiated'].includes(String(p.status || '').toLowerCase());
 
+function ServerSelector({ selectedServer, availableServers, onSelect }) {
+  return (
+    <div className="card-border bg-gold/3 rounded-[15px] p-5 md:p-6">
+      <div className="flex items-center gap-3 mb-3">
+        <span className="w-9 h-9 rounded-[9px] bg-gold/10 border border-gold/25 text-gold flex items-center justify-center shrink-0">
+          <Server size={18} strokeWidth={1.9} />
+        </span>
+        <div>
+          <div className="font-medium text-[0.95rem]">Choose a Provider Server</div>
+          <div className="text-faint text-[0.78rem]">Different servers have different services, prices and availability</div>
+        </div>
+      </div>
+      <div className="flex flex-col sm:flex-row gap-3 items-start">
+        <select
+          value={selectedServer}
+          onChange={(e) => onSelect(e.target.value)}
+          className="w-full sm:max-w-[320px] px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all"
+        >
+          <option value="">Browse All (Pre-synced Catalog)</option>
+          {availableServers.some((s) => s.type === 'sms') && (
+            <optgroup label="Virtual Numbers">
+              {availableServers.filter((s) => s.type === 'sms').map((s) => (
+                <option key={s.id} value={s.id}>{s.label || s.name || s.id}</option>
+              ))}
+            </optgroup>
+          )}
+          {availableServers.some((s) => s.type === 'digital') && (
+            <optgroup label="Social Accounts">
+              {availableServers.filter((s) => s.type === 'digital').map((s) => (
+                <option key={s.id} value={s.id}>{s.label || s.name || s.id}{s.products ? ` (${s.products} products)` : ''}</option>
+              ))}
+            </optgroup>
+          )}
+          {availableServers.length > 0 && availableServers.every((s) => !s.type) && (
+            availableServers.map((s) => (
+              <option key={s.id || s} value={s.id || s}>{s.name || s.label || s.id || s}{s.products ? ` (${s.products} products)` : ''}</option>
+            ))
+          )}
+        </select>
+        {selectedServer && (
+          <span className="text-[0.78rem] text-gold bg-gold/10 border border-gold/25 px-3 py-1.5 rounded-full whitespace-nowrap">
+            Live from provider
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -136,12 +185,7 @@ export default function Dashboard() {
   const [loadingServers, setLoadingServers] = useState(false);
   const [loadingLive, setLoadingLive] = useState(false);
 
-  // OneGridHub has been delivering truncated SMS codes (e.g. "447" instead of
-  // "447684") for some services. Show the notice on the overview every time the
-  // user logs in (fresh page load), so customers know to reach out to support
-  // when their code looks incomplete. It is only removed when this code is deleted.
-  const [providerNoticeOpen, setProviderNoticeOpen] = useState(true);
-  const dismissProviderNotice = () => setProviderNoticeOpen(false);
+
 
   const loadWallet = async (silent = false) => {
     try {
@@ -202,15 +246,22 @@ export default function Dashboard() {
     let cancelled = false;
     setLoadingLive(true);
 
+    const serverType = availableServers.find((s) => (s.id || s) === selectedServer)?.type || 'sms';
+
     const fetchLive = async () => {
       try {
-        const [numbersRes, accountsRes] = await Promise.allSettled([
-          api.get(`/servers/${selectedServer}/prices`),
-          api.get(`/servers/${selectedServer}/digital`)
-        ]);
+        const fetches = [];
+        if (serverType === 'sms') {
+          fetches.push(api.get(`/servers/${selectedServer}/prices`).catch(() => null));
+          fetches.push(Promise.resolve(null));
+        } else {
+          fetches.push(Promise.resolve(null));
+          fetches.push(api.get(`/servers/${selectedServer}/digital`).catch(() => null));
+        }
+        const [numbersRes, accountsRes] = await Promise.all(fetches);
         if (cancelled) return;
-        if (numbersRes.status === 'fulfilled') {
-          const items = numbersRes.value.data?.items || [];
+        if (numbersRes?.data?.items) {
+          const items = numbersRes.data.items;
           setLiveNumbers(items.map((p, i) => ({
             id: `live-num-${i}-${p.service}-${p.country}`,
             server: selectedServer,
@@ -223,8 +274,8 @@ export default function Dashboard() {
             live: true
           })));
         }
-        if (accountsRes.status === 'fulfilled') {
-          const prods = accountsRes.value.data?.products || [];
+        if (accountsRes?.data?.products) {
+          const prods = accountsRes.data.products;
           setLiveAccounts(prods.map((p, i) => ({
             id: p.id || `live-acc-${i}`,
             server: selectedServer,
@@ -720,37 +771,11 @@ export default function Dashboard() {
           </div>
 
           {/* Server Selection */}
-          <div className="card-border bg-gold/3 rounded-[15px] p-5 md:p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="w-9 h-9 rounded-[9px] bg-gold/10 border border-gold/25 text-gold flex items-center justify-center shrink-0">
-                <Server size={18} strokeWidth={1.9} />
-              </span>
-              <div>
-                <div className="font-medium text-[0.95rem]">Choose a Provider Server</div>
-                <div className="text-faint text-[0.78rem]">Different servers have different services, prices and availability</div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 items-start">
-              <select
-                value={selectedServer}
-                onChange={(e) => {
-                  setSelectedServer(e.target.value);
-                  setStoreSearch('');
-                }}
-                className="w-full sm:max-w-[320px] px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all"
-              >
-                <option value="">Browse All (Pre-synced Catalog)</option>
-                {availableServers.map((s) => (
-                  <option key={s.id || s} value={s.id || s}>{s.name || s.label || s.id || s} {s.products ? `(${s.products} products)` : ''}</option>
-                ))}
-              </select>
-              {selectedServer && (
-                <span className="text-[0.78rem] text-gold bg-gold/10 border border-gold/25 px-3 py-1.5 rounded-full whitespace-nowrap">
-                  Live from provider
-                </span>
-              )}
-            </div>
-          </div>
+          <ServerSelector
+            selectedServer={selectedServer}
+            availableServers={availableServers}
+            onSelect={(val) => { setSelectedServer(val); setStoreSearch(''); }}
+          />
 
           {loadingLive && (
             <div className="flex items-center justify-center gap-3 py-8 text-[0.9rem] text-muted">
@@ -867,6 +892,11 @@ export default function Dashboard() {
               Your purchased numbers and their SMS codes appear under <span className="text-gold font-medium">&quot;Your Numbers&quot;</span> below. Social media account credentials are saved under <span className="text-gold font-medium">&quot;Paid Accounts&quot;</span> in the dashboard sidebar.
             </p>
           </div>
+          <ServerSelector
+            selectedServer={selectedServer}
+            availableServers={availableServers}
+            onSelect={(val) => { setSelectedServer(val); setNumbersSearch(''); }}
+          />
           <PanelCard
             title="Buy a Virtual Number"
             actions={
@@ -1012,6 +1042,11 @@ export default function Dashboard() {
               <span className="text-gold font-medium">&quot;Paid Accounts&quot;</span> in the dashboard sidebar.
             </p>
           </div>
+          <ServerSelector
+            selectedServer={selectedServer}
+            availableServers={availableServers}
+            onSelect={(val) => { setSelectedServer(val); }}
+          />
           <PanelCard title="Social Media Accounts">
             {storeAccounts.length === 0 ? (
               <p className="text-faint text-[0.95rem] py-6 text-center">
@@ -1289,44 +1324,6 @@ export default function Dashboard() {
         </PanelCard>
       )}
 
-      <Modal
-        open={tab === 'overview' && providerNoticeOpen}
-        onClose={dismissProviderNotice}
-        title="Virtual Numbers Notice"
-        maxWidth="max-w-[520px]"
-      >
-        <div className="rounded-[12px] border border-[#e0645a]/30 bg-[#e0645a]/10 px-4 py-3 mb-5 flex items-start gap-2.5">
-          <AlertTriangle size={17} strokeWidth={1.9} className="text-[#ff8a80] shrink-0 mt-0.5" />
-          <p className="text-[0.9rem] text-[#ff8a80] leading-relaxed">
-            SpencerSBM provider for virtual numbers is currently experiencing issues. If the OTP sent to you is not
-            complete, kindly contact us on WhatsApp or Telegram.
-          </p>
-        </div>
-        <div className="flex flex-col gap-3">
-          <a
-            href={`https://wa.me/2349138187814?text=${encodeURIComponent("Hey SpencerSBM, the OTP I received for my virtual number is incomplete. Please help.")}`}
-            target="_blank"
-            rel="noreferrer"
-            className="btn-gold w-full py-3.5 text-[0.9rem] flex items-center justify-center gap-2"
-          >
-            <MessageCircle size={18} strokeWidth={1.9} /> Chat on WhatsApp
-          </a>
-          <a
-            href="https://t.me/spencersbm"
-            target="_blank"
-            rel="noreferrer"
-            className="btn-ghost w-full py-3.5 text-[0.9rem] flex items-center justify-center gap-2"
-          >
-            <TelegramIcon size={18} /> Telegram
-          </a>
-          <button
-            onClick={dismissProviderNotice}
-            className="w-full py-3 rounded-[50px] font-semibold text-[0.9rem] bg-transparent text-muted border border-softline hover:border-softline hover:text-body"
-          >
-            Dismiss
-          </button>
-        </div>
-      </Modal>
 
       <SuccessModal
         open={successOpen}
