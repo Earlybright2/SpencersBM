@@ -785,7 +785,7 @@ router.get('/status', asyncRoute(async (req, res) => {
   const { order_ref } = req.query;
   if (!order_ref) return res.status(400).json({ message: 'order_ref is required' });
 
-  const data = await ogRequest({ endpoint: 'status', order_ref });
+  const data = await ogRequest({ endpoint: 'status', order_ref }, { timeoutMs: 8000, retries: 1 });
   if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
   console.log('[DEBUG] OneGridHub status response:', JSON.stringify(data));
 
@@ -808,10 +808,36 @@ router.get('/status', asyncRoute(async (req, res) => {
     });
   } else if (data.state && !['pending', 'active', 'waiting', 'rented'].includes(String(data.state).toLowerCase())) {
     // The provider has closed the number without delivering a code.
+    const orders = await getUserOrders(req.user.id);
+    const existingOrder = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
+    const alreadyRefunded = existingOrder?.status === 'cancelled' || existingOrder?.status === 'expired';
+
     await updateUserOrder(req.user.id, order_ref, {
       status: 'expired',
-      lastCheckedAt: new Date().toISOString()
+      lastCheckedAt: new Date().toISOString(),
+      expiredAt: new Date().toISOString()
     });
+
+    // Auto-refund if the user hasn't already been refunded for this order.
+    let refundResult = null;
+    if (!alreadyRefunded && existingOrder?.price) {
+      refundResult = await creditWallet(req.user.id, {
+        amount: Number(existingOrder.price) || 0,
+        reference: `refund-${order_ref}`,
+        meta: { type: 'refund', orderRef: order_ref, service: existingOrder.service || existingOrder.platform, reason: 'Provider cancelled without delivering SMS — auto-refund' }
+      });
+      notify.refund(req.user.id, { ...existingOrder, status: 'expired' }, refundResult?.balance);
+    }
+
+    res.json({
+      ...data,
+      _providerState: data.state,
+      _expired: true,
+      _refunded: !alreadyRefunded && refundResult?.ok,
+      _refundBalance: refundResult?.balance || null,
+      message: 'This number went dead — the provider cancelled it without delivering an SMS code. You have been automatically refunded.'
+    });
+    return;
   }
   res.json(data);
 }));

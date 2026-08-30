@@ -401,7 +401,7 @@ export default function Dashboard() {
     setBusy(`buy-${product.id}`);
     try {
       let res;
-      if (product.live || product.server) {
+      if (product.live) {
         // Live provider purchase — use the server-scoped endpoint
         res = await api.post('/servers/buy-number', {
           server: product.server,
@@ -410,7 +410,7 @@ export default function Dashboard() {
           quantity
         });
       } else {
-        // Pre-synced catalog purchase
+        // Pre-synced catalog purchase — use the stored catalog price
         res = await api.post('/orders/numbers', { productId: product.id, quantity });
       }
       setLastPurchase(res.data.orders || [res.data.order]);
@@ -430,7 +430,7 @@ export default function Dashboard() {
     setBusy(`buy-${product.id}`);
     try {
       let res;
-      if (product.live || product.server) {
+      if (product.live) {
         // Live provider purchase
         res = await api.post('/servers/buy-digital', {
           server: product.server,
@@ -438,7 +438,7 @@ export default function Dashboard() {
           quantity
         });
       } else {
-        // Pre-synced catalog purchase
+        // Pre-synced catalog purchase — use the stored catalog price
         res = await api.post('/orders/accounts', { productId: product.id, quantity });
       }
       const orders = res.data.orders || [res.data.order];
@@ -490,6 +490,18 @@ export default function Dashboard() {
     try {
       const res = await api.get('/orders/status', { params: { order_ref: orderRef } });
       loadOrders(true);
+
+      // Provider killed the number — auto-refunded by backend.
+      if (res.data?._expired) {
+        loadWallet(true);
+        if (res.data?._refunded) {
+          setSmsNote({ ref: orderRef, message: res.data?.message || 'This number went dead. The provider cancelled it without delivering an SMS code. You have been automatically refunded.' });
+        } else {
+          setSmsNote({ ref: orderRef, message: 'This number went dead — the provider cancelled it without delivering an SMS code.' });
+        }
+        return;
+      }
+
       const hasCode = Boolean(res.data?.otp || res.data?.sms || res.data?.code || res.data?.sms_code);
       if (hasCode) {
         const raw = res.data?.otp || res.data?.sms || res.data?.code || res.data?.sms_code;
@@ -512,7 +524,9 @@ export default function Dashboard() {
     setError('');
     setCheckingSms(orderRef);
     try {
-      await api.get('/orders/status', { params: { order_ref: orderRef } });
+      const statusRes = await api.get('/orders/status', { params: { order_ref: orderRef } });
+      // If provider killed the number, refresh wallet for the auto-refund.
+      if (statusRes.data?._expired) loadWallet(true);
       const res = await api.get('/orders');
       const fresh = res.data.orders?.find((o) => o.order_ref === orderRef || o.id === orderRef);
       if (fresh) setLastPurchase(fresh);
@@ -1038,6 +1052,14 @@ export default function Dashboard() {
                     )}
                     <Row label="Amount" value={fmtNgn(order.price)} />
                     {order.sms && <Row label="SMS Code" value={order.sms} mono />}
+                    {order.status === 'expired' && (
+                      <div className="mt-3 rounded-[10px] border border-[#e0645a]/30 bg-[#e0645a]/10 px-4 py-3 text-[0.82rem] text-[#ff8a80] flex items-start gap-2">
+                        <AlertTriangle size={15} strokeWidth={1.9} className="shrink-0 mt-0.5" />
+                        <span>
+                          This number went dead — the provider cancelled it without delivering an SMS code. Your refund has been processed automatically.
+                        </span>
+                      </div>
+                    )}
                     {isIncompleteSms(order) && (
                       <div className="mt-3 rounded-[10px] border border-[#e0645a]/30 bg-[#e0645a]/10 px-4 py-3 text-[0.82rem] text-[#ff8a80] flex items-start gap-2">
                         <AlertTriangle size={15} strokeWidth={1.9} className="shrink-0 mt-0.5" />
