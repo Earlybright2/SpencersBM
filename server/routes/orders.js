@@ -202,8 +202,11 @@ router.post('/numbers', asyncRoute(async (req, res) => {
   const orders = providerResults.map((providerData) => ({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     type: 'virtual_number',
-    order_ref: providerData.order_ref || providerData.order_id || providerData.ref || providerData.order || purchaseRef,
-    number: providerData.number || providerData.phone || providerData.phone_number || providerData.numberid || '',
+    order_ref: providerData.order_ref || providerData.order_id || providerData.orderid || providerData.orderId || providerData.id || providerData.ref || providerData.order ||
+               providerData.data?.order_ref || providerData.data?.order_id || providerData.data?.orderid || providerData.data?.orderId || providerData.data?.id || providerData.data?.ref || providerData.data?.order ||
+               purchaseRef,
+    number: providerData.number || providerData.phone || providerData.phone_number || providerData.numberid ||
+            providerData.data?.number || providerData.data?.phone || providerData.data?.phone_number || providerData.data?.numberid || '',
     server: product.server,
     country_id: product.country,
     country: product.countryName || product.country,
@@ -789,7 +792,8 @@ router.get('/status', asyncRoute(async (req, res) => {
   if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
   console.log('[DEBUG] OneGridHub status response:', JSON.stringify(data));
 
-  const smsCode = data.sms || data.code || data.otp || data.sms_code || null;
+  const smsCode = data.sms || data.code || data.otp || data.sms_code || 
+                  data.data?.sms || data.data?.code || data.data?.otp || data.data?.sms_code || null;
   if (smsCode) {
     const code = String(smsCode);
     const orders = await getUserOrders(req.user.id);
