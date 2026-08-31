@@ -13,6 +13,19 @@ import { getUsers, ensureAdmin } from './utils/store.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Global request timeout — kill requests that exceed Render's 30s proxy limit
+// before the proxy itself closes the connection (which causes ERR_CONNECTION_CLOSED).
+const REQUEST_TIMEOUT_MS = 25_000;
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') return next(); // skip preflight
+  req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    if (!res.headersSent) {
+      res.status(504).json({ status: 'error', message: 'Request timed out. Please try again.' });
+    }
+  });
+  next();
+});
+
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
 app.use(
   express.json({

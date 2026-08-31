@@ -20,7 +20,10 @@ const isLocal = /localhost|127\.0\.0\.1|::1/.test(url.hostname);
 
 export const pool = new Pool({
   connectionString,
-  ssl: hasSslParam ? undefined : isLocal ? undefined : { rejectUnauthorized: false }
+  ssl: hasSslParam ? undefined : isLocal ? undefined : { rejectUnauthorized: false },
+  connectionTimeoutMillis: 10000,
+  query_timeout: 15000,
+  idle_in_transaction_session_timeout: 15000
 });
 
 pool.on('error', (err) => {

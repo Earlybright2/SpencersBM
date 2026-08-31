@@ -1,5 +1,5 @@
-const CONNECT_TIMEOUT_MS = 12000;
-const RETRIES = 2;
+const CONNECT_TIMEOUT_MS = 10000;
+const RETRIES = 1;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -51,7 +51,7 @@ export async function ogRequest(params = {}, { timeoutMs = CONNECT_TIMEOUT_MS, r
       }
     } catch (err) {
       lastError = err;
-      if (attempt < RETRIES) {
+      if (attempt < retries) {
         await sleep(700 * (attempt + 1));
       }
     }
