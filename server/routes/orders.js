@@ -810,10 +810,47 @@ router.get('/status', asyncRoute(async (req, res) => {
       sms: stored,
       lastCheckedAt: new Date().toISOString()
     });
+
+    // If the code is truncated AND the provider has closed the order (e.g.
+    // state "completed" with a partial otp), no full code will ever arrive.
+    // Auto-refund instead of leaving the user stuck in pending forever.
+    const providerClosed = data.state && !['pending', 'active', 'waiting', 'rented'].includes(String(data.state).toLowerCase());
+    if (providerClosed && !isPlausibleOtp(stored) && existing?.price) {
+      const alreadyRefunded = existing.status === 'cancelled' || existing.status === 'expired';
+      if (!alreadyRefunded) {
+        const refundResult = await creditWallet(req.user.id, {
+          amount: Number(existing.price) || 0,
+          reference: `refund-${order_ref}`,
+          meta: { type: 'refund', orderRef: order_ref, service: existing.service || existing.platform, reason: 'Provider delivered an incomplete SMS code — auto-refund' }
+        });
+        await updateUserOrder(req.user.id, order_ref, {
+          status: 'expired',
+          expiredAt: new Date().toISOString()
+        });
+        notify.refund(req.user.id, { ...existing, status: 'expired', sms: stored }, refundResult?.balance);
+        return res.json({
+          ...data,
+          _providerState: data.state,
+          _expired: true,
+          _refunded: refundResult?.ok,
+          _refundBalance: refundResult?.balance || null,
+          _incompleteCode: stored,
+          message: 'The provider returned an incomplete SMS code that can never be completed. You have been automatically refunded.'
+        });
+      }
+    }
   } else if (data.state && !['pending', 'active', 'waiting', 'rented'].includes(String(data.state).toLowerCase())) {
-    // The provider has closed the number without delivering a code.
+    // The provider has closed the number without delivering a code ('completed'
+    // with no otp, 'cancelled', 'expired', ...).
     const orders = await getUserOrders(req.user.id);
     const existingOrder = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
+
+    // If the user already has a usable code, don't touch the order — providers
+    // move finished orders to 'cancelled'/'expired' in their normal lifecycle.
+    if (existingOrder?.status === 'received' && isPlausibleOtp(existingOrder.sms)) {
+      return res.json(data);
+    }
+
     const alreadyRefunded = existingOrder?.status === 'cancelled' || existingOrder?.status === 'expired';
 
     await updateUserOrder(req.user.id, order_ref, {
