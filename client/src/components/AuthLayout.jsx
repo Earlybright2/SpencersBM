@@ -1,73 +1,99 @@
 import { Link } from 'react-router-dom';
-import { Zap, ShieldCheck, Globe, Headphones, Star } from 'lucide-react';
+import { ShoppingBag, ShieldCheck, Zap, Headphones, CheckCircle2 } from 'lucide-react';
 
-const benefits = [
-  { icon: Zap, text: 'Instant delivery of numbers & accounts' },
-  { icon: ShieldCheck, text: 'Secure, encrypted transactions' },
-  { icon: Globe, text: 'Global coverage in 12+ countries' },
-  { icon: Headphones, text: '24/7 human support' }
+const features = [
+  {
+    title: 'Marketplace & Services',
+    desc: 'Use digital accounts plus focused eSIM, virtual numbers, growth, and proxy service areas.'
+  },
+  {
+    title: 'Clear Service Flows',
+    desc: 'Each service keeps its selection, delivery, order, and support details together.'
+  },
+  {
+    title: 'One SpencerSBM Account',
+    desc: 'Manage eligible purchases, orders, reseller tools, and affiliate activity in one place.'
+  },
+  {
+    title: 'Direct Next Steps',
+    desc: 'Your dashboard is designed to show where to go and what happens next.'
+  }
 ];
 
 export default function AuthLayout({ title, subtitle, children }) {
   return (
-    <div className="min-h-screen flex bg-page relative overflow-hidden">
-      {/* Ambient background glows */}
-      <div className="absolute top-[-10%] left-[-5%] w-[45%] h-[45%] bg-gold/10 rounded-full blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-5%] w-[45%] h-[45%] bg-gold-dark/10 rounded-full blur-[130px] pointer-events-none" />
+    <div className="min-h-screen flex flex-col lg:flex-row bg-[#FFFFFF] text-[#1A1A1A]">
+      
+      {/* Left Info Panel - Radiant Gold Aesthetic */}
+      <div className="lg:w-[45%] bg-gradient-to-br from-[#FFFdf5] via-[#FFF5C3] to-[#FFE785] text-[#1A1A1A] p-8 md:p-14 lg:p-16 flex flex-col justify-between relative overflow-hidden shrink-0 border-r border-[#F0E6C2]">
+        {/* Subtle Decorative Glow */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#FFD700]/30 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-white/40 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Left branding panel (desktop) */}
-      <aside className="hidden lg:flex flex-col justify-between w-[44%] shrink-0 p-12 xl:p-16 relative border-r border-gold/10 bg-gradient-to-br from-surface1 to-page overflow-hidden">
-        <Link to="/" className="gold-text font-syne text-3xl font-bold tracking-[-1.5px] hover:scale-105 transition-transform inline-block w-fit">
-          SpencerSBM
-        </Link>
-
-        <div>
-          <h2 className="font-syne text-[2.4rem] xl:text-[2.9rem] leading-[1.15] mb-4">
-            Your trusted marketplace for{' '}
-            <span className="gold-gradient-text">virtual numbers &amp; digital accounts</span>
-          </h2>
-          <p className="text-muted text-[1.02rem] font-light mb-10 max-w-[440px]">
-            Buy verification numbers and premium social accounts securely, with instant delivery to your inbox.
-          </p>
-          <ul className="space-y-4">
-            {benefits.map((b) => (
-              <li key={b.text} className="flex items-center gap-3 text-[0.95rem] text-body/80">
-                <span className="w-9 h-9 shrink-0 rounded-[10px] bg-gold/10 border border-gold/20 flex items-center justify-center text-gold">
-                  <b.icon size={17} strokeWidth={1.9} />
-                </span>
-                {b.text}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="flex items-center gap-2 text-[0.85rem] text-faint">
-          <div className="flex gap-0.5 text-gold">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <Star key={i} size={15} className="fill-gold" strokeWidth={1.5} />
-            ))}
-          </div>
-          Trusted by 2,000+ users worldwide
-        </div>
-      </aside>
-
-      {/* Right form panel */}
-      <main className="flex-1 flex items-center justify-center px-4 py-16 relative">
-        <div className="w-full max-w-[440px] relative z-10 animate-fade-in-up">
-          <Link
-            to="/"
-            className="lg:hidden gold-text font-syne text-[2rem] font-bold tracking-[-1.5px] block text-center mb-10 hover:scale-105 transition-transform"
-          >
-            SpencerSBM
+        <div className="relative z-10">
+          {/* Logo */}
+          <Link to="/" className="inline-flex items-center gap-3 font-syne text-2xl font-bold tracking-tight text-[#1A1A1A] mb-16">
+            <div className="w-9 h-9 rounded-xl bg-[#1A1A1A] flex items-center justify-center text-[#FFD700] font-black text-lg shadow-md">
+              S
+            </div>
+            <span>SpencerSBM</span>
           </Link>
-          <h1 className="font-syne text-3xl md:text-[2.2rem] text-body text-center">{title}</h1>
-          {subtitle && <p className="text-muted text-[1rem] mt-3 font-light text-center">{subtitle}</p>}
 
-          <div className="bg-surface1/85 border border-gold/20 rounded-[24px] p-7 md:p-9 mt-8 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-            {children}
+          {/* Heading */}
+          <h2 className="font-syne text-[2.2rem] md:text-[2.8rem] font-bold leading-[1.15] mb-4 text-[#1A1A1A]">
+            Your access to digital <br />
+            <span className="text-[#9E7B00]">accounts and services</span> starts here
+          </h2>
+          <p className="text-[#555555] text-[1rem] md:text-[1.05rem] font-medium leading-relaxed mb-12 max-w-[480px]">
+            Create your account first, then explore instant virtual numbers and high-quality social media accounts.
+          </p>
+
+          {/* Feature List */}
+          <div className="space-y-6">
+            {features.map((f, i) => (
+              <div key={i} className="flex items-start gap-4">
+                <div className="w-8 h-8 rounded-full bg-white border border-[#F0E6C2] shadow-sm flex items-center justify-center text-[#9E7B00] shrink-0 mt-0.5">
+                  <CheckCircle2 size={18} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h4 className="text-[#1A1A1A] font-bold text-[0.98rem] mb-1">{f.title}</h4>
+                  <p className="text-[#666666] text-sm leading-relaxed max-w-[420px] font-medium">{f.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </main>
+
+        {/* Footer info */}
+        <div className="relative z-10 mt-16 pt-8 border-t border-[#D4AF37]/20 flex items-center justify-between text-xs text-[#555555] font-semibold">
+          <span>&copy; {new Date().getFullYear()} SpencerSBM Inc.</span>
+          <span className="flex items-center gap-1.5 text-[#9E7B00]">
+            <ShieldCheck size={16} /> 256-bit SSL Encryption
+          </span>
+        </div>
+      </div>
+
+      {/* Right Form Container Panel */}
+      <div className="flex-1 flex items-center justify-center p-6 md:p-12 lg:p-16 bg-[#FFFFFF]">
+        <div className="w-full max-w-[440px]">
+          
+          <div className="mb-10 text-left">
+            <h1 className="font-syne text-3xl md:text-[2.5rem] font-bold text-[#1A1A1A] tracking-tight mb-3">
+              {title}
+            </h1>
+            {subtitle && (
+              <p className="text-[#666666] text-base leading-relaxed font-medium">
+                {subtitle}
+              </p>
+            )}
+          </div>
+
+          {/* Removed the container wrapper around children as requested */}
+          {children}
+
+        </div>
+      </div>
+
     </div>
   );
 }

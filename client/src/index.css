@@ -50,8 +50,30 @@
   --color-overlay: var(--tw-overlay);
 }
 
-/* Default = dark mode */
+/* Default = light mode (breathtaking aesthetic) */
 :root {
+  color-scheme: light;
+  --tw-page: #f8f9fa;
+  --tw-body: #111111;
+  --tw-muted: #6b7280;
+  --tw-faint: #9ca3af;
+  --tw-subtle: #d1d5db;
+  --tw-goldstart: #000000;
+  --tw-surface1: #ffffff;
+  --tw-surface2: #f3f4f6;
+  --tw-input: #ffffff;
+  --tw-card: #ffffff;
+  --tw-field: #f9fafb;
+  --tw-soft: rgba(0, 0, 0, 0.03);
+  --tw-hover: rgba(0, 0, 0, 0.05);
+  --tw-softline: rgba(0, 0, 0, 0.08);
+  --tw-overlay: rgba(255, 255, 255, 0.8);
+  --tw-sidebar: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+  --tw-wallet: linear-gradient(135deg, rgba(255, 215, 0, 0.15) 0%, #ffffff 45%, #f9fafb 100%);
+}
+
+/* Dark mode overrides (for later) */
+html.dark {
   color-scheme: dark;
   --tw-page: #0a0a0a;
   --tw-body: #ffffff;
@@ -62,7 +84,7 @@
   --tw-surface1: #111111;
   --tw-surface2: #141414;
   --tw-input: #0d0d0d;
-  --tw-card: rgba(10, 10, 10, 0.4);
+  --tw-card: rgba(15, 15, 15, 0.8);
   --tw-field: rgba(10, 10, 10, 0.5);
   --tw-soft: rgba(255, 255, 255, 0.03);
   --tw-hover: rgba(255, 255, 255, 0.06);
@@ -70,28 +92,6 @@
   --tw-overlay: rgba(0, 0, 0, 0.7);
   --tw-sidebar: linear-gradient(180deg, #111111 0%, #0a0a0a 100%);
   --tw-wallet: linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, rgba(20, 20, 20, 0.95) 45%, #0c0c0c 100%);
-}
-
-/* Light mode overrides */
-html.light {
-  color-scheme: light;
-  --tw-page: #f6f5f0;
-  --tw-body: #16130a;
-  --tw-muted: #6b6350;
-  --tw-faint: #8d8676;
-  --tw-subtle: #96907f;
-  --tw-goldstart: #0d0a02;
-  --tw-surface1: #ffffff;
-  --tw-surface2: #efede6;
-  --tw-input: #ffffff;
-  --tw-card: rgba(255, 255, 255, 0.8);
-  --tw-field: #f2f0e9;
-  --tw-soft: rgba(22, 19, 10, 0.045);
-  --tw-hover: rgba(22, 19, 10, 0.07);
-  --tw-softline: rgba(22, 19, 10, 0.12);
-  --tw-overlay: rgba(22, 18, 8, 0.55);
-  --tw-sidebar: linear-gradient(180deg, #ffffff 0%, #f1efe8 100%);
-  --tw-wallet: linear-gradient(135deg, rgba(212, 175, 55, 0.16) 0%, #fdfcf8 45%, #f6f4ec 100%);
 }
 
 html {
@@ -193,43 +193,42 @@ textarea {
 }
 
 .gold-text {
-  background: linear-gradient(135deg, var(--tw-goldstart) 0%, var(--color-gold) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--tw-goldstart);
 }
 
 .gold-gradient-text {
-  background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-light) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--tw-goldstart);
 }
 
 .btn-gold {
-  background: linear-gradient(135deg, var(--color-gold) 0%, var(--color-gold-dark) 100%);
-  color: #0a0a0a;
+  background: var(--color-gold);
+  color: #000000;
   border-radius: 50px;
   font-weight: 600;
+  transition: all 0.3s ease;
 }
 
 .btn-ghost {
-  background: rgba(212, 175, 55, 0.1);
-  color: var(--color-gold);
-  border: 1.5px solid var(--color-gold);
+  background: transparent;
+  color: var(--tw-body);
+  border: 1.5px solid var(--tw-subtle);
   border-radius: 50px;
   font-weight: 600;
   backdrop-filter: blur(10px);
 }
 
 .btn-ghost:hover {
-  background: rgba(212, 175, 55, 0.2);
+  background: var(--tw-surface2);
+  border-color: var(--tw-body);
   transform: translateY(-3px);
-  box-shadow: 0 15px 40px rgba(212, 175, 55, 0.2);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.05);
 }
 
 .card-border {
-  border: 1px solid rgba(212, 175, 55, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.03);
+  background: var(--tw-card);
+  border-radius: 24px;
 }
 
 /* Complex fixed-surface panels that need a full gradient swap between themes. */

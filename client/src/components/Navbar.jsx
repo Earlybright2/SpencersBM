@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { ChevronDown, Smartphone, UserRound, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -20,6 +20,15 @@ export default function Navbar() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Signed-in users land on their dashboard; guests go to the register page.
   const target = user ? (user.role === 'admin' ? '/admin' : '/dashboard') : '/register';
@@ -42,9 +51,9 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-1000 bg-page/95 backdrop-blur-[10px] border-b border-gold/10 px-4 md:px-8 py-4">
+    <header className={`sticky top-0 z-[1000] transition-all duration-300 px-4 md:px-8 py-4 ${scrolled ? 'bg-surface1/90 backdrop-blur-[15px] border-b border-subtle/30 shadow-sm' : 'bg-transparent border-transparent'}`}>
       <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-        <Link to="/" className="gold-text font-syne text-2xl md:text-[1.8rem] font-bold tracking-[-1px]">
+        <Link to="/" className="text-body font-syne text-2xl md:text-[1.8rem] font-bold tracking-[-1px]">
           SpencerSBM
         </Link>
 

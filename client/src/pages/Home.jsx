@@ -16,39 +16,94 @@ export default function Home() {
   return (
     <div>
       {/* ====== HERO ====== */}
-      <section id="home" className="max-w-[1400px] mx-auto px-4 md:px-8 pt-24 pb-16 md:py-24 text-center min-h-[80vh] flex flex-col justify-center items-center">
-        <h1 className="font-syne text-[2rem] md:text-6xl leading-tight mb-6 animate-fade-in-up">
-          Your Trusted Marketplace For{' '}
-          <span className="gold-gradient-text">Virtual Numbers &amp; Digital Accounts</span>
-        </h1>
-        <p className="text-muted text-[1.05rem] md:text-[1.3rem] font-light mb-12 max-w-[700px] animate-fade-in-up">
-          Buy virtual phone numbers and premium social media accounts securely with instant delivery.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-6 justify-center flex-wrap items-center animate-fade-in-up w-full sm:w-auto">
-          {user ? (
-            <button
-              onClick={() => navigate(user.role === 'admin' ? '/admin' : '/dashboard')}
-              className="btn-gold px-10 py-4 text-base font-semibold flex items-center justify-center gap-2.5 w-full sm:w-auto max-w-[300px] hover:-translate-y-[3px] hover:shadow-[0_15px_40px_rgba(212,175,55,0.45)]"
-            >
-              <LayoutDashboard size={20} strokeWidth={2} />
-              Enter Dashboard
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={() => go()}
-                className="btn-gold px-10 py-4 text-base w-full sm:w-auto max-w-[300px] hover:-translate-y-[3px] hover:shadow-[0_15px_40px_rgba(212,175,55,0.4)]"
-              >
-                Buy Virtual Numbers
-              </button>
-              <button
-                onClick={() => go()}
-                className="btn-ghost px-10 py-4 text-base w-full sm:w-auto max-w-[300px]"
-              >
-                Buy Social Media Accounts
-              </button>
-            </>
-          )}
+      <section id="home" className="max-w-[1400px] mx-auto px-4 md:px-8 pt-8 pb-16">
+        <div className="bg-[#FFFDF5] border border-[#F5E6A3] rounded-[36px] p-8 md:p-14 lg:p-16 relative overflow-hidden shadow-[0_10px_40px_rgba(212,175,55,0.08)]">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            
+            {/* Left Content Column */}
+            <div className="lg:col-span-6 z-10 text-left">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FFF5C3] border border-[#FFE785] text-[#9E7B00] text-xs font-bold uppercase tracking-wider mb-6">
+                <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse"></span> Virtual Numbers &amp; Accounts
+              </div>
+
+              <h1 className="font-syne text-[2.8rem] md:text-[4.2rem] leading-[1.08] mb-6 text-[#1A1A1A] font-bold tracking-tight">
+                Build Reach. <br />
+                <span className="text-[#D4AF37]">Boost Growth.</span>
+              </h1>
+
+              <p className="text-[#555555] text-[1.1rem] md:text-[1.2rem] font-normal leading-relaxed mb-10 max-w-[500px]">
+                Personalized virtual numbers, real-time OTP delivery, and authentic social accounts — all in one trusted platform.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4 mb-12">
+                {user ? (
+                  <button
+                    onClick={() => navigate(user.role === 'admin' ? '/admin' : '/dashboard')}
+                    className="btn-gold px-8 py-4 text-base font-semibold flex items-center justify-center gap-2.5 rounded-full shadow-lg hover:shadow-xl transition-all"
+                  >
+                    <LayoutDashboard size={20} strokeWidth={2} />
+                    Enter Dashboard
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => go()}
+                      className="btn-gold px-8 py-4 text-base font-semibold rounded-full flex items-center justify-center gap-2 hover:scale-[1.02] transition-all"
+                    >
+                      Explore Programs &rarr;
+                    </button>
+                    <button
+                      onClick={() => go()}
+                      className="bg-white border border-[#E5E7EB] text-[#1A1A1A] px-8 py-4 text-base font-semibold rounded-full hover:bg-gray-50 flex items-center justify-center gap-2 transition-all shadow-sm"
+                    >
+                      Browse Accounts &#9654;
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Trust badges */}
+              <div className="pt-6 border-t border-[#F0E6C2]/60">
+                <p className="text-xs uppercase tracking-widest text-[#888888] font-bold mb-4">Trusted by 15,000+ users worldwide</p>
+                <div className="flex flex-wrap items-center gap-6 opacity-70">
+                  <span className="font-bold text-base text-[#444]">WhatsApp</span>
+                  <span className="font-bold text-base text-[#444]">Telegram</span>
+                  <span className="font-bold text-base text-[#444]">Facebook</span>
+                  <span className="font-bold text-base text-[#444]">Instagram</span>
+                  <span className="font-bold text-base text-[#444]">TikTok</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Media Column */}
+            <div className="lg:col-span-6 relative flex justify-center items-center min-h-[380px] md:min-h-[480px]">
+              {/* Decorative Background Shapes */}
+              <div className="absolute w-[280px] h-[280px] sm:w-[380px] sm:h-[380px] rounded-full bg-[#FFE785]/60 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 blur-2xl pointer-events-none" />
+              <div className="absolute w-[260px] h-[260px] sm:w-[360px] sm:h-[360px] rounded-full bg-[#FFD700]/30 -top-6 right-4 pointer-events-none" />
+              <div className="absolute w-[180px] h-[180px] rounded-full border-[18px] border-[#FFE785]/40 bottom-4 left-6 pointer-events-none" />
+
+              {/* Product Phone Image */}
+              <div className="relative z-10 max-w-[320px] sm:max-w-[400px] md:max-w-[440px] drop-shadow-[0_20px_35px_rgba(0,0,0,0.15)] hover:scale-[1.02] transition-transform duration-500">
+                <img
+                  src="/phone.png"
+                  alt="SpencerSBM Mobile Platform Preview"
+                  className="w-full h-auto object-contain mx-auto"
+                />
+              </div>
+
+              {/* Floating Widget Card */}
+              <div className="absolute bottom-6 right-2 sm:right-6 z-20 bg-white/90 backdrop-blur-md border border-[#F0E6C2] rounded-2xl p-4 shadow-xl flex items-center gap-3.5 animate-bounce-slow">
+                <div className="w-12 h-12 rounded-xl bg-[#FFF5C3] text-[#D4AF37] flex items-center justify-center font-bold text-xl">
+                  ⚡
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-[#777]">Instant Delivery</div>
+                  <div className="text-sm font-bold text-[#1A1A1A]">99.8% Success Rate</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
       </section>
 
@@ -63,13 +118,13 @@ export default function Home() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') go();
             }}
-            className="card-border relative overflow-hidden rounded-[15px] p-12 md:p-14 bg-gradient-to-br from-gold/5 to-gold/2 backdrop-blur-[10px] transition-all duration-[0.4s] hover:-translate-y-[10px] hover:border-gold/30 hover:shadow-[0_20px_60px_rgba(212,175,55,0.15)] animate-fade-in-up cursor-pointer"
+            className="card-border relative overflow-hidden p-10 md:p-14 transition-all duration-[0.4s] hover:-translate-y-[10px] animate-fade-in-up cursor-pointer flex flex-col items-start text-left"
           >
-            <span className="w-16 h-16 flex items-center justify-center rounded-[14px] bg-gold/10 border border-gold/25 text-gold mb-6">
-              <Smartphone size={34} strokeWidth={1.6} />
+            <span className="w-16 h-16 flex items-center justify-center rounded-[18px] bg-[rgba(255,215,0,0.15)] text-[#d4af37] mb-8">
+              <Smartphone size={34} strokeWidth={2} />
             </span>
-            <h3 className="text-3xl mb-4">Virtual Numbers</h3>
-            <p className="text-muted text-[1.05rem] mb-8">
+            <h3 className="text-3xl mb-4 font-syne font-bold text-body">Virtual Numbers</h3>
+            <p className="text-muted text-[1.05rem] mb-10 leading-relaxed">
               Get instant access to virtual phone numbers from multiple countries. Perfect for verification, business communications, and global operations.
             </p>
             <button
@@ -88,13 +143,13 @@ export default function Home() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') go();
             }}
-            className="card-border relative overflow-hidden rounded-[15px] p-12 md:p-14 bg-gradient-to-br from-gold/5 to-gold/2 backdrop-blur-[10px] transition-all duration-[0.4s] hover:-translate-y-[10px] hover:border-gold/30 hover:shadow-[0_20px_60px_rgba(212,175,55,0.15)] animate-fade-in-up cursor-pointer"
+            className="card-border relative overflow-hidden p-10 md:p-14 transition-all duration-[0.4s] hover:-translate-y-[10px] animate-fade-in-up cursor-pointer flex flex-col items-start text-left"
           >
-            <span className="w-16 h-16 flex items-center justify-center rounded-[14px] bg-gold/10 border border-gold/25 text-gold mb-6">
-              <UserRound size={34} strokeWidth={1.6} />
+            <span className="w-16 h-16 flex items-center justify-center rounded-[18px] bg-[rgba(255,215,0,0.15)] text-[#d4af37] mb-8">
+              <UserRound size={34} strokeWidth={2} />
             </span>
-            <h3 className="text-3xl mb-4">Social Media Accounts</h3>
-            <p className="text-muted text-[1.05rem] mb-8">
+            <h3 className="text-3xl mb-4 font-syne font-bold text-body">Social Media Accounts</h3>
+            <p className="text-muted text-[1.05rem] mb-10 leading-relaxed">
               Access premium verified social media accounts ready to use. Boost your social presence with authentic, high-quality accounts.
             </p>
             <button onClick={() => go()} className="btn-gold px-8 py-3.5 text-[0.95rem] hover:-translate-y-[2px] hover:shadow-[0_10px_30px_rgba(212,175,55,0.4)]">
@@ -118,12 +173,12 @@ export default function Home() {
             <button
               key={c.name}
               onClick={() => go()}
-              className="card-border group rounded-[14px] p-6 text-center bg-gradient-to-b from-gold/5 to-gold/1 hover:border-gold/30 hover:bg-gold/5 hover:-translate-y-[5px] transition-all duration-300"
+              className="card-border group p-6 text-center hover:-translate-y-[5px] transition-all duration-300"
               style={{ animation: `fadeInUp 0.8s ease ${0.05 * i}s both` }}
             >
               <span className="block text-[2.5rem] mb-3 group-hover:scale-110 transition-transform duration-300">{c.flag}</span>
-              <div className="text-[0.95rem] font-medium mb-1">{c.name}</div>
-              <div className="text-faint text-[0.78rem]">Virtual accounts</div>
+              <div className="text-[0.95rem] font-bold mb-1 text-body">{c.name}</div>
+              <div className="text-muted text-[0.78rem]">Virtual accounts</div>
             </button>
           ))}
         </div>
@@ -151,22 +206,22 @@ export default function Home() {
             <button
               key={p.name}
               onClick={() => go()}
-              className="card-border group rounded-[14px] p-6 text-center bg-gradient-to-b from-gold/5 to-gold/1 hover:border-gold/30 hover:bg-gold/5 hover:-translate-y-[5px] transition-all duration-300"
+              className="card-border group p-6 text-center hover:-translate-y-[5px] transition-all duration-300"
               style={{ animation: `fadeInUp 0.8s ease ${0.05 * i}s both` }}
             >
-              <span className="inline-flex w-14 h-14 items-center justify-center rounded-[14px] bg-gold/10 border border-gold/25 text-gold mb-3 group-hover:scale-110 group-hover:text-gold-dark transition-transform duration-300">
+              <span className="inline-flex w-14 h-14 items-center justify-center rounded-[16px] bg-[rgba(255,215,0,0.15)] text-[#d4af37] mb-4 group-hover:scale-110 group-hover:bg-[#d4af37] group-hover:text-black transition-all duration-300">
                 <p.icon size={28} />
               </span>
-              <div className="text-[0.95rem] font-medium mb-1">{p.name}</div>
-              <div className="text-faint text-[0.78rem]">Accounts &amp; numbers</div>
+              <div className="text-[0.95rem] font-bold mb-1 text-body">{p.name}</div>
+              <div className="text-muted text-[0.78rem]">Accounts &amp; numbers</div>
             </button>
           ))}
         </div>
       </section>
 
       {/* ====== FEATURES ====== */}
-      <section className="max-w-[1400px] mx-auto my-24 px-4 md:px-8 py-8 md:py-16 bg-gradient-to-br from-gold/3 to-gold/1 card-border rounded-[15px] backdrop-blur-[10px]">
-        <h2 className="font-syne text-[1.8rem] md:text-[2.5rem] text-center mb-12">Why Choose SpencerSBM</h2>
+      <section className="max-w-[1400px] mx-auto my-24 px-4 md:px-8 py-12 md:py-20 bg-surface2 rounded-[32px]">
+        <h2 className="font-syne text-[1.8rem] md:text-[2.5rem] text-center mb-16 text-body">Why Choose SpencerSBM</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
           {[
             { icon: Zap, title: 'Instant Delivery', desc: 'Get your virtual numbers and accounts delivered instantly after purchase. No waiting, no delays.' },
@@ -176,14 +231,14 @@ export default function Home() {
           ].map((feature, i) => (
             <div
               key={feature.title}
-              className="text-center p-8 md:p-10 rounded-[12px] bg-gold/2 card-border transition-all duration-[0.3s] hover:border-gold/30 hover:bg-gold/5 hover:-translate-y-[5px]"
+              className="text-center p-8 md:p-10 card-border bg-card transition-all duration-[0.3s] hover:-translate-y-[5px]"
               style={{ animation: `fadeInUp 0.8s ease ${0.1 * i}s both` }}
             >
-              <span className="inline-flex w-[64px] h-[64px] items-center justify-center rounded-[14px] bg-gold/10 border border-gold/25 text-gold mb-6 animate-float">
-                <feature.icon size={30} strokeWidth={1.6} />
+              <span className="inline-flex w-[64px] h-[64px] items-center justify-center rounded-[18px] bg-[rgba(255,215,0,0.15)] text-[#d4af37] mb-8 animate-float">
+                <feature.icon size={30} strokeWidth={2} />
               </span>
-              <h4 className="text-[1.3rem] mb-4 text-gold">{feature.title}</h4>
-              <p className="text-muted text-[0.95rem]">{feature.desc}</p>
+              <h4 className="text-[1.3rem] mb-4 font-bold text-body">{feature.title}</h4>
+              <p className="text-muted text-[0.95rem] leading-relaxed">{feature.desc}</p>
             </div>
           ))}
         </div>
@@ -207,15 +262,15 @@ export default function Home() {
           ].map((s, i) => (
             <div
               key={s.title}
-              className="relative card-border rounded-[14px] p-8 text-center bg-gradient-to-b from-gold/5 to-transparent hover:border-gold/30 hover:-translate-y-[5px] transition-all duration-300"
+              className="relative card-border p-10 text-center hover:-translate-y-[5px] transition-all duration-300"
               style={{ animation: `fadeInUp 0.8s ease ${0.1 * i}s both` }}
             >
-              <span className="absolute top-5 right-6 font-syne text-[2rem] font-bold text-gold/15">{s.step}</span>
-              <span className="inline-flex w-[60px] h-[60px] items-center justify-center rounded-[14px] bg-gold/10 border border-gold/25 text-gold mb-5">
-                <s.icon size={28} strokeWidth={1.6} />
+              <span className="absolute top-6 right-8 font-syne text-[2.5rem] font-bold text-softline">{s.step}</span>
+              <span className="inline-flex w-[60px] h-[60px] items-center justify-center rounded-[18px] bg-[rgba(255,215,0,0.15)] text-[#d4af37] mb-8">
+                <s.icon size={28} strokeWidth={2} />
               </span>
-              <h4 className="text-[1.15rem] mb-3">{s.title}</h4>
-              <p className="text-muted text-[0.9rem]">{s.desc}</p>
+              <h4 className="text-[1.2rem] mb-4 font-bold text-body">{s.title}</h4>
+              <p className="text-muted text-[0.95rem] leading-relaxed">{s.desc}</p>
             </div>
           ))}
         </div>
@@ -235,22 +290,22 @@ export default function Home() {
           ].map((t, i) => (
             <div
               key={t.name}
-              className="card-border rounded-[14px] p-8 bg-gradient-to-b from-gold/5 to-transparent relative hover:border-gold/30 transition-all duration-300"
+              className="card-border p-10 relative hover:-translate-y-[5px] transition-all duration-300 bg-card"
               style={{ animation: `fadeInUp 0.8s ease ${0.1 * i}s both` }}
             >
-              <div className="flex gap-1 text-gold mb-5">
+              <div className="flex gap-1 text-[#d4af37] mb-6">
                 {[0, 1, 2, 3, 4].map((j) => (
-                  <Star key={j} size={16} className="fill-gold" strokeWidth={1.5} />
+                  <Star key={j} size={18} className="fill-[#d4af37]" strokeWidth={1.5} />
                 ))}
               </div>
-              <p className="text-body/80 text-[0.95rem] leading-relaxed mb-6">&ldquo;{t.quote}&rdquo;</p>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-gold to-gold-dark flex items-center justify-center text-night font-bold text-[0.95rem]">
+              <p className="text-body text-[1rem] leading-relaxed mb-8">&ldquo;{t.quote}&rdquo;</p>
+              <div className="flex items-center gap-4 mt-auto">
+                <div className="w-12 h-12 rounded-full bg-[#d4af37] flex items-center justify-center text-black font-bold text-[1rem]">
                   {t.name.split(' ').map((p) => p[0]).join('')}
                 </div>
                 <div>
-                  <div className="text-[0.95rem] font-medium">{t.name}</div>
-                  <div className="text-faint text-[0.8rem]">{t.role}</div>
+                  <div className="text-[1rem] font-bold text-body">{t.name}</div>
+                  <div className="text-muted text-[0.85rem]">{t.role}</div>
                 </div>
               </div>
             </div>
@@ -276,21 +331,21 @@ export default function Home() {
             return (
               <div
                 key={f.q}
-                className={`card-border rounded-[12px] bg-soft transition-all duration-300 ${open ? 'border-gold/30 bg-gold/5' : ''}`}
+                className={`card-border bg-card transition-all duration-300 ${open ? 'border-[#d4af37]/30 shadow-[0_15px_30px_rgba(212,175,55,0.1)]' : ''}`}
               >
                 <button
                   onClick={() => setFaqOpen(open ? -1 : i)}
-                  className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left"
+                  className="w-full flex items-center justify-between gap-4 px-8 py-6 text-left"
                   aria-expanded={open}
                 >
-                  <span className="text-[1.02rem] font-medium">{f.q}</span>
+                  <span className="text-[1.1rem] font-bold text-body">{f.q}</span>
                   <ChevronDown
-                    size={20}
-                    strokeWidth={1.9}
-                    className={`text-gold shrink-0 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+                    size={22}
+                    strokeWidth={2}
+                    className={`text-[#d4af37] shrink-0 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
                   />
                 </button>
-                {open && <p className="px-6 pb-5 text-muted text-[0.92rem] leading-relaxed">{f.a}</p>}
+                {open && <p className="px-8 pb-6 text-muted text-[1rem] leading-relaxed">{f.a}</p>}
               </div>
             );
           })}
@@ -299,11 +354,11 @@ export default function Home() {
 
       {/* ====== CONTACT / CTA ====== */}
       <section id="contact" className="max-w-[1400px] mx-auto my-24 px-4 md:px-8">
-        <div className="relative overflow-hidden rounded-[20px] border border-gold/25 bg-gradient-to-br from-gold/10 via-surface2 to-page p-10 md:p-16 text-center card-border">
-          <div className="absolute top-[-40%] left-1/2 -translate-x-1/2 w-[60%] h-[80%] bg-gold/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="relative overflow-hidden card-border p-12 md:p-20 text-center bg-surface2">
+          <div className="absolute top-[-40%] left-1/2 -translate-x-1/2 w-[60%] h-[80%] bg-[rgba(255,215,0,0.15)] rounded-full blur-[120px] pointer-events-none" />
           <div className="relative z-10">
-            <h2 className="font-syne text-[1.8rem] md:text-[2.6rem] mb-4">Have Questions? We&apos;re Here 24/7</h2>
-            <p className="text-muted text-[1.02rem] font-light max-w-[560px] mx-auto mb-10">
+            <h2 className="font-syne text-[2rem] md:text-[3.2rem] mb-6 text-body">Have Questions? We&apos;re Here 24/7</h2>
+            <p className="text-muted text-[1.1rem] font-medium max-w-[600px] mx-auto mb-12">
               Need a bulk quote, a custom account, or just help placing an order? Our support team replies in minutes.
             </p>
             <div className="flex flex-col sm:flex-row gap-5 justify-center items-center">
