@@ -17,21 +17,21 @@ export default function Home() {
     <div>
       {/* ====== HERO ====== */}
       <section id="home" className="max-w-[1400px] mx-auto px-4 md:px-8 pt-8 pb-16">
-        <div className="bg-[#FFFDF5] border border-[#F5E6A3] rounded-[36px] p-8 md:p-14 lg:p-16 relative overflow-hidden shadow-[0_10px_40px_rgba(212,175,55,0.08)]">
+        <div className="bg-[#FFFDF5] dark:bg-[#1a170b] border border-[#F5E6A3] dark:border-[#3a3311] rounded-[36px] p-8 md:p-14 lg:p-16 relative overflow-hidden shadow-[0_10px_40px_rgba(212,175,55,0.08)]">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             
             {/* Left Content Column */}
             <div className="lg:col-span-6 z-10 text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FFF5C3] border border-[#FFE785] text-[#9E7B00] text-xs font-bold uppercase tracking-wider mb-6">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#FFF5C3] dark:bg-[#2a2610] border border-[#FFE785] dark:border-[#4a4015] text-[#9E7B00] dark:text-[#FFD700] text-xs font-bold uppercase tracking-wider mb-6">
                 <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse"></span> Virtual Numbers &amp; Accounts
               </div>
 
-              <h1 className="font-syne text-[2.8rem] md:text-[4.2rem] leading-[1.08] mb-6 text-[#1A1A1A] font-bold tracking-tight">
+              <h1 className="font-syne text-[2.8rem] md:text-[4.2rem] leading-[1.08] mb-6 text-[#1A1A1A] dark:text-white font-bold tracking-tight">
                 Build Reach. <br />
                 <span className="text-[#D4AF37]">Boost Growth.</span>
               </h1>
 
-              <p className="text-[#555555] text-[1.1rem] md:text-[1.2rem] font-normal leading-relaxed mb-10 max-w-[500px]">
+              <p className="text-[#555555] dark:text-gray-300 text-[1.1rem] md:text-[1.2rem] font-normal leading-relaxed mb-10 max-w-[500px]">
                 Personalized virtual numbers, real-time OTP delivery, and authentic social accounts — all in one trusted platform.
               </p>
 
@@ -54,7 +54,7 @@ export default function Home() {
                     </button>
                     <button
                       onClick={() => go()}
-                      className="bg-white border border-[#E5E7EB] text-[#1A1A1A] px-8 py-4 text-base font-semibold rounded-full hover:bg-gray-50 flex items-center justify-center gap-2 transition-all shadow-sm"
+                      className="bg-white dark:bg-[#111] border border-[#E5E7EB] dark:border-[#333] text-[#1A1A1A] dark:text-white px-8 py-4 text-base font-semibold rounded-full hover:bg-gray-50 dark:hover:bg-[#222] flex items-center justify-center gap-2 transition-all shadow-sm"
                     >
                       Browse Accounts &#9654;
                     </button>
@@ -63,14 +63,14 @@ export default function Home() {
               </div>
 
               {/* Trust badges */}
-              <div className="pt-6 border-t border-[#F0E6C2]/60">
+              <div className="pt-6 border-t border-[#F0E6C2]/60 dark:border-[#3a3311]">
                 <p className="text-xs uppercase tracking-widest text-[#888888] font-bold mb-4">Trusted by 15,000+ users worldwide</p>
                 <div className="flex flex-wrap items-center gap-6 opacity-70">
-                  <span className="font-bold text-base text-[#444]">WhatsApp</span>
-                  <span className="font-bold text-base text-[#444]">Telegram</span>
-                  <span className="font-bold text-base text-[#444]">Facebook</span>
-                  <span className="font-bold text-base text-[#444]">Instagram</span>
-                  <span className="font-bold text-base text-[#444]">TikTok</span>
+                  <span className="font-bold text-base text-[#444] dark:text-gray-300">WhatsApp</span>
+                  <span className="font-bold text-base text-[#444] dark:text-gray-300">Telegram</span>
+                  <span className="font-bold text-base text-[#444] dark:text-gray-300">Facebook</span>
+                  <span className="font-bold text-base text-[#444] dark:text-gray-300">Instagram</span>
+                  <span className="font-bold text-base text-[#444] dark:text-gray-300">TikTok</span>
                 </div>
               </div>
             </div>
@@ -78,9 +78,9 @@ export default function Home() {
             {/* Right Media Column */}
             <div className="lg:col-span-6 relative flex justify-center items-center min-h-[380px] md:min-h-[480px]">
               {/* Decorative Background Shapes */}
-              <div className="absolute w-[280px] h-[280px] sm:w-[380px] sm:h-[380px] rounded-full bg-[#FFE785]/60 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 blur-2xl pointer-events-none" />
-              <div className="absolute w-[260px] h-[260px] sm:w-[360px] sm:h-[360px] rounded-full bg-[#FFD700]/30 -top-6 right-4 pointer-events-none" />
-              <div className="absolute w-[180px] h-[180px] rounded-full border-[18px] border-[#FFE785]/40 bottom-4 left-6 pointer-events-none" />
+              <div className="absolute w-[280px] h-[280px] sm:w-[380px] sm:h-[380px] rounded-full bg-[#FFE785]/60 dark:bg-[#FFD700]/10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 blur-2xl pointer-events-none" />
+              <div className="absolute w-[260px] h-[260px] sm:w-[360px] sm:h-[360px] rounded-full bg-[#FFD700]/30 dark:bg-[#FFD700]/10 -top-6 right-4 pointer-events-none" />
+              <div className="absolute w-[180px] h-[180px] rounded-full border-[18px] border-[#FFE785]/40 dark:border-[#FFD700]/10 bottom-4 left-6 pointer-events-none" />
 
               {/* Product Phone Image */}
               <div className="relative z-10 max-w-[320px] sm:max-w-[400px] md:max-w-[440px] drop-shadow-[0_20px_35px_rgba(0,0,0,0.15)] hover:scale-[1.02] transition-transform duration-500">
@@ -92,13 +92,13 @@ export default function Home() {
               </div>
 
               {/* Floating Widget Card */}
-              <div className="absolute bottom-6 right-2 sm:right-6 z-20 bg-white/90 backdrop-blur-md border border-[#F0E6C2] rounded-2xl p-4 shadow-xl flex items-center gap-3.5 animate-bounce-slow">
-                <div className="w-12 h-12 rounded-xl bg-[#FFF5C3] text-[#D4AF37] flex items-center justify-center font-bold text-xl">
+              <div className="absolute bottom-6 right-2 sm:right-6 z-20 bg-white/90 dark:bg-[#1f1a02]/90 backdrop-blur-md border border-[#F0E6C2] dark:border-[#3a3311] rounded-2xl p-4 shadow-xl flex items-center gap-3.5 animate-bounce-slow">
+                <div className="w-12 h-12 rounded-xl bg-[#FFF5C3] dark:bg-[#2a2610] text-[#D4AF37] flex items-center justify-center font-bold text-xl">
                   ⚡
                 </div>
                 <div>
-                  <div className="text-xs font-semibold text-[#777]">Instant Delivery</div>
-                  <div className="text-sm font-bold text-[#1A1A1A]">99.8% Success Rate</div>
+                  <div className="text-xs font-semibold text-[#777] dark:text-gray-400">Instant Delivery</div>
+                  <div className="text-sm font-bold text-[#1A1A1A] dark:text-white">99.8% Success Rate</div>
                 </div>
               </div>
             </div>
