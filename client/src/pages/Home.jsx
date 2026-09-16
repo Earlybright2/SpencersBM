@@ -140,16 +140,16 @@ export default function Home() {
         <div className="max-w-[1400px] mx-auto px-4 md:px-8 pt-14 md:pt-20 pb-16 md:pb-24">
           <div className="grid lg:grid-cols-2 gap-14 lg:gap-10 items-center">
             {/* Left */}
-            <div className="animate-fade-in-up lg:pl-16">
+            <div className="animate-fade-in-up">
               <span className="inline-flex items-center gap-2 chip !py-2 !px-4 border-gold/30 !bg-gold/10">
                 <Sparkles size={14} className="text-gold" />
                 <span className="text-body/90 font-semibold">Instant delivery · 15,000+ orders filled</span>
               </span>
 
-              <h1 className="mt-6 font-syne font-extrabold tracking-tight text-body">
-                <span className="block text-[2rem] leading-[1.08] sm:text-[2.8rem] md:text-[3.6rem] lg:text-[4rem] xl:text-[4.4rem]">Verified numbers.</span>
-                <span className="block text-[2rem] leading-[1.08] sm:text-[2.8rem] md:text-[3.6rem] lg:text-[4rem] xl:text-[4.4rem]">Real Accounts.</span>
-                <span className="block text-gradient-gold text-[2rem] leading-[1.08] sm:text-[2.8rem] md:text-[3.6rem] lg:text-[4rem] xl:text-[4.4rem]">Instant Delivery.</span>
+              <h1 className="mt-6 font-syne font-extrabold tracking-tight text-body text-[2.2rem] leading-[1.15] sm:text-[2.6rem] md:text-[3.2rem] lg:text-[3.6rem] xl:text-[4rem]">
+                Verified numbers.<br />
+                Real Accounts.<br />
+                <span className="text-gradient-gold">Instant Delivery.</span>
               </h1>
 
               <p className="mt-6 max-w-[540px] text-[1.05rem] md:text-[1.15rem] leading-relaxed text-muted">
@@ -271,7 +271,7 @@ export default function Home() {
           <h2 className="font-syne text-[2rem] md:text-[2.8rem] font-bold text-body">Everything you need in one place</h2>
         </div>
         
-        <div className="grid lg:grid-cols-[1fr_auto_1fr] gap-10 lg:gap-16 items-center">
+        <div className="grid lg:grid-cols-3 gap-10 lg:gap-16 items-center">
           {/* Left features */}
           <div className="space-y-10 reveal order-2 lg:order-1">
             <div className="text-center lg:text-right flex flex-col items-center lg:items-end">
@@ -304,9 +304,9 @@ export default function Home() {
           </div>
 
           {/* Center Image */}
-          <div className="relative flex items-center justify-center reveal order-1 lg:order-2">
+          <div className="relative flex items-center justify-center reveal order-1 lg:order-2 lg:justify-self-center pl-6 sm:pl-10 lg:pl-14">
             <div aria-hidden className="absolute inset-0 bg-gold/15 blur-[100px] rounded-full pointer-events-none w-full h-[80%] m-auto" />
-            <img src="/phone.png" alt="App Preview" className="relative z-10 w-[280px] lg:w-[320px] drop-shadow-[0_20px_50px_rgba(0,0,0,0.35)] object-contain mx-auto" />
+            <img src="/phone.png" alt="App Preview" className="relative z-10 w-[240px] sm:w-[260px] lg:w-[280px] drop-shadow-[0_20px_50px_rgba(0,0,0,0.35)] object-contain" />
           </div>
 
           {/* Right features */}

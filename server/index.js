@@ -96,7 +96,7 @@ app.get('/', (req, res) => {
         addInventory: { method: 'POST', path: '/api/admin/products/accounts/:id/inventory', auth: 'admin' },
         removeInventory: { method: 'DELETE', path: '/api/admin/products/accounts/:id/inventory/:invId', auth: 'admin' },
         getOverrides: { method: 'GET', path: '/api/admin/bulnix/overrides?serviceType=', auth: 'admin' },
-        upsertOverride: { method: 'PUT', path: '/api/admin/bulnix/overrides', auth: 'admin', body: { serviceType: 'string', providerId: 'string', adminPrice: 'number', enabled?: 'boolean' } },
+        upsertOverride: { method: 'PUT', path: '/api/admin/bulnix/overrides', auth: 'admin', body: { serviceType: 'string', providerId: 'string', adminPrice: 'number', enabled: 'boolean?' } },
         deleteOverride: { method: 'DELETE', path: '/api/admin/bulnix/overrides/:serviceType/:providerId', auth: 'admin' }
       },
       webhook: {
