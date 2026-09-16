@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { requireAdmin } from '../utils/auth.js';
-import { asyncRoute, ogDigitalProducts } from '../utils/onegridhub.js';
-import { syncDigitalProducts } from '../utils/digital-sync.js';
+import { asyncRoute } from '../utils/http.js';
 import { pool } from '../utils/db.js';
 import {
   getUsers,
@@ -118,27 +117,8 @@ router.delete('/products/numbers/:id', asyncRoute(async (req, res) => {
   res.json({ deleted: true });
 }));
 
-// GET /api/admin/digital/products?server=&category=&search=
-// Lists digital (social media account) products directly from OneGridHub.
-router.get('/digital/products', asyncRoute(async (req, res) => {
-  const { server, category, search, limit } = req.query;
-  const data = await ogDigitalProducts({ server, category, search, limit: limit || 50 });
-  res.json(data);
-}));
-
-// POST /api/admin/digital/sync { server, category?, search?, margin? }
-// Syncs OneGridHub digital products into account_products with a sell price.
-router.post('/digital/sync', asyncRoute(async (req, res) => {
-  const { server, category, search, margin } = req.body || {};
-  if (!server) return res.status(400).json({ message: 'server is required' });
-  const results = await syncDigitalProducts({ server, category, search, margin });
-  res.json(results);
-}));
-
 // POST /api/admin/products/accounts { platform, price, desc?, server?, country?, countryName?, providerProductId?, stock?, category? }
-// Creates (or updates) an account product. When providerProductId is supplied
-// the product is linked to a specific OneGridHub digital product so purchases
-// are fulfilled directly by the provider.
+// Creates (or updates) an account product with manually-stocked inventory.
 router.post('/products/accounts', asyncRoute(async (req, res) => {
   const { platform, price, desc, server, country, countryName, providerProductId, stock, category } = req.body || {};
   if (!platform) return res.status(400).json({ message: 'platform is required' });
@@ -231,9 +211,9 @@ router.delete('/products/accounts/:id/inventory/:invId', asyncRoute(async (req, 
 }));
 
 // POST /api/admin/orders/sms { userId, orderRef, sms }
-// Manually correct/backfill an order's SMS code. OneGridHub's API sometimes
-// returns a truncated code (e.g. "447" instead of the full "447684" that shows
-// on the OneGridHub dashboard), so admins can paste the complete code here.
+// Manually correct/backfill an order's SMS code. A provider's API sometimes
+// returns a truncated code (e.g. "447" instead of the full "447684"), so admins
+// can paste the complete code here.
 router.post('/orders/sms', asyncRoute(async (req, res) => {
   const { userId, orderRef, sms } = req.body || {};
   if (!userId || !orderRef || !sms) {

@@ -1,6 +1,6 @@
 # SpencerSBM
 
-A full-stack marketplace for **virtual phone numbers** and **premium social media accounts**. Buy verification numbers and aged accounts with instant delivery — with wallet-style funding (NGN/USD) coming online via a fintech integration.
+A full-stack marketplace for **virtual phone numbers** and **premium social media accounts**. Buy verification numbers and aged accounts with instant delivery, funded from a wallet (NGN) via Flutterwave.
 
 ## Tech Stack
 
@@ -9,7 +9,8 @@ A full-stack marketplace for **virtual phone numbers** and **premium social medi
 | Frontend | React 18, Vite 6, Tailwind CSS 4, React Router 6, lucide-react icons, axios |
 | Backend  | Node.js, Express 4, JWT auth, bcrypt, resend |
 | Data     | PostgreSQL (`pg`) — e.g. Railway Postgres, via `DATABASE_URL` |
-| Provider | OneGridHub API (virtual numbers / SMS verification) proxied server-side |
+| Provider | Bulnix API (SMS verification numbers, social-account marketplace, followers) proxied server-side |
+| Payments | Flutterwave (wallet funding) |
 
 ## Repository Layout
 
@@ -57,9 +58,18 @@ JWT_SECRET=<generate-a-long-random-string>
 RESEND_API_KEY=<your-resend-api-key>
 RESEND_FROM=SpencerSBM <no-reply@your-domain.com>
 
-# OneGridHub (virtual numbers / SMS)
-ONEGRIDHUB_BASE_URL=https://onegridhub.com/api/v1/index.php
-ONEGRIDHUB_API_KEY=<your-onegridhub-api-key>
+# Payments (Flutterwave) — required for live wallet funding
+FLW_CLIENT_ID=<your-flutterwave-client-id>
+FLW_CLIENT_SECRET=<your-flutterwave-client-secret>
+FLW_ENCRYPTION_KEY=<your-flutterwave-encryption-key>
+FLW_SECRET_HASH=<your-webhook-secret-hash>
+
+# Bulnix (sole provider) — one key per service, all start with blx_
+BULNIX_BASE_URL=https://bulnix.com/api/v1
+BULNIX_MARKETPLACE_KEY=<bulnix-marketplace-key>   # social accounts
+BULNIX_SMS_KEY=<bulnix-sms-key>                   # verification numbers
+BULNIX_FOLLOWERS_KEY=<bulnix-followers-key>       # followers growth
+BULNIX_MARKUP=1.35
 ```
 
 **Client** — `client/.env`:
@@ -86,11 +96,11 @@ npm run dev
 
 - User **registration, login**, and **JWT-based sessions**
 - **Password reset** via email (real Resend or dev-mode console link)
-- Marketplace for **virtual numbers** by country with live provider pricing
+- Marketplace for **virtual numbers** by country with live Bulnix pricing (NGN)
 - Marketplace for **social media accounts** (Instagram, X, Facebook, TikTok, Gmail)
-- **Order history** & live SMS/status checking backed by the OneGridHub API
+- **Order history** & live SMS/status checking backed by the Bulnix API
 - Styled **dashboard** with overview, orders, and profile panels
-- **Wallet card** with NGN/USD funding UI (payment provider integration pending) and a PAGA transfer account number
+- **Wallet card** with NGN funding via Flutterwave
 - Gold-on-black modern UI with professional lucide icons
 
 ## API Overview
@@ -99,13 +109,15 @@ npm run dev
 |------|-----------|
 | Health check | `GET /api/health` |
 | Authentication | `/api/auth` |
-| Numbers provider | `/api/onegridhub` (auth required) |
+| Wallet & funding | `/api/wallet` |
+| Orders | `/api/orders` (auth required) |
+| Provider (Bulnix) | `/api/bulnix` |
 
 Full endpoint reference is in [`server/README.md`](server/README.md).
 
 ## Notes
 
 - User passwords are hashed with bcrypt (cost 10).
-- Reset links and OneGridHub API keys never leave the server.
-- The checkout on the home page is currently **simulated** — payment gateway integration is in progress.
+- Reset links, Bulnix API keys, and payment secrets never leave the server.
+- Wallet funding is handled by **Flutterwave**; Bulnix purchases debit the NGN wallet balance.
 - `DATABASE_URL` points at a PostgreSQL instance (e.g. Railway). The `users` table is auto-created on startup.

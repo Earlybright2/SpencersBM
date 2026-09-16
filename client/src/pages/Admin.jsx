@@ -62,22 +62,9 @@ export default function Admin() {
   const [numbersPage, setNumbersPage] = useState(1);
   const [accountsPage, setAccountsPage] = useState(1);
 
-  const [servers, setServers] = useState([]);
-
-  const [digServers, setDigServers] = useState([]);
-
-  const [digSync, setDigSync] = useState({ server: '', category: '', search: '' });
-  const [digSyncing, setDigSyncing] = useState(false);
-  const [digResult, setDigResult] = useState(null);
-
-  const [syncServer, setSyncServer] = useState('');
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState(null);
-
   const [editService, setEditService] = useState('');
   const [editCountry, setEditCountry] = useState('');
   const [editPrices, setEditPrices] = useState({});
-  const [editAccServer, setEditAccServer] = useState('');
   const [editAccService, setEditAccService] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -140,48 +127,6 @@ export default function Admin() {
     setAccountsPage(1);
   }, [accountsSearch]);
 
-  const loadServers = async () => {
-    try {
-      const res = await api.get('/onegridhub/servers');
-      setServers(res.data.servers || []);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
-  useEffect(() => {
-    if (section === 'numbers' || section === 'accounts') loadServers();
-    if (section === 'accounts') loadDigServers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section]);
-
-  const loadDigServers = async () => {
-    try {
-      const res = await api.get('/onegridhub/digital/servers');
-      setDigServers(res.data.servers || []);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-  };
-
-  const syncNumbers = async () => {
-    if (!syncServer || syncing) return;
-    setSyncing(true);
-    setError('');
-    setSyncResult(null);
-    try {
-      const res = await api.post('/onegridhub/sync-numbers', { server: syncServer });
-      setSyncResult(res.data);
-      setToast('Number products synced from provider');
-      loadProducts();
-      loadStats();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const editServices = useMemo(() => {
     const set = new Set();
     products.numbers.forEach((p) => {
@@ -228,33 +173,23 @@ export default function Admin() {
     }
   };
 
-  const editAccServers = useMemo(() => {
-    const set = new Set();
-    products.accounts.forEach((p) => {
-      if (p.providerServer) set.add(p.providerServer);
-    });
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [products.accounts]);
-
   const editAccServices = useMemo(() => {
     const map = new Map();
     products.accounts.forEach((p) => {
-      if (editAccServer && p.providerServer !== editAccServer) return;
       const key = `${p.platform}|${p.country || 'Mixed'}`;
       const name = `${p.platform}${p.countryName ? ` · ${p.countryName}` : ''}`;
       if (!map.has(key)) map.set(key, { key, name });
     });
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [products.accounts, editAccServer]);
+  }, [products.accounts]);
 
   const editAccMatches = useMemo(
     () =>
       products.accounts.filter((p) => {
-        if (editAccServer && p.providerServer !== editAccServer) return false;
         if (editAccService && `${p.platform}|${p.country || 'Mixed'}` !== editAccService) return false;
         return true;
       }),
-    [products.accounts, editAccServer, editAccService]
+    [products.accounts, editAccService]
   );
 
   const filteredNumbers = useMemo(() => {
@@ -338,29 +273,6 @@ export default function Admin() {
       loadStats();
     } catch (err) {
       setError(getErrorMessage(err));
-    }
-  };
-
-  const syncDigital = async () => {
-    if (!digSync.server || digSyncing) return;
-    setDigSyncing(true);
-    setError('');
-    setDigResult(null);
-    try {
-      const res = await api.post('/admin/digital/sync', {
-        server: digSync.server,
-        category: digSync.category || undefined,
-        search: digSync.search || undefined
-      });
-      setDigResult(res.data);
-      setToast('Social account products synced from provider');
-      loadProducts();
-      loadStats();
-      loadDigServers();
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setDigSyncing(false);
     }
   };
 
@@ -478,36 +390,6 @@ export default function Admin() {
 
           {section === 'numbers' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
-                <h2 className="font-syne text-xl mb-1">Sync Numbers from Provider</h2>
-                <p className="text-faint text-[0.85rem] mb-5">
-                  Fetches available numbers and prices from OneGridHub for a server and updates the marketplace (popular services only, auto-priced with margin).
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 items-end">
-                  <div className="flex-1 min-w-[200px]">
-                    <Field label="Provider server">
-                      <select value={syncServer} onChange={(e) => setSyncServer(e.target.value)} className={inputCls}>
-                        <option value="" className="bg-surface2">Select a server</option>
-                        {servers.map((s) => (
-                          <option key={s.id} value={s.id} className="bg-surface2">{s.label} ({s.region})</option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                  <button onClick={syncNumbers} disabled={!syncServer || syncing} className="btn-gold px-6 py-2.5 text-[0.9rem] disabled:opacity-50 flex items-center gap-2">
-                    <RefreshCw size={16} strokeWidth={2} className={syncing ? 'animate-spin' : ''} />
-                    {syncing ? 'Syncing...' : 'Sync'}
-                  </button>
-                </div>
-                {syncResult && (
-                  <p className="text-[0.85rem] text-muted mt-4">
-                    Created <span className="text-gold font-semibold">{syncResult.created}</span> · Updated{' '}
-                    <span className="text-gold font-semibold">{syncResult.updated}</span> · Skipped{' '}
-                    <span className="text-faint">{syncResult.skipped}</span>
-                  </p>
-                )}
-              </div>
-
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
                 <h2 className="font-syne text-xl mb-1">Edit Number Prices</h2>
                 <p className="text-faint text-[0.85rem] mb-5">
@@ -634,76 +516,12 @@ export default function Admin() {
           {section === 'accounts' && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
-                <h2 className="font-syne text-xl mb-1">Sync Social Accounts from Provider</h2>
-                <p className="text-faint text-[0.85rem] mb-5">
-                  Fetches pre-built social media accounts from OneGridHub (digital products) and adds them to the marketplace, auto-priced with margin.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 items-end">
-                  <div className="flex-1 min-w-[160px]">
-                    <Field label="Provider server">
-                      <select value={digSync.server} onChange={(e) => setDigSync((f) => ({ ...f, server: e.target.value }))} className={inputCls}>
-                        <option value="" className="bg-surface2">Select a server</option>
-                        {digServers.map((s) => (
-                          <option key={s.id} value={s.id} className="bg-surface2">{s.label} ({s.products} products)</option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
-                  <div className="flex-1 min-w-[160px]">
-                    <Field label="Category (optional)">
-                      <input
-                        type="text"
-                        value={digSync.category}
-                        onChange={(e) => setDigSync((f) => ({ ...f, category: e.target.value }))}
-                        placeholder="e.g. Instagram"
-                        className={inputCls}
-                      />
-                    </Field>
-                  </div>
-                  <div className="flex-1 min-w-[160px]">
-                    <Field label="Search (optional)">
-                      <input
-                        type="text"
-                        value={digSync.search}
-                        onChange={(e) => setDigSync((f) => ({ ...f, search: e.target.value }))}
-                        placeholder="Filter by name"
-                        className={inputCls}
-                      />
-                    </Field>
-                  </div>
-                  <button onClick={syncDigital} disabled={!digSync.server || digSyncing} className="btn-gold px-6 py-2.5 text-[0.9rem] disabled:opacity-50 flex items-center gap-2">
-                    <RefreshCw size={16} strokeWidth={2} className={digSyncing ? 'animate-spin' : ''} />
-                    {digSyncing ? 'Syncing...' : 'Sync'}
-                  </button>
-                </div>
-                {digResult && (
-                  <p className="text-[0.85rem] text-muted mt-4">
-                    Created <span className="text-gold font-semibold">{digResult.created}</span> · Updated{' '}
-                    <span className="text-gold font-semibold">{digResult.updated}</span> · Skipped{' '}
-                    <span className="text-faint">{digResult.skipped}</span>
-                  </p>
-                )}
-              </div>
-
-              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8 xl:col-span-2">
                 <h2 className="font-syne text-xl mb-1">Edit Account Prices</h2>
                 <p className="text-faint text-[0.85rem] mb-5">
-                  Pick a provider server, then a service (platform + country) to see and update the sell price of each account product.
+                  Pick a service (platform + country) to see and update the sell price of each account product.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                  <Field label="1. Provider server">
-                    <select
-                      value={editAccServer}
-                      onChange={(e) => { setEditAccServer(e.target.value); setEditAccService(''); setEditPrices({}); }}
-                      className={inputCls}
-                    >
-                      <option value="" className="bg-surface2">All servers</option>
-                      {editAccServers.map((s) => (
-                        <option key={s} value={s} className="bg-surface2">{s}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="2. Service (platform · country)">
+                  <Field label="Service (platform · country)">
                     <select
                       value={editAccService}
                       onChange={(e) => { setEditAccService(e.target.value); setEditPrices({}); }}
@@ -718,7 +536,7 @@ export default function Admin() {
                 </div>
                 {editAccMatches.length === 0 ? (
                   <p className="text-faint text-[0.9rem] py-4 text-center">
-                    No account products match this selection. Sync from the provider above or add one below.
+                    No account products match this selection.
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -729,7 +547,7 @@ export default function Admin() {
                             {p.platform}{p.countryName ? ` · ${p.countryName}` : ''}
                           </div>
                           <div className="text-faint text-[0.78rem]">
-                            Current price: {fmtNgn(p.price)}{p.providerServer ? ` · ${p.providerServer}` : ''}
+                            Current price: {fmtNgn(p.price)}
                           </div>
                         </div>
                         <div className="flex items-end gap-2">
@@ -770,13 +588,12 @@ export default function Admin() {
                 ) : (
                   <div className="space-y-4">
                     {pageAccounts.map((p) => {
-                      const isProvider = Boolean(p.providerProductId);
                       return (
                         <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4">
                           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                             <div>
                               <div className="font-medium text-[0.95rem]">{p.platform}{p.countryName ? ` · ${p.countryName}` : ''}</div>
-                              <div className="text-faint text-[0.78rem]">{p.desc || '—'}{isProvider ? ` · ${p.providerServer || ''}${p.providerProductId ? ` (${p.providerProductId})` : ''}` : ''}</div>
+                              <div className="text-faint text-[0.78rem]">{p.desc || '—'}</div>
                             </div>
                             <div className="flex items-center gap-2">
                               <button

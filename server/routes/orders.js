@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../utils/auth.js';
-import { ogRequest, ogDigitalBuy, ogDigitalOrder, isOgSuccess, ogError, asyncRoute } from '../utils/onegridhub.js';
+import { asyncRoute } from '../utils/http.js';
+import { sms, isBxSuccess, bxData } from '../utils/bulnix.js';
 import { generateReference } from '../utils/flutterwave.js';
 import {
   findById,
@@ -50,26 +51,6 @@ function parseQuantity(q) {
   return n;
 }
 
-// Turn raw provider errors into messages a customer can actually understand.
-// Used for both virtual number and social account purchases.
-function friendlyProviderError(data) {
-  const code = String(data?.code || '');
-  const msg = String(data?.message || '').toLowerCase();
-  if (code === 'unavailable' || msg.includes('service not found') || msg.includes('not available') || msg.includes('out of stock') || msg.includes('sold out')) {
-    return 'This product is temporarily unavailable from our provider. Please try again later or choose another option.';
-  }
-  if (code === 'insufficient_funds' || msg.includes('insufficient balance') || msg.includes('insufficient_funds') || msg.includes('insufficient funds')) {
-    return 'Our provider is temporarily low on funds. Please try again shortly or contact support.';
-  }
-  if (msg.includes('order has been created successfully') || msg.includes('order has been created')) {
-    return 'Your order was placed with the provider but could not be confirmed immediately. We are processing it now — check back in a moment.';
-  }
-  if (msg.includes('unauthorized') || msg.includes('invalid api') || msg.includes('access denied')) {
-    return 'There was an issue connecting to our provider. Please try again shortly or contact support.';
-  }
-  return data?.message || 'The provider could not complete your purchase. Please try again in a moment.';
-}
-
 // GET /api/orders — current user's purchase history (numbers + accounts)
 router.get('/', asyncRoute(async (req, res) => {
   const orders = await getUserOrders(req.user.id);
@@ -83,47 +64,11 @@ router.get('/payments', asyncRoute(async (req, res) => {
 }));
 
 // GET /api/orders/paid-accounts — purchased social media accounts with credentials.
-// Automatically re-queries the provider for any pending orders so that credentials
-// delivered while the user was away are surfaced immediately.
+// Marketplace accounts are delivered synchronously by Bulnix at purchase time, so
+// this simply returns the stored orders.
 router.get('/paid-accounts', asyncRoute(async (req, res) => {
   const orders = await getUserOrders(req.user.id);
   const accounts = orders.filter((o) => o.type === 'social_account');
-
-  // Fire-and-forget: re-check up to 3 pending provider orders in parallel so
-  // recently-delivered credentials appear without requiring a manual poll.
-  const pending = accounts.filter((o) => o.status === 'pending' && o.provider_order).slice(0, 3);
-  if (pending.length) {
-    await Promise.allSettled(
-      pending.map(async (order) => {
-        try {
-          const providerOrderId = normalizeProviderOrderId(order.provider_order);
-          if (!providerOrderId) return;
-          const detail = await ogDigitalOrder(providerOrderId);
-          if (!isOgSuccess(detail)) return;
-          const acct = extractAccountCredentials(detail, {});
-          if (acct.username && acct.password) {
-            const updated = {
-              status: 'completed',
-              username: acct.username,
-              password: acct.password,
-              email: acct.email || order.email || null,
-              email_password: acct.emailPassword || order.email_password || null,
-              recovery: acct.recovery || order.recovery || null,
-              extra: (acct.extra && acct.extra.length ? acct.extra : order.extra) || [],
-              account_raw: acct.account_raw || order.account_raw || null,
-              expiresAt: null,
-              lastCheckedAt: new Date().toISOString()
-            };
-            await updateUserOrder(req.user.id, order.order_ref, updated);
-            Object.assign(order, updated);
-          }
-        } catch {
-          // provider query failed — leave order as-is
-        }
-      })
-    );
-  }
-
   res.json({ accounts });
 }));
 
@@ -143,113 +88,9 @@ router.get('/catalog', asyncRoute(async (req, res) => {
   res.json({ numbers, accounts });
 }));
 
-// POST /api/orders/numbers { productId, quantity } — buy virtual numbers, paid from wallet
-router.post('/numbers', asyncRoute(async (req, res) => {
-  const { productId, quantity } = req.body || {};
-  if (!productId) return res.status(400).json({ message: 'productId is required' });
-
-  const qty = parseQuantity(quantity);
-  if (qty === null) return res.status(400).json({ message: 'quantity must be a whole number between 1 and 10' });
-
-  const catalog = await getCatalog();
-  const product = catalog.products.numbers.find((p) => p.id === productId);
-  if (!product || product.enabled === false) {
-    notify.failure(req.user.id, { type: 'virtual_number', service: 'virtual number' }, 'The product you tried to buy could not be found. Please refresh the store and try again.');
-    return res.status(404).json({ message: 'Number product not found' });
-  }
-
-  const unitCost = Number(product.price) || 0;
-  const cost = unitCost * qty;
-  const wallet = await getUserWallet(req.user.id);
-  if ((wallet?.balance || 0) < cost) {
-    notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
-    return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
-  }
-
-  // Place each order with the provider first (holds the number), then debit the wallet once.
-  const providerResults = [];
-  for (let i = 0; i < qty; i += 1) {
-    const providerData = await ogRequest({
-      endpoint: 'buy',
-      server: product.server,
-      country: product.country,
-      service: product.service
-    });
-    if (!isOgSuccess(providerData)) {
-      // Best-effort release any numbers already held so they aren't wasted.
-      for (const held of providerResults) {
-        const heldRef = held.order_ref || held.order_id || held.ref || held.order;
-        if (heldRef) await ogRequest({ endpoint: 'cancel', order_ref: heldRef }).catch(() => {});
-      }
-      const reason = friendlyProviderError(providerData);
-      notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, reason);
-      return res.status(502).json({ status: 'error', message: reason });
-    }
-    providerResults.push(providerData);
-  }
-
-  const purchaseRef = generateReference();
-  const debit = await debitWallet(req.user.id, {
-    amount: cost,
-    reference: purchaseRef,
-    meta: { type: 'number', productId, quantity: qty, serviceName: product.serviceName }
-  });
-  if (!debit.ok) {
-    notify.failure(req.user.id, { type: 'virtual_number', service: product.serviceName || product.service, country: product.countryName || product.country, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
-    return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
-  }
-
-  const orders = providerResults.map((providerData) => ({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    type: 'virtual_number',
-    order_ref: providerData.order_ref || providerData.order_id || providerData.orderid || providerData.orderId || providerData.id || providerData.ref || providerData.order ||
-               providerData.data?.order_ref || providerData.data?.order_id || providerData.data?.orderid || providerData.data?.orderId || providerData.data?.id || providerData.data?.ref || providerData.data?.order ||
-               purchaseRef,
-    number: providerData.number || providerData.phone || providerData.phone_number || providerData.numberid ||
-            providerData.data?.number || providerData.data?.phone || providerData.data?.phone_number || providerData.data?.numberid || '',
-    server: product.server,
-    country_id: product.country,
-    country: product.countryName || product.country,
-    service_id: product.service,
-    service: product.serviceName || product.service,
-    price: unitCost,
-    currency: 'NGN',
-    status: 'pending',
-    purchasedAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + NUMBER_EXPIRY_MS).toISOString(),
-    raw: providerData
-  }));
-
-  const user = await findById(req.user.id);
-  for (const order of orders) {
-    await addUserOrder(req.user.id, order);
-    await recordSale({
-      id: order.id,
-      userId: user.id,
-      userEmail: user.email,
-      userName: user.name,
-      type: 'virtual_number',
-      productId: product.id,
-      productName: `${product.serviceName || product.service} · ${product.countryName || product.country}`,
-      price: order.price,
-      currency: 'NGN',
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    });
-  }
-
-  notify.success(req.user.id, orders);
-
-  res.status(201).json({
-    status: 'success',
-    message: qty > 1 ? `${qty} numbers purchased` : 'Number purchased',
-    orders,
-    quantity: qty,
-    balance: debit.balance
-  });
-}));
-
 // POST /api/orders/accounts { productId, quantity } — buy social media accounts
+// from manually-stocked inventory. (Marketplace/provider accounts are bought
+// directly through Bulnix at /api/bulnix/*.)
 router.post('/accounts', asyncRoute(async (req, res) => {
   const { productId, quantity } = req.body || {};
   if (!productId) return res.status(400).json({ message: 'productId is required' });
@@ -264,170 +105,10 @@ router.post('/accounts', asyncRoute(async (req, res) => {
     return res.status(404).json({ message: 'Account product not found' });
   }
 
-  // Provider-backed products are bought through OneGridHub. If a product has no
-  // provider link (legacy manual inventory), fall back to the old inventory flow.
-  if (product.providerServer && product.providerProductId) {
-    return buyProviderAccount(req, res, catalog, product, qty);
-  }
-
   return buyInventoryAccount(req, res, catalog, product, qty);
 }));
 
-// Provider-backed purchase: digital_buy then digital_order to retrieve credentials.
-async function buyProviderAccount(req, res, catalog, product, qty = 1) {
-  const unitCost = Number(product.price) || 0;
-  const cost = unitCost * qty;
-  const wallet = await getUserWallet(req.user.id);
-  if ((wallet?.balance || 0) < cost) {
-    notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
-    return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
-  }
-
-  // Place each order with the provider first, then debit the wallet once.
-  const buyResults = [];
-  for (let i = 0; i < qty; i += 1) {
-    const buyRes = await ogDigitalBuy({
-      server: product.providerServer,
-      product: product.providerProductId,
-      quantity: 1
-    });
-    console.log('[digital-buy] response:', JSON.stringify(buyRes).slice(0, 600));
-
-    // Even when the provider returns a non-success status, it may have created
-    // the order (OneGridHub sometimes returns status: 'error' with 'order has
-    // been created successfully'). Check for an order ID before treating it as
-    // a hard failure — if one exists we can still track the order as pending.
-    const buyOrderId = normalizeProviderOrderId(
-      buyRes.order || buyRes.order_id || buyRes.orderid || buyRes.orderId || buyRes.id ||
-      buyRes.data?.order || buyRes.data?.order_id || buyRes.data?.orderid || buyRes.data?.orderId || buyRes.data?.id ||
-      buyRes.order?.id || buyRes.order?.order_id || ''
-    );
-    if (!isOgSuccess(buyRes)) {
-      const msgLower = String(buyRes.message || '').toLowerCase();
-      const code = String(buyRes.code || '').toLowerCase();
-
-      // Always surface known hard errors immediately — these will never
-      // resolve by polling.
-      const isKnownError =
-        code === 'insufficient_funds' || msgLower.includes('insufficient balance') || msgLower.includes('insufficient funds') ||
-        code === 'unavailable' || msgLower.includes('service not found') || msgLower.includes('not available') || msgLower.includes('sold out') ||
-        code === 'unauthorized' || msgLower.includes('invalid api') || msgLower.includes('access denied');
-
-      // If the response contains an order ID, or the message explicitly says
-      // the order was created, keep going — we'll save as pending and poll.
-      const looksCreated = Boolean(buyOrderId) ||
-        msgLower.includes('order has been created') ||
-        msgLower.includes('order created');
-
-      if (isKnownError && !buyOrderId) {
-        const reason = friendlyProviderError(buyRes);
-        console.warn('[digital-buy] hard error:', code || msgLower.slice(0, 120));
-        notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, reason);
-        return res.status(502).json({ status: 'error', message: reason });
-      }
-      if (looksCreated) {
-        // The provider says the order was created — continue as pending.
-        console.warn('[digital-buy] non-success but order looks created:', buyOrderId || 'no-id', buyRes.message || '');
-      } else {
-        // Unknown error with no order ID — surface the provider message.
-        const reason = friendlyProviderError(buyRes);
-        console.warn('[digital-buy] unknown error:', JSON.stringify(buyRes).slice(0, 300));
-        notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, reason);
-        return res.status(502).json({ status: 'error', message: reason });
-      }
-    }
-    buyResults.push(buyRes);
-  }
-
-  const purchaseRef = generateReference();
-  const debit = await debitWallet(req.user.id, {
-    amount: cost,
-    reference: purchaseRef,
-    meta: { type: 'account', productId: product.id, platform: product.platform, quantity: qty }
-  });
-  if (!debit.ok) {
-    notify.failure(req.user.id, { type: 'social_account', platform: product.platform, price: cost }, 'Insufficient wallet balance. Please fund your wallet first.');
-    return res.status(402).json({ message: 'Insufficient wallet balance. Please fund your wallet first.' });
-  }
-
-  const orders = [];
-  for (const buyRes of buyResults) {
-    const providerOrderId = normalizeProviderOrderId(
-      buyRes.order || buyRes.order_id || buyRes.orderid || buyRes.orderId || buyRes.id ||
-      buyRes.data?.order || buyRes.data?.order_id || buyRes.data?.orderid || buyRes.data?.orderId || buyRes.data?.id ||
-      buyRes.order?.id || buyRes.order?.order_id || ''
-    );
-    console.log('[digital-buy] providerOrderId:', providerOrderId);
-
-    // Retrieve the delivered account details from the provider. If the order query
-    // fails but the buy succeeded, proceed with a pending order rather than erroring.
-    let detail = buyRes;
-    if (providerOrderId) {
-      try {
-        const res = await ogDigitalOrder(providerOrderId);
-        console.log('[digital-order] response for', providerOrderId, ':', JSON.stringify(res).slice(0, 600));
-        if (isOgSuccess(res)) detail = res;
-      } catch (err) {
-        console.error('[digital-order] query failed for', providerOrderId, ':', err.message);
-        // ignore — order will be marked pending and can be polled later
-      }
-    }
-    const account = extractAccountCredentials(detail, buyRes);
-    console.log('[digital-account] extracted:', JSON.stringify({ username: account.username, password: account.password ? '***' : '', ready: account.ready }).slice(0, 200));
-
-    const order = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      type: 'social_account',
-      order_ref: generateReference(),
-      provider_order: providerOrderId,
-      platform: product.platform,
-      username: account.username,
-      password: account.password,
-      email: account.email || null,
-      email_password: account.emailPassword || null,
-      recovery: account.recovery || null,
-      extra: account.extra || [],
-      account_raw: account.account_raw || null,
-      desc: product.desc || null,
-      price: unitCost,
-      currency: 'NGN',
-      status: account.ready ? 'completed' : 'pending',
-      expiresAt: account.ready ? null : new Date(Date.now() + ACCOUNT_DELIVERY_MS).toISOString(),
-      purchasedAt: new Date().toISOString()
-    };
-    orders.push(order);
-  }
-
-  const user = await findById(req.user.id);
-  for (const order of orders) {
-    await addUserOrder(req.user.id, order);
-    await recordSale({
-      id: order.id,
-      userId: user.id,
-      userEmail: user.email,
-      userName: user.name,
-      type: 'social_account',
-      productId: product.id,
-      productName: product.platform,
-      price: order.price,
-      currency: 'NGN',
-      status: order.status,
-      createdAt: new Date().toISOString()
-    });
-  }
-
-  notify.success(req.user.id, orders);
-
-  res.status(201).json({
-    status: 'success',
-    message: qty > 1 ? `${qty} accounts purchased` : 'Account purchased',
-    orders,
-    quantity: qty,
-    balance: debit.balance
-  });
-}
-
-// Legacy purchase from manually-entered inventory.
+// Purchase from manually-entered inventory.
 async function buyInventoryAccount(req, res, catalog, product, qty = 1) {
   const slots = (product.inventory || []).filter((i) => i.status === 'available');
   if (slots.length < qty) {
@@ -511,379 +192,113 @@ async function buyInventoryAccount(req, res, catalog, product, qty = 1) {
   });
 }
 
-// OneGridHub displays digital order references as "DG-23843", but the
-// digital_order endpoint only accepts the bare numeric id ("23843").
-function normalizeProviderOrderId(raw) {
-  const s = String(raw || '').trim();
-  if (/^\d+$/.test(s)) return s;
-  const m = s.match(/(\d+)/);
-  return m ? m[1] : s;
-}
-
-// Best-effort extraction of delivered account credentials from the provider's
-// digital_order / digital_buy response, tolerating unknown response shapes.
-function extractAccountCredentials(detail, buyRes = {}) {
-  const candidates = [detail, buyRes].filter(Boolean);
-
-  const LOGIN_KEYS = ['username', 'user', 'login', 'email', 'account_username', 'data_username', 'id', 'mail'];
-  const PASS_KEYS = ['password', 'pass', 'pwd', 'account_password', 'data_password', 'secret', 'code'];
-  const EMAIL_PASS_KEYS = ['email_password', 'emailpass', 'email_pass', 'mail_password', 'mailpass', 'mail_pass', 'password_email', 'email_password_'];
-  const RECOVERY_KEYS = ['recovery', 'recovery_email', 'recovery_code', 'rec_email', 'twofa', 'two_fa', '2fa', 'phone', 'phone_number'];
-
-  const deepFind = (obj, keys, seen = new Set()) => {
-    if (obj == null) return '';
-    if (typeof obj === 'string' || typeof obj === 'number' || typeof obj === 'boolean') {
-      return '';
-    }
-    if (seen.has(obj)) return '';
-    seen.add(obj);
-    // Array of {name/key, value} pairs — a common provider shape.
-    if (Array.isArray(obj)) {
-      const pairs = {};
-      for (const item of obj) {
-        if (item && typeof item === 'object') {
-          const k = item.name || item.key || item.label || item.field || item.type || '';
-          const v = item.value ?? item.data ?? item.result ?? '';
-          if (k && v !== undefined && v !== null) pairs[String(k).toLowerCase()] = v;
-        }
-      }
-      for (const key of keys) {
-        if (pairs[key] !== undefined) return String(pairs[key]);
-      }
-      for (const item of obj) {
-        const r = deepFind(item, keys, seen);
-        if (r) return r;
-      }
-      return '';
-    }
-    // Plain object: try direct keys, then recurse into nested values.
-    for (const key of keys) {
-      const v = obj[key];
-      if (v !== undefined && v !== null && (typeof v === 'string' || typeof v === 'number') && String(v) !== '') {
-        return String(v);
-      }
-    }
-    for (const v of Object.values(obj)) {
-      const r = deepFind(v, keys, seen);
-      if (r) return r;
-    }
-    return '';
-  };
-
-  // Parse a pipe-delimited provider credential blob:
-  //   login|password|email|emailpass|recovery|extra...
-  // into named fields, tolerating missing / extra segments.
-  function parsePipeCredentials(raw) {
-    const parts = String(raw || '')
-      .split('|')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const out = { username: '', password: '', email: '', emailPassword: '', recovery: '', extra: [] };
-    if (parts.length >= 1) out.username = parts[0];
-    if (parts.length >= 2) out.password = parts[1];
-    if (parts.length <= 2) return out;
-
-    const rest = parts.slice(2);
-    const emailIdx = rest.findIndex((p) => /@/.test(p) && !/^M\./.test(p) && p.length < 60);
-    if (emailIdx < 0) {
-      out.extra = rest;
-      return out;
-    }
-    out.email = rest[emailIdx];
-    const after = rest[emailIdx + 1];
-    if (after && !/@/.test(after)) {
-      out.emailPassword = after;
-      out.recovery = rest[emailIdx + 2] || '';
-      out.extra = [...rest.slice(0, emailIdx), ...rest.slice(emailIdx + 3)].filter(Boolean);
-    } else {
-      out.recovery = rest[emailIdx + 1] || '';
-      out.extra = [...rest.slice(0, emailIdx), ...rest.slice(emailIdx + 2)].filter(Boolean);
-    }
-    return out;
-  }
-
-  let username = '';
-  let password = '';
-  let email = '';
-  let emailPassword = '';
-  let recovery = '';
-  let extra = [];
-  let accountRaw = '';
-
-  const isScalar = (v) => typeof v === 'string' || typeof v === 'number';
-
-  // First pass: look at top-level keys of each candidate response.
-  for (const d of candidates) {
-    for (const k of LOGIN_KEYS) {
-      if (d[k] !== undefined && isScalar(d[k]) && String(d[k]) !== '') { username = String(d[k]); break; }
-    }
-    if (username) break;
-  }
-  for (const d of candidates) {
-    for (const k of PASS_KEYS) {
-      if (d[k] !== undefined && isScalar(d[k]) && String(d[k]) !== '') { password = String(d[k]); break; }
-    }
-    if (password) break;
-  }
-  for (const d of candidates) {
-    for (const k of ['email', 'account_email', 'mail', 'data_email']) {
-      const v = d[k];
-      if (v !== undefined && isScalar(v) && /@/.test(String(v))) { email = String(v); break; }
-    }
-    if (email) break;
-  }
-
-  // OneGridHub delivers accounts as a multi-line `accounts` string whose last
-  // line is a JSON blob: {"account":"user|pass|email|emailpass|recovery|..."}.
-  // The blob may be at the top level or nested inside a `data` / `order` object.
-  function findAccountsString(obj, depth) {
-    if (depth > 6 || obj == null || typeof obj !== 'object') return '';
-    if (typeof obj.accounts === 'string' && obj.accounts.trim()) return obj.accounts;
-    if (Array.isArray(obj)) {
-      for (const item of obj) {
-        const found = findAccountsString(item, depth + 1);
-        if (found) return found;
-      }
-      return '';
-    }
-    for (const v of Object.values(obj)) {
-      const found = findAccountsString(v, depth + 1);
-      if (found) return found;
-    }
-    return '';
-  }
-
-  for (const d of candidates) {
-    const accountsBlob = findAccountsString(d, 0);
-    if (accountsBlob) {
-      const lines = accountsBlob.split('\n').map((l) => l.trim()).filter(Boolean);
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line);
-          const raw = parsed?.account || parsed?.credentials || parsed?.data || parsed?.details || parsed?.accounts;
-          if (typeof raw === 'string' && raw.includes('|')) {
-            accountRaw = raw;
-            const creds = parsePipeCredentials(raw);
-            if (!username) username = creds.username;
-            if (!password) password = creds.password;
-            if (!email) email = creds.email;
-            if (!emailPassword) emailPassword = creds.emailPassword;
-            if (!recovery) recovery = creds.recovery;
-            if (extra.length === 0) extra = creds.extra;
-            if (username && password) break;
-          }
-        } catch {
-          // line isn't JSON — try parsing as a raw pipe-delimited credential string
-          if (line.includes('|')) {
-            const creds = parsePipeCredentials(line);
-            if (creds.username && creds.password) {
-              accountRaw = line;
-              if (!username) username = creds.username;
-              if (!password) password = creds.password;
-              if (!email) email = creds.email;
-              if (!emailPassword) emailPassword = creds.emailPassword;
-              if (!recovery) recovery = creds.recovery;
-              if (extra.length === 0) extra = creds.extra;
-              if (username && password) break;
-            }
-          }
-        }
-      }
-      if (username && password) break;
-    }
-  }
-
-  // Second pass: deep-search for credentials nested in objects / arrays.
-  if (!username || !password) {
-    for (const d of candidates) {
-      if (!username) username = deepFind(d, LOGIN_KEYS);
-      if (!password) password = deepFind(d, PASS_KEYS);
-      if (username && password) break;
-    }
-  }
-
-  // Some providers hand back a single string blob: "user:pass" or "user|pass".
-  if (!username || !password) {
-    for (const d of candidates) {
-      const blob = d?.account ?? d?.accounts ?? d?.details ?? d?.credentials ?? d?.info ?? (typeof d?.data === 'string' ? d.data : '');
-      if (typeof blob === 'string' && blob.trim() && (blob.includes(':') || blob.includes('|') || blob.includes('\n'))) {
-        const parts = blob.split(/[:|\n]/).map((s) => s.trim()).filter(Boolean);
-        if (parts.length >= 2) {
-          if (!username) username = parts[0];
-          if (!password) password = parts[1];
-        }
-        if (!accountRaw && blob.includes('|')) accountRaw = blob;
-        break;
-      }
-    }
-  }
-
-  // Fill any remaining named fields from deep keys (email password / recovery).
-  if (!emailPassword || !recovery) {
-    for (const d of candidates) {
-      if (!emailPassword) {
-        const mail = deepFind(d, EMAIL_PASS_KEYS);
-        if (mail && !/@/.test(mail)) emailPassword = mail;
-      }
-      if (!recovery) recovery = deepFind(d, RECOVERY_KEYS);
-      if (emailPassword && recovery) break;
-    }
-  }
-
-  // If a plain pipe blob was stored but not parsed for the full fields, parse it now.
-  if (accountRaw && (!email || !emailPassword) && accountRaw.includes('|')) {
-    const creds = parsePipeCredentials(accountRaw);
-    if (!email) email = creds.email;
-    if (!emailPassword) emailPassword = creds.emailPassword;
-    if (!recovery) recovery = creds.recovery;
-    if (extra.length === 0) extra = creds.extra;
-  }
-
-  const completed =
-    String(detail?.status || '').toLowerCase() === 'completed' ||
-    String(detail?.state || '').toLowerCase() === 'completed' ||
-    String(detail?.status || '').toLowerCase() === 'success' ||
-    String(detail?.status || '').toLowerCase() === 'delivered' ||
-    String(detail?.status || '').toLowerCase() === 'fulfilled';
-
-  // Only mark ready when we actually have credentials (or a status that clearly
-  // confirms delivery alongside at least one credential). Blank creds should
-  // stay pending so the account-status poll can retrieve them.
-  const ready = Boolean(username && password) || (completed && Boolean(username || password));
-
-  if (!ready && (detail || buyRes)) {
-    console.warn('[digital-account] credentials not ready. raw:', JSON.stringify(detail || buyRes).slice(0, 800));
-  }
-
-  return {
-    username,
-    password,
-    email,
-    emailPassword,
-    recovery,
-    extra,
-    ready,
-    account_raw: accountRaw || (username && password ? `${username}|${password}` : '')
-  };
-}
-
-// How long a number stays active waiting for its SMS (mirrors the provider's window).
-const NUMBER_EXPIRY_MS = (Number(process.env.NUMBER_EXPIRY_MINUTES) || 20) * 60 * 1000;
-
-// Expected window for a provider to prepare and deliver a social media account
-// (credentials arrive by email and in Paid Accounts). Configurable via env.
-const ACCOUNT_DELIVERY_MS = (Number(process.env.ACCOUNT_DELIVERY_MINUTES) || 10) * 60 * 1000;
-
 // A complete verification code for these services is normally 4–8 digits.
-// OneGridHub's `otp` field sometimes only contains part of the code (e.g. "447"
-// instead of the full "447684"), so codes shorter than 4 digits are treated as
-// incomplete — we keep the order pending instead of marking it received.
+// A provider's short/partial code (e.g. "447" instead of the full "447684") is
+// treated as incomplete — we keep the order pending instead of marking it received.
 function isPlausibleOtp(value) {
   const digits = String(value || '').replace(/\D/g, '');
   return digits.length >= 4;
 }
 
-// GET /api/orders/status?order_ref= — poll SMS for a purchased number
+// Pull the delivered SMS code out of a Bulnix verification-order payload,
+// tolerating a few possible field names.
+function bulnixSmsCode(d) {
+  if (!d || typeof d !== 'object') return '';
+  const direct = d.code || d.sms || d.otp || d.sms_code || d.value || d.message_code;
+  if (direct) return String(direct);
+  const msgs = d.messages || d.sms_messages || d.received;
+  if (Array.isArray(msgs) && msgs.length) {
+    const m = msgs[msgs.length - 1];
+    if (m == null) return '';
+    if (typeof m === 'string') return m;
+    return String(m.code || m.otp || m.text || m.message || '');
+  }
+  return '';
+}
+
+// GET /api/orders/status?order_ref= — poll SMS for a purchased number.
+// Lifecycle is time-based (the number's own expiry window); we only auto-refund
+// once that window has closed with no usable code, or when Bulnix explicitly
+// reports the number dead. A number is never expired early while it could still
+// deliver a code.
 router.get('/status', asyncRoute(async (req, res) => {
   const { order_ref } = req.query;
   if (!order_ref) return res.status(400).json({ message: 'order_ref is required' });
 
-  const data = await ogRequest({ endpoint: 'status', order_ref }, { timeoutMs: 8000, retries: 1 });
-  if (!isOgSuccess(data)) return res.status(502).json(ogError(data));
-  console.log('[DEBUG] OneGridHub status response:', JSON.stringify(data));
+  const orders = await getUserOrders(req.user.id);
+  const order = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
+  if (!order) return res.status(404).json({ message: 'Order not found' });
 
-  const smsCode = data.sms || data.code || data.otp || data.sms_code || 
-                  data.data?.sms || data.data?.code || data.data?.otp || data.data?.sms_code || null;
-  if (smsCode) {
-    const code = String(smsCode);
-    const orders = await getUserOrders(req.user.id);
-    const existing = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
-    const existingCode = existing?.sms ? String(existing.sms) : '';
-    // Never downgrade a longer, complete code with a shorter one the provider
-    // returns later (its `otp` extraction can be truncated).
-    const stored = code.length >= existingCode.length ? code : existingCode;
+  // Poll Bulnix for the latest code / lifecycle where possible.
+  let code = order.sms ? String(order.sms) : '';
+  let explicitDead = false;
+  if (order.provider === 'bulnix') {
+    const providerId = order.provider_order || order.order_ref;
+    const resp = await sms.status(providerId, { channel: order.channel || 'worldwide' });
+    if (isBxSuccess(resp)) {
+      const d = bxData(resp) || {};
+      const fresh = bulnixSmsCode(d);
+      // Never downgrade a longer, complete code with a shorter one.
+      if (fresh && fresh.length >= code.length) code = fresh;
+      const st = String(d.status || d.order_status || d.state || '').toLowerCase();
+      explicitDead = ['cancelled', 'canceled', 'refunded', 'failed', 'expired', 'dead'].includes(st);
+    }
+  }
 
-    // A truncated code (e.g. "447" instead of "447684") is not a usable code.
-    // Keep the order pending so the user can keep checking or cancel for a refund.
+  const timeExpired = order.expiresAt ? Date.now() > new Date(order.expiresAt).getTime() : false;
+  const alreadyRefunded = order.status === 'cancelled' || order.status === 'expired';
+
+  if (code) {
     await updateUserOrder(req.user.id, order_ref, {
-      status: isPlausibleOtp(stored) ? 'received' : 'pending',
-      sms: stored,
+      status: isPlausibleOtp(code) ? 'received' : 'pending',
+      sms: code,
       lastCheckedAt: new Date().toISOString()
     });
+  } else {
+    await updateUserOrder(req.user.id, order_ref, { lastCheckedAt: new Date().toISOString() });
+  }
 
-    // If the code is truncated AND the provider has closed the order (e.g.
-    // state "completed" with a partial otp), no full code will ever arrive.
-    // Auto-refund instead of leaving the user stuck in pending forever.
-    const providerClosed = data.state && !['pending', 'active', 'waiting', 'rented'].includes(String(data.state).toLowerCase());
-    if (providerClosed && !isPlausibleOtp(stored) && existing?.price) {
-      const alreadyRefunded = existing.status === 'cancelled' || existing.status === 'expired';
-      if (!alreadyRefunded) {
-        const refundResult = await creditWallet(req.user.id, {
-          amount: Number(existing.price) || 0,
-          reference: `refund-${order_ref}`,
-          meta: { type: 'refund', orderRef: order_ref, service: existing.service || existing.platform, reason: 'Provider delivered an incomplete SMS code — auto-refund' }
-        });
-        await updateUserOrder(req.user.id, order_ref, {
-          status: 'expired',
-          expiredAt: new Date().toISOString()
-        });
-        notify.refund(req.user.id, { ...existing, status: 'expired', sms: stored }, refundResult?.balance);
-        return res.json({
-          ...data,
-          _providerState: data.state,
-          _expired: true,
-          _refunded: refundResult?.ok,
-          _refundBalance: refundResult?.balance || null,
-          _incompleteCode: stored,
-          message: 'The provider returned an incomplete SMS code that can never be completed. You have been automatically refunded.'
-        });
-      }
+  // The number is dead when the provider says so, or its window elapsed with no
+  // usable code. Auto-refund once (creditWallet dedupes by reference).
+  const usable = isPlausibleOtp(code);
+  if (!usable && (explicitDead || timeExpired) && !alreadyRefunded) {
+    let refundResult = null;
+    if (order.price) {
+      refundResult = await creditWallet(req.user.id, {
+        amount: Number(order.price) || 0,
+        reference: `refund-${order_ref}`,
+        meta: { type: 'refund', orderRef: order_ref, service: order.service || order.platform, reason: 'SMS number closed without delivering a usable code — auto-refund' }
+      });
     }
-  } else if (data.state && !['pending', 'active', 'waiting', 'rented'].includes(String(data.state).toLowerCase())) {
-    // The provider has closed the number without delivering a code ('completed'
-    // with no otp, 'cancelled', 'expired', ...).
-    const orders = await getUserOrders(req.user.id);
-    const existingOrder = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
-
-    // If the user already has a usable code, don't touch the order — providers
-    // move finished orders to 'cancelled'/'expired' in their normal lifecycle.
-    if (existingOrder?.status === 'received' && isPlausibleOtp(existingOrder.sms)) {
-      return res.json(data);
-    }
-
-    const alreadyRefunded = existingOrder?.status === 'cancelled' || existingOrder?.status === 'expired';
-
     await updateUserOrder(req.user.id, order_ref, {
       status: 'expired',
-      lastCheckedAt: new Date().toISOString(),
-      expiredAt: new Date().toISOString()
+      expiredAt: new Date().toISOString(),
+      lastCheckedAt: new Date().toISOString()
     });
-
-    // Auto-refund if the user hasn't already been refunded for this order.
-    let refundResult = null;
-    if (!alreadyRefunded && existingOrder?.price) {
-      refundResult = await creditWallet(req.user.id, {
-        amount: Number(existingOrder.price) || 0,
-        reference: `refund-${order_ref}`,
-        meta: { type: 'refund', orderRef: order_ref, service: existingOrder.service || existingOrder.platform, reason: 'Provider cancelled without delivering SMS — auto-refund' }
-      });
-      notify.refund(req.user.id, { ...existingOrder, status: 'expired' }, refundResult?.balance);
-    }
-
-    res.json({
-      ...data,
-      _providerState: data.state,
+    notify.refund(req.user.id, { ...order, status: 'expired', sms: code }, refundResult?.balance);
+    return res.json({
+      status: 'success',
+      sms: code,
+      code,
+      order_status: 'expired',
       _expired: true,
-      _refunded: !alreadyRefunded && refundResult?.ok,
-      _refundBalance: refundResult?.balance || null,
-      message: 'This number went dead — the provider cancelled it without delivering an SMS code. You have been automatically refunded.'
+      _refunded: Boolean(refundResult?.ok),
+      _refundBalance: refundResult?.balance ?? null,
+      message: 'This number went dead without delivering a usable SMS code. You have been automatically refunded.'
     });
-    return;
   }
-  res.json(data);
+
+  res.json({
+    status: 'success',
+    sms: code,
+    code,
+    order_status: usable ? 'received' : 'pending'
+  });
 }));
 
 // POST /api/orders/cancel { order_ref }
+// Bulnix verification numbers have no provider-side cancel; a pending number is
+// simply refunded and left to lapse on the provider's own timer.
 router.post('/cancel', asyncRoute(async (req, res) => {
   const { order_ref } = req.body || {};
   if (!order_ref) return res.status(400).json({ message: 'order_ref is required' });
@@ -915,55 +330,15 @@ router.post('/cancel', asyncRoute(async (req, res) => {
     return res.json({ status: 'success', refunded: true, balance: refund?.balance });
   }
 
-  // A "received" order is normally non-refundable, but if the code the provider
-  // delivered was truncated (e.g. "447" instead of "447684") the user got nothing
-  // usable, so let them cancel and get their money back.
+  // A "received" order that got a usable code is non-refundable. A truncated
+  // code (e.g. "447" instead of "447684") delivered nothing usable, so allow it.
   if (order.status === 'received' && isPlausibleOtp(order.sms)) {
     return res.status(409).json({ message: 'This order already received its SMS code and cannot be refunded.' });
   }
 
-  // An "expired" order means the provider's SMS window closed without delivering
-  // a code. The provider has already cancelled/released the number on their end,
-  // so there is nothing to cancel there — just refund immediately.
-  if (order.status === 'expired') {
-    const refund = await creditWallet(req.user.id, {
-      amount: Number(order.price) || 0,
-      reference: `refund-${order_ref}`,
-      meta: { type: 'refund', orderRef: order_ref, service: order.service || order.platform }
-    });
-    await updateUserOrder(req.user.id, order_ref, {
-      status: 'cancelled',
-      cancelledAt: new Date().toISOString(),
-      refundedAt: new Date().toISOString(),
-      lastCheckedAt: new Date().toISOString()
-    });
-    notify.refund(req.user.id, { ...order, status: 'cancelled' }, refund?.balance);
-    return res.json({ status: 'success', refunded: true, balance: refund?.balance });
-  }
-
-  const data = await ogRequest({ endpoint: 'cancel', order_ref });
-  const providerCancelled = !isOgSuccess(data);
-  const providerMsg = String(data?.message || '').toLowerCase();
-  const providerAlreadyDone =
-    providerCancelled && (
-      providerMsg.includes('already cancelled') ||
-      providerMsg.includes('already finalized') ||
-      providerMsg.includes('already refunded') ||
-      providerMsg.includes('order not found') ||
-      providerMsg.includes('order has expired') ||
-      providerMsg.includes('order expired') ||
-      providerMsg.includes('already used')
-    );
-  // If the provider returned a hard error (not just "already done"), abort.
-  if (providerCancelled && !providerAlreadyDone) {
-    return res.status(502).json(ogError(data));
-  }
-  // If the provider says it's already cancelled/finalized/expired, we can
-  // still refund the user — they never received a usable code.
-  if (providerAlreadyDone) {
-    console.warn('[cancel] provider says order already handled for', order_ref, ':', data?.message || '');
-  }
-
+  // Any other pending/expired virtual number: refund and mark cancelled. The
+  // provider releases the number on its own timer, so there is nothing to cancel
+  // on their side.
   const refund = await creditWallet(req.user.id, {
     amount: Number(order.price) || 0,
     reference: `refund-${order_ref}`,
@@ -980,72 +355,6 @@ router.post('/cancel', asyncRoute(async (req, res) => {
   notify.refund(req.user.id, { ...order, status: 'cancelled' }, refund?.balance);
 
   res.json({ status: 'success', refunded: true, balance: refund?.balance });
-}));
-
-// GET /api/orders/account-status?order_ref= — poll the provider for a pending
-// digital (social media account) purchase and store the delivered credentials.
-router.get('/account-status', asyncRoute(async (req, res) => {
-  const { order_ref } = req.query;
-  if (!order_ref) return res.status(400).json({ message: 'order_ref is required' });
-
-  const orders = await getUserOrders(req.user.id);
-  const order = orders.find((o) => o.order_ref === order_ref || o.ref === order_ref);
-  if (!order) return res.status(404).json({ message: 'Order not found' });
-  if (order.type !== 'social_account') {
-    return res.status(400).json({ message: 'Not a social account order' });
-  }
-
-  const providerOrderId = normalizeProviderOrderId(order.provider_order);
-  if (!providerOrderId) {
-    return res.json({ status: order.status, order });
-  }
-
-  let detail;
-  try {
-    detail = await ogDigitalOrder(providerOrderId);
-  } catch (err) {
-    console.error('[account-status] provider query threw for order', order_ref, ':', err.message);
-    return res.json({ status: order.status, order });
-  }
-
-  // If the provider returns an error or is still processing, don't 502 —
-  // return the current pending status so the frontend can keep retrying.
-  if (!isOgSuccess(detail)) {
-    console.warn('[account-status] provider returned non-success for order', order_ref, ':', JSON.stringify(detail).slice(0, 400));
-    return res.json({ status: order.status, order });
-  }
-
-  const account = extractAccountCredentials(detail, {});
-  const isDone = Boolean(account.username && account.password);
-  console.log('[account-status] poll result for', order_ref, ':', JSON.stringify({
-    providerOrderId,
-    ready: isDone,
-    username: account.username || '',
-    hasPassword: Boolean(account.password)
-  }));
-
-  if (isDone) {
-    const updated = {
-      status: 'completed',
-      username: account.username,
-      password: account.password,
-      email: account.email || order.email || null,
-      email_password: account.emailPassword || order.email_password || null,
-      recovery: account.recovery || order.recovery || null,
-      extra: (account.extra && account.extra.length ? account.extra : order.extra) || [],
-      account_raw: account.account_raw || order.account_raw || null,
-      expiresAt: null,
-      lastCheckedAt: new Date().toISOString()
-    };
-    await updateUserOrder(req.user.id, order_ref, updated);
-    return res.json({ status: 'completed', order: { ...order, ...updated } });
-  }
-
-  await updateUserOrder(req.user.id, order_ref, {
-    status: 'pending',
-    lastCheckedAt: new Date().toISOString()
-  });
-  res.json({ status: 'pending', order });
 }));
 
 export default router;

@@ -1,6 +1,6 @@
 # SpencerSBM — Server
 
-Express API for the SpencerSBM marketplace. Handles authentication, password resets, and proxying of the OneGridHub virtual-number/SMS provider.
+Express API for the SpencerSBM marketplace. Handles authentication, password resets, wallet funding (Flutterwave), and proxying of the **Bulnix** provider (virtual-number SMS verification, social-account marketplace, and followers growth).
 
 ## Quick Start
 
@@ -20,15 +20,21 @@ Server runs on **http://localhost:5000**.
 |----------|----------|-------------|
 | `PORT` | no | Port to listen on (default `5000`) |
 | `DATABASE_URL` | yes | PostgreSQL connection string (e.g. from Railway). Schema is created automatically on startup |
-| `CLIENT_URL` | no | Allowed client origin / base for reset links (default `http://localhost:5173`) |
+| `CLIENT_URL` | no | Allowed client origin(s), comma-separated / base for reset links (default `http://localhost:5173`) |
 | `JWT_SECRET` | yes | Secret used to sign auth tokens |
 | `RESEND_API_KEY` | no | Resend API key. If set, transactional emails are sent via Resend. If empty, reset links / emails are logged to the console (dev mode) |
-| `RESEND_FROM` | no | Sender address on your verified Resend domain, e.g. `SpencerSBM <no-reply@spencersbm.com.ng>` (default `SpencerSBM <no-reply@spencersbm.com.ng>`) |
-| `ONEGRIDHUB_BASE_URL` | no | OneGridHub API endpoint |
-| `ONEGRIDHUB_API_KEY` | yes | OneGridHub API key (never sent to the browser) |
+| `RESEND_FROM` | no | Sender address on your verified Resend domain, e.g. `SpencerSBM <no-reply@spencersbm.com.ng>` |
+| `FLW_CLIENT_ID` / `FLW_CLIENT_SECRET` / `FLW_ENCRYPTION_KEY` | for payments | Flutterwave credentials for wallet funding |
+| `FLW_SECRET_HASH` | for payments | Verifies incoming Flutterwave webhook signatures |
+| `BULNIX_BASE_URL` | no | Bulnix API base (default `https://bulnix.com/api/v1`) |
+| `BULNIX_MARKETPLACE_KEY` | for accounts | Bulnix key for the social-account marketplace (never sent to the browser) |
+| `BULNIX_SMS_KEY` | for numbers | Bulnix key for SMS verification numbers (never sent to the browser) |
+| `BULNIX_FOLLOWERS_KEY` | for followers | Bulnix key for followers-growth services (never sent to the browser) |
+| `BULNIX_MARKUP` | no | Markup factor applied on top of Bulnix's USD cost (default `1.35`). Legacy `DIGITAL_MARKUP` is honored as a fallback |
+| `BULNIX_TIMEOUT_MS` | no | Per-request Bulnix timeout in ms (default `12000`) |
 | `NUMBER_EXPIRY_MINUTES` | no | SMS window for virtual numbers (default `20`) |
-| `ACCOUNT_DELIVERY_MINUTES` | no | Expected delivery window for provider-prepared social accounts (default `10`) |
-| `NUMBER_MARKUP` / `DIGITAL_MARKUP` | no | Markup factor applied to provider cost when syncing numbers / social accounts (default `1.35`) |
+
+> Each Bulnix service uses a **separate `blx_` key** but shares one base URL and one reseller wallet. A service whose key is absent degrades gracefully — its helpers return a normalized "not configured" object and the client simply shows that service as coming soon, so the live site is never affected.
 
 ## Scripts
 
@@ -44,13 +50,19 @@ server/
 ├── index.js            # App bootstrap: cors, json, routes, global error handler
 ├── routes/
 │   ├── auth.js         # Register, login, me, change/forgot/reset password
-│   └── onegridhub.js   # Proxy + order logic for the numbers provider
+│   ├── wallet.js       # Wallet balance + Flutterwave funding
+│   ├── orders.js       # Purchase history, catalog, inventory accounts, SMS status/cancel
+│   ├── admin.js        # Admin stats, sales, users, product & inventory management
+│   ├── bulnix.js       # Bulnix proxy: marketplace, SMS verification, followers
+│   └── webhook.js      # Flutterwave payment webhook
 ├── utils/
-│   ├── auth.js         # JWT sign/token helpers + requireAuth middleware
+│   ├── auth.js         # JWT sign/token helpers + requireAuth / requireAdmin middleware
 │   ├── db.js           # PostgreSQL connection pool (DATABASE_URL)
 │   ├── mailer.js       # Resend transport + email templates (or dev console log)
-│   ├── onegridhub.js   # Safe provider client (timeouts, retries, error objects)
-│   └── store.js        # PostgreSQL-backed persistence for users & orders
+│   ├── flutterwave.js  # Flutterwave client + reference helpers
+│   ├── bulnix.js       # Safe Bulnix client (timeouts, retries, error objects, markup)
+│   ├── rates.js        # Live USD→NGN rate used for NGN pricing
+│   └── store.js        # PostgreSQL-backed persistence for users, orders & products
 ```
 
 ## API Reference
@@ -60,6 +72,7 @@ server/
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/health` | Liveness check — verifies the data store is readable. Returns `200`/`503` |
+| GET | `/api/config` | Client-facing runtime flags (no secrets) |
 
 ### Authentication — `/api/auth`
 
@@ -74,49 +87,65 @@ server/
 
 Validation rules: valid email format, password **≥ 8 characters**, duplicate emails rejected.
 
-### Numbers Provider — `/api/onegridhub` (all require Bearer auth)
+### Bulnix Provider — `/api/bulnix`
 
-| Method | Path | Params | Description |
-|--------|------|--------|-------------|
-| GET | `/servers` | – | Available provider servers |
-| GET | `/services` | `server` | SMS services for a server |
-| GET | `/countries` | `server` | Countries for a server |
-| GET | `/price` | `server, country, service` | Live price check |
-| GET | `/balance` | – | OneGridHub wallet balance |
-| POST | `/buy` | `{ server, country, service }` | Purchase a virtual number |
-| GET | `/status` | `order_ref` | Check SMS/status for an order |
-| POST | `/cancel` | `{ order_ref }` | Cancel an active number |
-| GET | `/orders` | – | Current user's order history |
+Bulnix quotes in USD; the server converts to NGN with a markup (see `applyBulnixMarkup`). Purchase/status routes require Bearer auth; browse routes are public so the store can render before login.
 
-### Digital Products (Social Accounts) — `/api/onegridhub` & `/api/admin`
-
-OneGridHub's digital-products API powers the social media account marketplace. The admin syncs the provider's products into `account_products`, then customers buy them through `/api/orders`.
+**Marketplace (social accounts)** — delivered synchronously at purchase time.
 
 | Method | Path | Auth | Params | Description |
 |--------|------|------|--------|-------------|
-| GET | `/admin/digital/products` | Admin | `server, category?, search?, limit?` | List provider digital products |
-| POST | `/admin/digital/sync` | Admin | `{ server, category?, search?, margin? }` | Sync provider products into `account_products` with a sell price (markup) |
+| GET | `/status` | – | – | Which Bulnix services are configured (no secrets) |
+| GET | `/marketplace/categories` | – | – | Product categories |
+| GET | `/marketplace/products` | – | `category`, `search`, `page` | Browse products (NGN prices) |
+| GET | `/marketplace/products/:id` | – | – | Single product detail |
+| POST | `/marketplace/order` | Bearer | `{ productId, quantity? }` | Buy account(s); wallet debited, credentials stored on the order |
+| GET | `/marketplace/order/:id/status` | Bearer | – | Poll a marketplace order |
 
-Provider helpers in `server/utils/onegridhub.js`: `ogDigitalProducts`, `ogDigitalBuy`, `ogDigitalOrder`.
+**SMS verification (virtual numbers)** — `worldwide` channel is the live purchase route.
+
+| Method | Path | Auth | Params | Description |
+|--------|------|------|--------|-------------|
+| GET | `/sms/countries` | – | `channel` | Countries for a channel |
+| GET | `/sms/services` | – | `channel`, `country_code` | Verification services + NGN prices for a country |
+| POST | `/sms/order` | Bearer | `{ channel, countryCode, serviceSlug }` | Activate a number (price-locked, wallet debited) |
+| GET | `/sms/order/:id` | Bearer | – | Refresh number / delivered code / lifecycle |
+
+**Followers growth** — provider client is wired up (`/followers/services`); no customer UI is shipped yet.
 
 ### Orders — `/api/orders` (all require Bearer auth)
 
 | Method | Path | Body/Params | Description |
 |--------|------|-------------|-------------|
-| GET | `/` | – | Current user's purchase history |
+| GET | `/` | – | Current user's purchase history (numbers + accounts) |
 | GET | `/payments` | – | All wallet money movements (funding + purchases) |
 | GET | `/paid-accounts` | – | Purchased social media accounts with credentials |
-| GET | `/catalog` | – | Buyable products (numbers + accounts, with stock) |
-| POST | `/numbers` | `{ productId }` | Buy a virtual number (wallet debited) |
-| POST | `/accounts` | `{ productId }` | Buy a social account — provider-backed or legacy inventory |
-| GET | `/status` | `order_ref` | Poll SMS code for a number |
-| GET | `/account-status` | `order_ref` | Poll a pending provider account until credentials arrive |
-| POST | `/cancel` | `{ order_ref }` | Cancel an order and refund the wallet (numbers only; blocked once SMS received) |
+| GET | `/catalog` | – | Locally-stocked buyable products (numbers + accounts) |
+| POST | `/accounts` | `{ productId, quantity? }` | Buy a social account from manually-stocked inventory (wallet debited) |
+| GET | `/status` | `order_ref` | Poll the SMS code for a purchased number (Bulnix-aware; time-based expiry + auto-refund) |
+| POST | `/cancel` | `{ order_ref }` | Cancel and refund an order (blocked once a usable SMS code / account has been delivered) |
+
+### Admin — `/api/admin` (all require Admin auth)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/stats` `/sales` `/users` `/products` | Dashboard data |
+| POST/PUT/DELETE | `/products/numbers[/:id]` | Manage number products |
+| POST/PUT/DELETE | `/products/accounts[/:id]` | Manage account products |
+| POST/DELETE | `/products/accounts/:id/inventory[/:invId]` | Add / remove account inventory slots |
+| POST | `/orders/sms` | Manually backfill a truncated SMS code for a user's order |
+
+### Webhook — `/api/webhook`
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/flutterwave` | Signature | Credits a user's wallet when a funding charge succeeds |
 
 ## Behavior Notes
 
-- **Data persistence**: users and orders live in a PostgreSQL database configured via `DATABASE_URL` (e.g. a Railway Postgres instance). The `users` table is created automatically on startup.
-- **Provider safety**: all OneGridHub calls run through `ogRequest` / the digital helpers, which apply a 12s timeout, 2 retries, and never throw — the API returns well-formed error objects so the process stays alive when the provider is down.
-- **Digital product responses** are parsed adaptively (price/name/id/stock and delivered credentials are extracted from the most likely fields) because OneGridHub's exact JSON schema can vary. Tune `server/utils/digital-sync.js` and `extractAccountCredentials` in `server/routes/orders.js` if the live response differs.
-- **Error handling**: a global error middleware returns `500` for unexpected failures; provider failures return `502`.
-- **CORS**: allowed origin comes from `CLIENT_URL`.
+- **Data persistence**: users, orders, and products live in a PostgreSQL database configured via `DATABASE_URL` (e.g. a Railway Postgres instance). Schema is created automatically on startup.
+- **Provider safety**: every Bulnix call runs through `bxRequest`, which applies a timeout, a retry, and **never throws** — it returns well-formed error objects (`isBxSuccess` / `bxError` / `bxData` helpers) so the process stays alive when the provider is down or a key is missing.
+- **Pricing**: `applyBulnixMarkup(usdCost, ngnRate, markup)` multiplies the USD cost by the live USD→NGN rate and the markup, then rounds up to the nearest ₦100.
+- **SMS lifecycle** is time-based: a number is refunded automatically only once its expiry window closes without a usable code, or Bulnix reports it dead — a live number is never expired early.
+- **Error handling**: a global error middleware returns `500` for unexpected failures; Bulnix handler failures return `502`.
+- **CORS**: allowed origin(s) come from `CLIENT_URL`.

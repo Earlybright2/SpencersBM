@@ -20,9 +20,11 @@
   </head>
   <body>
     <script>
+      // Apply saved theme before paint to avoid a flash. Light is the default;
+      // dark is opt-in via the in-app toggle (keys off `html.dark`).
       try {
-        if (localStorage.getItem('spencersbm_theme') === 'light') {
-          document.documentElement.classList.add('light');
+        if (localStorage.getItem('sbm_theme') === 'dark') {
+          document.documentElement.classList.add('dark');
         }
       } catch (e) {}
     </script>

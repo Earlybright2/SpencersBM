@@ -4,7 +4,7 @@ import { ShoppingBag, ShieldCheck, Zap, Headphones, CheckCircle2 } from 'lucide-
 const features = [
   {
     title: 'Marketplace & Services',
-    desc: 'Use digital accounts plus focused eSIM, virtual numbers, growth, and proxy service areas.'
+    desc: 'Use digital accounts plus focused virtual numbers, SMS verification, and growth service areas.'
   },
   {
     title: 'Clear Service Flows',

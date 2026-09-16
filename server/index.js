@@ -2,12 +2,11 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth.js';
-import onegridhubRoutes from './routes/onegridhub.js';
 import walletRoutes from './routes/wallet.js';
 import webhookRoutes from './routes/webhook.js';
 import ordersRoutes from './routes/orders.js';
 import adminRoutes from './routes/admin.js';
-import serversRoutes from './routes/servers.js';
+import bulnixRoutes from './routes/bulnix.js';
 import { getUsers, ensureAdmin } from './utils/store.js';
 
 const app = express();
@@ -26,7 +25,20 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim());
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 app.use(
   express.json({
     verify: (req, _res, buf) => {
@@ -63,7 +75,6 @@ app.get('/', (req, res) => {
       },
       orders: {
         catalog: { method: 'GET', path: '/api/orders/catalog', auth: 'user' },
-        buyNumber: { method: 'POST', path: '/api/orders/numbers', auth: 'user', body: { productId: 'string' } },
         buyAccount: { method: 'POST', path: '/api/orders/accounts', auth: 'user', body: { productId: 'string' } },
         orders: { method: 'GET', path: '/api/orders', auth: 'user' },
         payments: { method: 'GET', path: '/api/orders/payments', auth: 'user' },
@@ -83,15 +94,20 @@ app.get('/', (req, res) => {
         updateAccount: { method: 'PUT', path: '/api/admin/products/accounts/:id', auth: 'admin' },
         deleteAccount: { method: 'DELETE', path: '/api/admin/products/accounts/:id', auth: 'admin' },
         addInventory: { method: 'POST', path: '/api/admin/products/accounts/:id/inventory', auth: 'admin' },
-        removeInventory: { method: 'DELETE', path: '/api/admin/products/accounts/:id/inventory/:invId', auth: 'admin' },
-        providerServers: { method: 'GET', path: '/api/onegridhub/servers', auth: 'admin' },
-        providerServices: { method: 'GET', path: '/api/onegridhub/services?server=', auth: 'admin' },
-        providerCountries: { method: 'GET', path: '/api/onegridhub/countries?server=', auth: 'admin' },
-        providerPrice: { method: 'GET', path: '/api/onegridhub/price?server=&country=&service=', auth: 'admin' },
-        providerBalance: { method: 'GET', path: '/api/onegridhub/balance', auth: 'admin' }
+        removeInventory: { method: 'DELETE', path: '/api/admin/products/accounts/:id/inventory/:invId', auth: 'admin' }
       },
       webhook: {
         flutterwave: { method: 'POST', path: '/api/webhook/flutterwave', auth: 'signature' }
+      },
+      bulnix: {
+        status: { method: 'GET', path: '/api/bulnix/status', auth: 'none' },
+        categories: { method: 'GET', path: '/api/bulnix/marketplace/categories', auth: 'none' },
+        products: { method: 'GET', path: '/api/bulnix/marketplace/products?category=&search=&page=', auth: 'none' },
+        product: { method: 'GET', path: '/api/bulnix/marketplace/products/:id', auth: 'none' },
+        buy: { method: 'POST', path: '/api/bulnix/marketplace/order', auth: 'user', body: { productId: 'string', quantity: 'number?' } },
+        orderStatus: { method: 'GET', path: '/api/bulnix/marketplace/order/:id/status', auth: 'user' },
+        smsServices: { method: 'GET', path: '/api/bulnix/sms/services', auth: 'none' },
+        followersServices: { method: 'GET', path: '/api/bulnix/followers/services', auth: 'none' }
       }
     }
   });
@@ -128,11 +144,10 @@ app.get('/api/config', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
-app.use('/api/onegridhub', onegridhubRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/servers', serversRoutes);
+app.use('/api/bulnix', bulnixRoutes);
 app.use('/api/webhook', webhookRoutes);
 
 // Global error handler
