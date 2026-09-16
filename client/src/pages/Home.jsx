@@ -140,13 +140,13 @@ export default function Home() {
         <div className="max-w-[1400px] mx-auto px-4 md:px-8 pt-14 md:pt-20 pb-16 md:pb-24">
           <div className="grid lg:grid-cols-2 gap-14 lg:gap-10 items-center">
             {/* Left */}
-            <div className="animate-fade-in-up pl-4 md:pl-10 lg:pl-16">
+            <div className="animate-fade-in-up lg:pl-16">
               <span className="inline-flex items-center gap-2 chip !py-2 !px-4 border-gold/30 !bg-gold/10">
                 <Sparkles size={14} className="text-gold" />
                 <span className="text-body/90 font-semibold">Instant delivery · 15,000+ orders filled</span>
               </span>
 
-              <h1 className="mt-6 text-[2.9rem] leading-[1.04] sm:text-[3.6rem] md:text-[4.4rem] lg:text-[4rem] xl:text-[4.4rem] font-syne font-extrabold tracking-tight text-body whitespace-nowrap">
+              <h1 className="mt-6 text-[2rem] leading-[1.08] sm:text-[2.8rem] md:text-[3.6rem] lg:text-[4rem] xl:text-[4.4rem] font-syne font-extrabold tracking-tight text-body">
                 Verified numbers.<br />
                 Real Accounts.<br />
                 <span className="text-gradient-gold">Instant Delivery.</span>
@@ -177,7 +177,7 @@ export default function Home() {
               </div>
 
               {/* inline trust stats */}
-              <div className="mt-11 grid grid-cols-3 gap-4 max-w-[520px]">
+              <div className="mt-11 grid grid-cols-3 gap-3 sm:gap-4 max-w-[360px] sm:max-w-[520px]">
                 {[
                   { v: <Counter value={60} suffix="+" />, l: 'Countries' },
                   { v: <Counter value={99.8} decimals={1} suffix="%" />, l: 'Success rate' },
@@ -192,9 +192,9 @@ export default function Home() {
             </div>
 
             {/* Right — floating card cluster (pure CSS, no stock image) */}
-            <div className="relative min-h-[440px] md:min-h-[520px] flex items-center justify-center animate-scale-in">
+            <div className="relative min-h-[320px] sm:min-h-[400px] md:min-h-[520px] flex items-center justify-center animate-scale-in mt-10 lg:mt-0">
               {/* OTP delivery card */}
-              <div className="relative z-20 w-[300px] sm:w-[340px] card-border p-6 animate-float shadow-[var(--tw-shadow-lift)]">
+              <div className="relative z-20 w-[260px] sm:w-[300px] md:w-[340px] card-border p-4 sm:p-6 animate-float shadow-[var(--tw-shadow-lift)]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <span className="w-9 h-9 rounded-xl bg-gold/15 text-gold grid place-items-center">
@@ -220,7 +220,7 @@ export default function Home() {
               </div>
 
               {/* account delivered card */}
-              <div className="absolute z-10 -bottom-2 right-2 sm:right-0 w-[240px] card-border p-5 animate-bob" style={{ animationDelay: '1.2s' }}>
+              <div className="absolute z-10 -bottom-2 right-2 sm:right-0 w-[200px] sm:w-[240px] card-border p-4 sm:p-5 animate-bob" style={{ animationDelay: '1.2s' }}>
                 <div className="flex items-center gap-2.5 mb-3">
                   <span className="w-9 h-9 rounded-xl bg-gold/15 text-gold grid place-items-center">
                     <InstagramIcon size={18} />
@@ -422,9 +422,9 @@ export default function Home() {
 
       {/* ==================== STATS BAND ==================== */}
       <section className="max-w-[1400px] mx-auto px-4 md:px-8 pb-8">
-        <div className="reveal card-border bg-surface2 relative overflow-hidden px-6 md:px-12 py-12">
+        <div className="reveal card-border bg-surface2 relative overflow-hidden px-4 sm:px-6 md:px-12 py-8 sm:py-12">
           <div aria-hidden className="absolute inset-0 bg-dots opacity-60 pointer-events-none" />
-          <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
+          <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 text-center">
             {[
               { v: <Counter value={15000} suffix="+" />, l: 'Orders delivered' },
               { v: <Counter value={60} suffix="+" />, l: 'Countries covered' },
@@ -432,8 +432,8 @@ export default function Home() {
               { v: '24/7', l: 'Human support' }
             ].map((s, i) => (
               <div key={i}>
-                <div className="font-syne text-[2.2rem] md:text-[3rem] font-extrabold text-gradient-gold leading-none">{s.v}</div>
-                <div className="mt-2 text-[0.82rem] uppercase tracking-wide text-muted font-semibold">{s.l}</div>
+                <div className="font-syne text-[1.6rem] sm:text-[2.2rem] md:text-[3rem] font-extrabold text-gradient-gold leading-none">{s.v}</div>
+                <div className="mt-2 text-[0.7rem] sm:text-[0.82rem] uppercase tracking-wide text-muted font-semibold">{s.l}</div>
               </div>
             ))}
           </div>
@@ -506,7 +506,7 @@ export default function Home() {
           {/* visual: mock order / rating card */}
           <div className="reveal relative">
             <div aria-hidden className="absolute -inset-6 bg-gold/10 blur-3xl rounded-full pointer-events-none" />
-            <div className="relative card-border p-8 shadow-[var(--tw-shadow-lift)]">
+            <div className="relative card-border p-5 sm:p-8 shadow-[var(--tw-shadow-lift)]">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <span className="w-11 h-11 rounded-full bg-gold text-night grid place-items-center font-syne font-extrabold">S</span>
@@ -557,7 +557,7 @@ export default function Home() {
         <div className="relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]">
           <div className="marquee-track py-2">
             {[...TESTIMONIALS, ...TESTIMONIALS].map((t, i) => (
-              <div key={i} className="inline-flex flex-col align-top w-[330px] whitespace-normal mx-3 card-border p-7 text-left">
+              <div key={i} className="inline-flex flex-col align-top w-[280px] sm:w-[330px] whitespace-normal mx-2 sm:mx-3 card-border p-5 sm:p-7 text-left">
                 <div className="flex gap-0.5 text-gold mb-4">
                   {[0, 1, 2, 3, 4].map((j) => <Star key={j} size={15} className="fill-gold" strokeWidth={0} />)}
                 </div>
@@ -622,7 +622,7 @@ export default function Home() {
 
       {/* ==================== FINAL CTA ==================== */}
       <section id="contact" className="max-w-[1400px] mx-auto px-4 md:px-8 pb-24">
-        <div className="reveal relative overflow-hidden rounded-[32px] border border-gold/30 bg-gradient-to-br from-gold/15 via-surface2 to-surface2 px-6 py-16 md:p-20 text-center">
+        <div className="reveal relative overflow-hidden rounded-[24px] sm:rounded-[32px] border border-gold/30 bg-gradient-to-br from-gold/15 via-surface2 to-surface2 px-5 sm:px-6 py-12 sm:py-16 md:p-20 text-center">
           <div aria-hidden className="absolute -top-24 left-1/2 -translate-x-1/2 w-[70%] h-[80%] bg-gold/20 blur-[120px] rounded-full pointer-events-none" />
           <div className="relative">
             <h2 className="font-syne text-[2.1rem] md:text-[3.4rem] font-extrabold text-body leading-tight">
