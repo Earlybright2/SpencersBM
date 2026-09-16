@@ -553,3 +553,46 @@ export async function toNgn(amount, currency) {
   }
   return Math.round(value);
 }
+
+// ----- Bulnix Overrides (admin price overrides) -----
+
+export async function getBulnixOverrides(serviceType) {
+  let query = 'SELECT * FROM bulnix_overrides';
+  const params = [];
+  if (serviceType) {
+    query += ' WHERE service_type = $1';
+    params.push(serviceType);
+  }
+  query += ' ORDER BY created_at DESC';
+  const { rows } = await pool.query(query, params);
+  return rows;
+}
+
+export async function getBulnixOverride(serviceType, providerId) {
+  const { rows } = await pool.query(
+    'SELECT * FROM bulnix_overrides WHERE service_type = $1 AND provider_id = $2',
+    [serviceType, providerId]
+  );
+  return rows[0] || null;
+}
+
+export async function upsertBulnixOverride(override) {
+  const { id, serviceType, providerId, adminPrice, enabled } = override;
+  const { rows } = await pool.query(
+    `INSERT INTO bulnix_overrides (id, service_type, provider_id, admin_price, enabled, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (service_type, provider_id) DO UPDATE SET
+       admin_price = EXCLUDED.admin_price,
+       enabled = EXCLUDED.enabled
+     RETURNING *`,
+    [id, serviceType, providerId, adminPrice, enabled ?? true, new Date().toISOString()]
+  );
+  return rows[0];
+}
+
+export async function deleteBulnixOverride(serviceType, providerId) {
+  await pool.query(
+    'DELETE FROM bulnix_overrides WHERE service_type = $1 AND provider_id = $2',
+    [serviceType, providerId]
+  );
+}

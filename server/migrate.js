@@ -83,6 +83,16 @@ async function migrate() {
         status VARCHAR(50) DEFAULT 'completed',
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS bulnix_overrides (
+        id VARCHAR(255) PRIMARY KEY,
+        service_type VARCHAR(50) NOT NULL,
+        provider_id VARCHAR(255) NOT NULL,
+        admin_price NUMERIC(14, 2) NOT NULL,
+        enabled BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(service_type, provider_id)
+      );
     `);
 
     // 2. Import users.json

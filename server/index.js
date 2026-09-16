@@ -94,7 +94,10 @@ app.get('/', (req, res) => {
         updateAccount: { method: 'PUT', path: '/api/admin/products/accounts/:id', auth: 'admin' },
         deleteAccount: { method: 'DELETE', path: '/api/admin/products/accounts/:id', auth: 'admin' },
         addInventory: { method: 'POST', path: '/api/admin/products/accounts/:id/inventory', auth: 'admin' },
-        removeInventory: { method: 'DELETE', path: '/api/admin/products/accounts/:id/inventory/:invId', auth: 'admin' }
+        removeInventory: { method: 'DELETE', path: '/api/admin/products/accounts/:id/inventory/:invId', auth: 'admin' },
+        getOverrides: { method: 'GET', path: '/api/admin/bulnix/overrides?serviceType=', auth: 'admin' },
+        upsertOverride: { method: 'PUT', path: '/api/admin/bulnix/overrides', auth: 'admin', body: { serviceType: 'string', providerId: 'string', adminPrice: 'number', enabled?: 'boolean' } },
+        deleteOverride: { method: 'DELETE', path: '/api/admin/bulnix/overrides/:serviceType/:providerId', auth: 'admin' }
       },
       webhook: {
         flutterwave: { method: 'POST', path: '/api/webhook/flutterwave', auth: 'signature' }

@@ -146,10 +146,10 @@ export default function Home() {
                 <span className="text-body/90 font-semibold">Instant delivery · 15,000+ orders filled</span>
               </span>
 
-              <h1 className="mt-6 text-[2rem] leading-[1.08] sm:text-[2.8rem] md:text-[3.6rem] lg:text-[4rem] xl:text-[4.4rem] font-syne font-extrabold tracking-tight text-body">
-                Verified numbers.<br />
-                Real Accounts.<br />
-                <span className="text-gradient-gold">Instant Delivery.</span>
+              <h1 className="mt-6 font-syne font-extrabold tracking-tight text-body">
+                <span className="block text-[2rem] leading-[1.08] sm:text-[2.8rem] md:text-[3.6rem] lg:text-[4rem] xl:text-[4.4rem]">Verified numbers.</span>
+                <span className="block text-[2rem] leading-[1.08] sm:text-[2.8rem] md:text-[3.6rem] lg:text-[4rem] xl:text-[4.4rem]">Real Accounts.</span>
+                <span className="block text-gradient-gold text-[2rem] leading-[1.08] sm:text-[2.8rem] md:text-[3.6rem] lg:text-[4rem] xl:text-[4.4rem]">Instant Delivery.</span>
               </h1>
 
               <p className="mt-6 max-w-[540px] text-[1.05rem] md:text-[1.15rem] leading-relaxed text-muted">
@@ -304,9 +304,9 @@ export default function Home() {
           </div>
 
           {/* Center Image */}
-          <div className="relative flex justify-center reveal order-1 lg:order-2 mx-auto">
+          <div className="relative flex items-center justify-center reveal order-1 lg:order-2">
             <div aria-hidden className="absolute inset-0 bg-gold/15 blur-[100px] rounded-full pointer-events-none w-full h-[80%] m-auto" />
-            <img src="/phone.png" alt="App Preview" className="relative z-10 w-[280px] lg:w-[320px] drop-shadow-[0_20px_50px_rgba(0,0,0,0.35)] object-contain" />
+            <img src="/phone.png" alt="App Preview" className="relative z-10 w-[280px] lg:w-[320px] drop-shadow-[0_20px_50px_rgba(0,0,0,0.35)] object-contain mx-auto" />
           </div>
 
           {/* Right features */}

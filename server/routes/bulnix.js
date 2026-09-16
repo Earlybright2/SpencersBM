@@ -8,7 +8,8 @@ import {
 import { generateReference } from '../utils/flutterwave.js';
 import {
   findById, debitWallet, creditWallet,
-  addUserOrder, updateUserOrder, recordSale, getUserWallet
+  addUserOrder, updateUserOrder, recordSale, getUserWallet,
+  getBulnixOverrides
 } from '../utils/store.js';
 import { sendPurchaseSuccessEmail, sendPurchaseFailureEmail } from '../utils/mailer.js';
 
@@ -17,6 +18,39 @@ const router = Router();
 const MAX_ACCOUNT_QTY = 10;          // marketplace accounts per order
 const NUMBER_EXPIRY_MS = 20 * 60 * 1000; // SMS number lifetime
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Apply admin price overrides to a list of items.
+// items: array of objects with .id and .price fields
+// serviceType: 'marketplace' | 'sms' | 'followers'
+// overrideKey: function to extract the provider_id from an item (defaults to item.id)
+function applyOverrides(items, serviceType, overrideKey) {
+  return getBulnixOverrides(serviceType)
+    .then((rows) => {
+      const map = new Map();
+      rows.forEach((r) => map.set(String(r.provider_id), r));
+      return items.map((item) => {
+        const key = overrideKey ? overrideKey(item) : item.id;
+        const override = map.get(String(key));
+        if (override) {
+          return { ...item, price: Number(override.admin_price), adminOverridden: true, overrideId: override.id };
+        }
+        return item;
+      });
+    })
+    .catch(() => items);
+}
+
+// Fetch overrides map for a service type (used in order endpoints)
+async function getOverridesMap(serviceType) {
+  try {
+    const rows = await getBulnixOverrides(serviceType);
+    const map = new Map();
+    rows.forEach((r) => map.set(String(r.provider_id), r));
+    return map;
+  } catch {
+    return new Map();
+  }
+}
 
 /* ============================================================
    Small utilities
@@ -263,7 +297,18 @@ router.get('/marketplace/products', async (req, res) => {
   ]);
   if (!isBxSuccess(data)) return sendProviderError(res, data, 'Could not load products right now.');
   const list = bxData(data);
-  const products = (Array.isArray(list) ? list : []).map((p) => mapProduct(p, rate)).filter(Boolean);
+  let products = (Array.isArray(list) ? list : []).map((p) => mapProduct(p, rate)).filter(Boolean);
+  // Apply admin price overrides
+  try {
+    const overrideMap = await getOverridesMap('marketplace');
+    products = products.map((item) => {
+      const override = overrideMap.get(String(item.id));
+      if (override) {
+        return { ...item, price: Number(override.admin_price), adminOverridden: true };
+      }
+      return item;
+    });
+  } catch { /* ignore override errors */ }
   const pag = bxPagination(data);
   res.json({
     status: 'success',
@@ -322,7 +367,15 @@ router.post('/marketplace/order', requireAuth, async (req, res) => {
     return res.status(409).json({ status: 'error', message: `Only ${product.stock} left in stock.` });
   }
 
-  const unitPrice = product.price;
+  // Check for admin price override
+  let unitPrice = product.price;
+  try {
+    const overrideMap = await getOverridesMap('marketplace');
+    const override = overrideMap.get(String(productId));
+    if (override) {
+      unitPrice = Number(override.admin_price);
+    }
+  } catch { /* ignore */ }
   const totalCost = unitPrice * qty;
 
   // 2) Reserve funds up-front (atomic balance check inside debitWallet).
@@ -542,6 +595,17 @@ router.get('/followers/services', async (req, res) => {
   let services = rows.map((r) => mapFlService(r, rate)).filter(Boolean);
   if (platform) services = services.filter((s) => s.platform.toLowerCase() === platform);
   if (q) services = services.filter((s) => s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q));
+  // Apply admin price overrides
+  try {
+    const overrideMap = await getOverridesMap('followers');
+    services = services.map((item) => {
+      const override = overrideMap.get(String(item.id));
+      if (override) {
+        return { ...item, priceNgnPer1000: Number(override.admin_price), adminOverridden: true };
+      }
+      return item;
+    });
+  } catch { /* ignore override errors */ }
   res.json({ status: 'success', count: services.length, services });
 });
 
@@ -577,7 +641,15 @@ router.post('/followers/order', requireAuth, async (req, res) => {
   const rateUsdPer1000 = flRateUsdPer1000(rawSvc);
   const rate = await bxNgnRate();
   const costUsd = (rateUsdPer1000 * qty) / 1000;
-  const price = applyBulnixMarkup(costUsd, rate);
+  let price = applyBulnixMarkup(costUsd, rate);
+  // Check for admin price override
+  try {
+    const overrideMap = await getOverridesMap('followers');
+    const override = overrideMap.get(String(serviceId));
+    if (override) {
+      price = Number(override.admin_price);
+    }
+  } catch { /* ignore */ }
   if (price <= 0) {
     return res.status(502).json({ status: 'error', message: 'This service is not currently priced. Please try another.' });
   }
@@ -690,7 +762,7 @@ router.get('/sms/services', async (req, res) => {
   ]);
   if (!isBxSuccess(data)) return sendProviderError(res, data, 'Could not load SMS services right now.');
   const list = bxData(data);
-  const services = (Array.isArray(list) ? list : []).map((s) => {
+  let services = (Array.isArray(list) ? list : []).map((s) => {
     const priceUsd = num(s.retailPriceUSD, s.price_usd, s.price);
     return {
       slug: s.slug ?? s.service_slug ?? s.id ?? '',
@@ -701,6 +773,17 @@ router.get('/sms/services', async (req, res) => {
       currency: 'NGN'
     };
   }).filter((s) => s.slug);
+  // Apply admin price overrides
+  try {
+    const overrideMap = await getOverridesMap('sms');
+    services = services.map((item) => {
+      const override = overrideMap.get(String(item.slug));
+      if (override) {
+        return { ...item, price: Number(override.admin_price), adminOverridden: true };
+      }
+      return item;
+    });
+  } catch { /* ignore override errors */ }
   res.json({ status: 'success', channel, count: services.length, services });
 });
 
@@ -725,7 +808,15 @@ router.post('/sms/order', requireAuth, async (req, res) => {
   const svc = (Array.isArray(svcList) ? svcList : []).find((s) => String(s.slug ?? s.service_slug) === String(serviceSlug));
   if (!svc) return res.status(409).json({ status: 'error', message: 'That service is no longer available. Please refresh.' });
   const priceUsd = num(svc.retailPriceUSD, svc.price_usd, svc.price);
-  const price = applyBulnixMarkup(priceUsd, rate);
+  let price = applyBulnixMarkup(priceUsd, rate);
+  // Check for admin price override
+  try {
+    const overrideMap = await getOverridesMap('sms');
+    const override = overrideMap.get(String(serviceSlug));
+    if (override) {
+      price = Number(override.admin_price);
+    }
+  } catch { /* ignore */ }
   if (price <= 0) return res.status(502).json({ status: 'error', message: 'This service is not currently priced.' });
 
   // 2) Reserve funds.

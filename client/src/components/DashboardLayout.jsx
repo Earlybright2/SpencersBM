@@ -196,7 +196,7 @@ export default function DashboardLayout({ title, subtitle, children }) {
             <div className="flex items-center gap-3 shrink-0">
               <Link
                 to="/dashboard?tab=marketplace"
-                className="hidden sm:flex items-center gap-1.5 chip hover:border-gold/50 transition-colors"
+                className="hidden md:flex items-center gap-1.5 chip hover:border-gold/50 transition-colors"
               >
                 <Sparkles size={14} strokeWidth={2} className="text-gold" />
                 Marketplace

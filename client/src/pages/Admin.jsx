@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Users, LogOut, Trash2, RefreshCw, ShieldCheck, Power, TrendingUp, Package, Search } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Users, LogOut, Trash2, RefreshCw, ShieldCheck, Power, TrendingUp, Package, Search, Store, MessageSquare } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
 
 const SECTIONS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'services', label: 'Services', icon: Store },
   { id: 'numbers', label: 'Numbers', icon: Smartphone },
   { id: 'accounts', label: 'Accounts', icon: UserRound },
   { id: 'sales', label: 'Sales', icon: ReceiptText },
@@ -69,6 +70,26 @@ export default function Admin() {
 
   const [loading, setLoading] = useState(false);
 
+  // Services section state
+  const [svcTab, setSvcTab] = useState('marketplace');
+  const [svcOverrides, setSvcOverrides] = useState([]);
+  const [svcMarketplace, setSvcMarketplace] = useState([]);
+  const [svcMarketplaceLoading, setSvcMarketplaceLoading] = useState(false);
+  const [svcMarketplaceCategories, setSvcMarketplaceCategories] = useState([]);
+  const [svcMktCategory, setSvcMktCategory] = useState('');
+  const [svcMktSearch, setSvcMktSearch] = useState('');
+  const [svcSmsCountries, setSvcSmsCountries] = useState([]);
+  const [svcSmsCountriesLoading, setSvcSmsCountriesLoading] = useState(false);
+  const [svcSmsCountry, setSvcSmsCountry] = useState('');
+  const [svcSmsServices, setSvcSmsServices] = useState([]);
+  const [svcSmsServicesLoading, setSvcSmsServicesLoading] = useState(false);
+  const [svcFlPlatform, setSvcFlPlatform] = useState('');
+  const [svcFlServices, setSvcFlServices] = useState([]);
+  const [svcFlServicesLoading, setSvcFlServicesLoading] = useState(false);
+  const [svcEditPrices, setSvcEditPrices] = useState({});
+  const [svcEditServiceType, setSvcEditServiceType] = useState('');
+  const [svcEditProviderId, setSvcEditProviderId] = useState('');
+
   const loadStats = async () => {
     try {
       const res = await api.get('/admin/stats');
@@ -105,11 +126,100 @@ export default function Admin() {
     }
   };
 
+  const loadOverrides = async () => {
+    try {
+      const res = await api.get('/admin/bulnix/overrides');
+      setSvcOverrides(res.data.overrides || []);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const loadSvcMarketplace = async () => {
+    setSvcMarketplaceLoading(true);
+    try {
+      const [prodRes, catRes] = await Promise.all([
+        api.get('/bulnix/marketplace/products', { params: { category: svcMktCategory || undefined, search: svcMktSearch || undefined, limit: 60 } }),
+        api.get('/bulnix/marketplace/categories')
+      ]);
+      setSvcMarketplace(prodRes.data?.products || []);
+      setSvcMarketplaceCategories(catRes.data?.categories || []);
+    } catch (err) {
+      setSvcMarketplace([]);
+    } finally {
+      setSvcMarketplaceLoading(false);
+    }
+  };
+
+  const loadSvcSmsCountries = async () => {
+    setSvcSmsCountriesLoading(true);
+    try {
+      const res = await api.get('/bulnix/sms/countries', { params: { channel: 'worldwide' } });
+      setSvcSmsCountries(res.data?.countries || []);
+    } catch {
+      setSvcSmsCountries([]);
+    } finally {
+      setSvcSmsCountriesLoading(false);
+    }
+  };
+
+  const loadSvcSmsServices = async () => {
+    if (!svcSmsCountry) { setSvcSmsServices([]); return; }
+    setSvcSmsServicesLoading(true);
+    try {
+      const res = await api.get('/bulnix/sms/services', { params: { channel: 'worldwide', country_code: svcSmsCountry } });
+      setSvcSmsServices(res.data?.services || []);
+    } catch {
+      setSvcSmsServices([]);
+    } finally {
+      setSvcSmsServicesLoading(false);
+    }
+  };
+
+  const loadSvcFlServices = async () => {
+    setSvcFlServicesLoading(true);
+    try {
+      const search = svcFlPlatform ? svcFlPlatform.split(/[\s/]+/)[0].toLowerCase() : undefined;
+      const res = await api.get('/bulnix/followers/services', { params: { search } });
+      setSvcFlServices(Array.isArray(res.data?.services) ? res.data.services : []);
+    } catch {
+      setSvcFlServices([]);
+    } finally {
+      setSvcFlServicesLoading(false);
+    }
+  };
+
+  const saveOverride = async (serviceType, providerId, price) => {
+    const cost = Number(price);
+    if (!Number.isFinite(cost) || cost <= 0) {
+      setError('Enter a valid positive price');
+      return;
+    }
+    try {
+      await api.put('/admin/bulnix/overrides', { serviceType, providerId, adminPrice: cost });
+      setToast('Price updated');
+      loadOverrides();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
+  const removeOverride = async (serviceType, providerId) => {
+    try {
+      await api.delete(`/admin/bulnix/overrides/${serviceType}/${providerId}`);
+      setToast('Override removed');
+      loadOverrides();
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  };
+
   useEffect(() => {
     loadStats();
     loadProducts();
     loadSales();
     loadUsers();
+    loadOverrides();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -126,6 +236,30 @@ export default function Admin() {
   useEffect(() => {
     setAccountsPage(1);
   }, [accountsSearch]);
+
+  // Load services data when services tab is active
+  useEffect(() => {
+    if (section !== 'services') return;
+    if (svcTab === 'marketplace') loadSvcMarketplace();
+    if (svcTab === 'sms' && svcSmsCountries.length === 0) loadSvcSmsCountries();
+    if (svcTab === 'followers') loadSvcFlServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, svcTab]);
+
+  useEffect(() => {
+    if (section === 'services' && svcTab === 'marketplace') loadSvcMarketplace();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [svcMktCategory, svcMktSearch]);
+
+  useEffect(() => {
+    if (svcSmsCountry && section === 'services' && svcTab === 'sms') loadSvcSmsServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [svcSmsCountry]);
+
+  useEffect(() => {
+    if (section === 'services' && svcTab === 'followers') loadSvcFlServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [svcFlPlatform]);
 
   const editServices = useMemo(() => {
     const set = new Set();
@@ -296,10 +430,6 @@ export default function Admin() {
         </button>
       ))}
       <div className="pt-2.5 mt-2.5 border-t border-gold/10 space-y-[3px]">
-        <Link to="/dashboard" className="flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium text-muted hover:text-body hover:bg-hover">
-          <span className="text-gold"><ShieldCheck size={18} strokeWidth={1.9} /></span>
-          Dashboard
-        </Link>
         <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-[10px] rounded-[10px] text-[0.9rem] font-medium text-muted hover:text-body hover:bg-hover">
           <span className="text-gold"><LogOut size={18} strokeWidth={1.9} /></span>
           Logout
@@ -386,6 +516,275 @@ export default function Admin() {
                 <SalesTable sales={sales.slice(0, 10)} empty="No sales yet." />
               </div>
             </>
+          )}
+
+          {section === 'services' && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { id: 'marketplace', label: 'Marketplace', icon: Store },
+                  { id: 'sms', label: 'SMS Verification', icon: MessageSquare },
+                  { id: 'followers', label: 'Followers Growth', icon: TrendingUp }
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setSvcTab(t.id)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-[10px] text-[0.88rem] font-medium transition-all ${
+                      svcTab === t.id ? 'bg-gold/10 text-gold border border-gold/20' : 'text-muted hover:text-body hover:bg-hover border border-transparent'
+                    }`}
+                  >
+                    <t.icon size={16} strokeWidth={1.9} />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Marketplace Services */}
+              {svcTab === 'marketplace' && (
+                <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+                    <div>
+                      <h2 className="font-syne text-xl mb-1">Marketplace Products</h2>
+                      <p className="text-faint text-[0.85rem]">Browse products and set admin prices. Admin prices override the auto-calculated markup.</p>
+                    </div>
+                    <button onClick={loadSvcMarketplace} className="btn-ghost px-4 py-2 text-[0.82rem] flex items-center gap-2">
+                      <RefreshCw size={15} strokeWidth={1.9} /> Refresh
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                    <Field label="Category">
+                      <select value={svcMktCategory} onChange={(e) => setSvcMktCategory(e.target.value)} className={inputCls}>
+                        <option value="" className="bg-surface2">All categories</option>
+                        {svcMarketplaceCategories.map((c) => (
+                          <option key={c.id} value={c.id} className="bg-surface2">{c.name} ({c.count})</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Search">
+                      <div className="relative">
+                        <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+                        <input
+                          value={svcMktSearch}
+                          onChange={(e) => setSvcMktSearch(e.target.value)}
+                          placeholder="Search products..."
+                          className="w-full pl-10 pr-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-subtle"
+                        />
+                      </div>
+                    </Field>
+                  </div>
+                  {svcMarketplaceLoading ? (
+                    <p className="text-faint text-[0.9rem] py-6 text-center">Loading products...</p>
+                  ) : svcMarketplace.length === 0 ? (
+                    <p className="text-faint text-[0.9rem] py-6 text-center">No products found. Check that the Marketplace service is connected.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {svcMarketplace.map((p) => {
+                        const override = svcOverrides.find((o) => o.service_type === 'marketplace' && o.provider_id === String(p.id));
+                        return (
+                          <div key={p.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-[0.95rem] truncate">{p.name}</div>
+                                <div className="text-faint text-[0.78rem]">{p.category || p.platform || '—'}{p.stock !== null ? ` · Stock: ${p.stock}` : ''}</div>
+                              </div>
+                              {override && (
+                                <button onClick={() => removeOverride('marketplace', String(p.id))} className="text-[#e0645a] hover:bg-[#e0645a]/10 rounded-[8px] px-3 py-1.5 text-[0.78rem] font-medium border border-[#e0645a]/30">
+                                  Remove Override
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-end gap-3">
+                              <div className="text-[0.82rem] text-faint">
+                                Auto price: <span className="text-gold font-semibold">{fmtNgn(p.price)}</span>
+                              </div>
+                              {override && (
+                                <div className="text-[0.82rem] text-faint">
+                                  Admin price: <span className="text-[#2ecc71] font-semibold">{fmtNgn(override.admin_price)}</span>
+                                </div>
+                              )}
+                              <div className="flex items-end gap-2 ml-auto">
+                                <Field label="Set admin price (NGN)">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    defaultValue={override?.admin_price || ''}
+                                    onBlur={(e) => {
+                                      const v = Number(e.target.value);
+                                      if (Number.isFinite(v) && v > 0) saveOverride('marketplace', String(p.id), v);
+                                    }}
+                                    className={`${inputCls} w-[140px]`}
+                                    placeholder={fmtNgn(p.price)}
+                                  />
+                                </Field>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SMS Verification Services */}
+              {svcTab === 'sms' && (
+                <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+                    <div>
+                      <h2 className="font-syne text-xl mb-1">SMS Verification Services</h2>
+                      <p className="text-faint text-[0.85rem]">Select a country, then set admin prices per service.</p>
+                    </div>
+                    <button onClick={() => { loadSvcSmsCountries(); if (svcSmsCountry) loadSvcSmsServices(); }} className="btn-ghost px-4 py-2 text-[0.82rem] flex items-center gap-2">
+                      <RefreshCw size={15} strokeWidth={1.9} /> Refresh
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                    <Field label="Country">
+                      <select
+                        value={svcSmsCountry}
+                        onChange={(e) => { setSvcSmsCountry(e.target.value); }}
+                        disabled={svcSmsCountriesLoading}
+                        className={`${inputCls} disabled:opacity-50`}
+                      >
+                        <option value="" className="bg-surface2">{svcSmsCountriesLoading ? 'Loading...' : 'Choose a country'}</option>
+                        {svcSmsCountries.map((c) => (
+                          <option key={c.code} value={c.code} className="bg-surface2">{c.name}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  {!svcSmsCountry ? (
+                    <p className="text-faint text-[0.9rem] py-4 text-center">Select a country above to see available services.</p>
+                  ) : svcSmsServicesLoading ? (
+                    <p className="text-faint text-[0.9rem] py-6 text-center">Loading services...</p>
+                  ) : svcSmsServices.length === 0 ? (
+                    <p className="text-faint text-[0.9rem] py-6 text-center">No services found for this country.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {svcSmsServices.map((s) => {
+                        const override = svcOverrides.find((o) => o.service_type === 'sms' && o.provider_id === s.slug);
+                        return (
+                          <div key={s.slug} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-[0.95rem] truncate">{s.name}</div>
+                                <div className="text-faint text-[0.78rem]">Slug: {s.slug}</div>
+                              </div>
+                              {override && (
+                                <button onClick={() => removeOverride('sms', s.slug)} className="text-[#e0645a] hover:bg-[#e0645a]/10 rounded-[8px] px-3 py-1.5 text-[0.78rem] font-medium border border-[#e0645a]/30">
+                                  Remove Override
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-end gap-3">
+                              <div className="text-[0.82rem] text-faint">
+                                Auto price: <span className="text-gold font-semibold">{fmtNgn(s.price)}</span>
+                              </div>
+                              {override && (
+                                <div className="text-[0.82rem] text-faint">
+                                  Admin price: <span className="text-[#2ecc71] font-semibold">{fmtNgn(override.admin_price)}</span>
+                                </div>
+                              )}
+                              <div className="flex items-end gap-2 ml-auto">
+                                <Field label="Set admin price (NGN)">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    defaultValue={override?.admin_price || ''}
+                                    onBlur={(e) => {
+                                      const v = Number(e.target.value);
+                                      if (Number.isFinite(v) && v > 0) saveOverride('sms', s.slug, v);
+                                    }}
+                                    className={`${inputCls} w-[140px]`}
+                                    placeholder={fmtNgn(s.price)}
+                                  />
+                                </Field>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Followers Growth Services */}
+              {svcTab === 'followers' && (
+                <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
+                  <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+                    <div>
+                      <h2 className="font-syne text-xl mb-1">Followers Growth Services</h2>
+                      <p className="text-faint text-[0.85rem]">Filter by platform, then set admin prices per service.</p>
+                    </div>
+                    <button onClick={loadSvcFlServices} className="btn-ghost px-4 py-2 text-[0.82rem] flex items-center gap-2">
+                      <RefreshCw size={15} strokeWidth={1.9} /> Refresh
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                    <Field label="Platform">
+                      <select value={svcFlPlatform} onChange={(e) => setSvcFlPlatform(e.target.value)} className={inputCls}>
+                        <option value="" className="bg-surface2">All platforms</option>
+                        {['Instagram', 'TikTok', 'YouTube', 'Twitter', 'Facebook', 'Telegram'].map((p) => (
+                          <option key={p} value={p} className="bg-surface2">{p}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  {svcFlServicesLoading ? (
+                    <p className="text-faint text-[0.9rem] py-6 text-center">Loading services...</p>
+                  ) : svcFlServices.length === 0 ? (
+                    <p className="text-faint text-[0.9rem] py-6 text-center">No services found. Check that the Followers Growth service is connected.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {svcFlServices.map((s) => {
+                        const override = svcOverrides.find((o) => o.service_type === 'followers' && o.provider_id === String(s.id));
+                        return (
+                          <div key={s.id} className="bg-gold/5 border border-gold/15 rounded-[12px] p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-[0.95rem] truncate">{s.name}</div>
+                                <div className="text-faint text-[0.78rem]">{s.platform} · {s.category || '—'} · Min: {s.min} · Max: {s.max}</div>
+                              </div>
+                              {override && (
+                                <button onClick={() => removeOverride('followers', String(s.id))} className="text-[#e0645a] hover:bg-[#e0645a]/10 rounded-[8px] px-3 py-1.5 text-[0.78rem] font-medium border border-[#e0645a]/30">
+                                  Remove Override
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-end gap-3">
+                              <div className="text-[0.82rem] text-faint">
+                                Auto price (per 1K): <span className="text-gold font-semibold">{fmtNgn(s.priceNgnPer1000)}</span>
+                              </div>
+                              {override && (
+                                <div className="text-[0.82rem] text-faint">
+                                  Admin price (per 1K): <span className="text-[#2ecc71] font-semibold">{fmtNgn(override.admin_price)}</span>
+                                </div>
+                              )}
+                              <div className="flex items-end gap-2 ml-auto">
+                                <Field label="Set admin price (NGN per 1K)">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    defaultValue={override?.admin_price || ''}
+                                    onBlur={(e) => {
+                                      const v = Number(e.target.value);
+                                      if (Number.isFinite(v) && v > 0) saveOverride('followers', String(s.id), v);
+                                    }}
+                                    className={`${inputCls} w-[140px]`}
+                                    placeholder={fmtNgn(s.priceNgnPer1000)}
+                                  />
+                                </Field>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {section === 'numbers' && (

@@ -12,7 +12,11 @@ import {
   addAccountProduct,
   updateAccountProduct,
   removeAccountProduct,
-  findById
+  findById,
+  getBulnixOverrides,
+  getBulnixOverride,
+  upsertBulnixOverride,
+  deleteBulnixOverride
 } from '../utils/store.js';
 
 const router = Router();
@@ -207,6 +211,40 @@ router.delete('/products/accounts/:id/inventory/:invId', asyncRoute(async (req, 
   if (!product) return res.status(404).json({ message: 'Account product not found' });
   product.inventory = (product.inventory || []).filter((i) => i.id !== req.params.invId);
   await updateAccountProduct(product.id, { inventory: product.inventory });
+  res.json({ deleted: true });
+}));
+
+// GET /api/admin/bulnix/overrides?serviceType=
+router.get('/bulnix/overrides', asyncRoute(async (req, res) => {
+  const overrides = await getBulnixOverrides(req.query.serviceType || null);
+  res.json({ overrides });
+}));
+
+// PUT /api/admin/bulnix/overrides { serviceType, providerId, adminPrice, enabled }
+router.put('/bulnix/overrides', asyncRoute(async (req, res) => {
+  const { serviceType, providerId, adminPrice, enabled } = req.body || {};
+  if (!serviceType || !providerId) {
+    return res.status(400).json({ message: 'serviceType and providerId are required' });
+  }
+  const cost = Number(adminPrice);
+  if (!Number.isFinite(cost) || cost <= 0) {
+    return res.status(400).json({ message: 'A valid positive adminPrice is required' });
+  }
+  const genId = (prefix) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const existing = await getBulnixOverride(serviceType, providerId);
+  const override = await upsertBulnixOverride({
+    id: existing?.id || genId('bo'),
+    serviceType,
+    providerId,
+    adminPrice: cost,
+    enabled: enabled !== undefined ? Boolean(enabled) : true
+  });
+  res.json({ override });
+}));
+
+// DELETE /api/admin/bulnix/overrides/:serviceType/:providerId
+router.delete('/bulnix/overrides/:serviceType/:providerId', asyncRoute(async (req, res) => {
+  await deleteBulnixOverride(req.params.serviceType, req.params.providerId);
   res.json({ deleted: true });
 }));
 
