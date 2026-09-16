@@ -24,16 +24,16 @@ export default function AuthLayout({ title, subtitle, children }) {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-page text-body">
       
-      {/* Left Info Panel - Radiant Gold Aesthetic */}
-      <div className="lg:w-[45%] bg-gradient-to-br from-[#FFFdf5] via-[#FFF5C3] to-[#FFE785] dark:from-[#2a2610] dark:via-[#1f1a02] dark:to-[#110e01] text-[#1A1A1A] dark:text-[#E2E8F0] p-8 md:p-14 lg:p-16 flex flex-col justify-between relative overflow-hidden shrink-0 border-r border-[#F0E6C2] dark:border-[#3a3311]">
+      {/* Left Info Panel - Radiant Gold Aesthetic (hidden on mobile) */}
+      <div className="hidden lg:flex lg:w-[45%] bg-gradient-to-br from-[#FFFdf5] via-[#FFF5C3] to-[#FFE785] dark:from-[#2a2610] dark:via-[#1f1a02] dark:to-[#110e01] text-[#1A1A1A] dark:text-[#E2E8F0] p-8 md:p-14 lg:p-16 flex-col justify-between relative overflow-hidden shrink-0 border-r border-[#F0E6C2] dark:border-[#3a3311]">
         {/* Subtle Decorative Glow */}
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#FFD700]/30 dark:bg-[#FFD700]/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-white/40 dark:bg-[#FFD700]/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10">
           {/* Logo */}
-          <Link to="/" className="inline-flex items-center gap-3 font-syne text-2xl font-bold tracking-tight text-[#1A1A1A] dark:text-white mb-16">
-            <div className="w-9 h-9 rounded-xl bg-[#1A1A1A] dark:bg-white flex items-center justify-center text-[#FFD700] dark:text-black font-black text-lg shadow-md">
+          <Link to="/" className="inline-flex items-center gap-3 font-syne text-2xl font-bold tracking-tight text-white mb-16">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-[#FFD700] font-black text-lg shadow-md">
               S
             </div>
             <span>SpencerSBM</span>
@@ -76,6 +76,14 @@ export default function AuthLayout({ title, subtitle, children }) {
       {/* Right Form Container Panel */}
       <div className="flex-1 flex items-center justify-center p-6 md:p-12 lg:p-16 bg-page">
         <div className="w-full max-w-[440px]">
+
+          {/* Mobile-only logo */}
+          <Link to="/" className="lg:hidden inline-flex items-center gap-3 font-syne text-2xl font-bold tracking-tight text-black mb-10">
+            <div className="w-9 h-9 rounded-xl bg-black flex items-center justify-center text-[#FFD700] font-black text-lg shadow-md">
+              S
+            </div>
+            <span>SpencerSBM</span>
+          </Link>
           
           <div className="mb-10 text-left">
             <h1 className="font-syne text-3xl md:text-[2.5rem] font-bold text-body tracking-tight mb-3">

@@ -140,16 +140,16 @@ export default function Home() {
         <div className="max-w-[1400px] mx-auto px-4 md:px-8 pt-14 md:pt-20 pb-16 md:pb-24">
           <div className="grid lg:grid-cols-2 gap-14 lg:gap-10 items-center">
             {/* Left */}
-            <div className="animate-fade-in-up">
+            <div className="animate-fade-in-up pl-4 md:pl-10 lg:pl-16">
               <span className="inline-flex items-center gap-2 chip !py-2 !px-4 border-gold/30 !bg-gold/10">
                 <Sparkles size={14} className="text-gold" />
                 <span className="text-body/90 font-semibold">Instant delivery · 15,000+ orders filled</span>
               </span>
 
-              <h1 className="mt-6 text-[2.9rem] leading-[1.04] sm:text-[3.6rem] md:text-[4.4rem] font-syne font-extrabold tracking-tight text-body">
+              <h1 className="mt-6 text-[2.9rem] leading-[1.04] sm:text-[3.6rem] md:text-[4.4rem] lg:text-[4rem] xl:text-[4.4rem] font-syne font-extrabold tracking-tight text-body whitespace-nowrap">
                 Verified numbers.<br />
-                Real accounts.<br />
-                <span className="text-gradient-gold">Instant delivery.</span>
+                Real Accounts.<br />
+                <span className="text-gradient-gold">Instant Delivery.</span>
               </h1>
 
               <p className="mt-6 max-w-[540px] text-[1.05rem] md:text-[1.15rem] leading-relaxed text-muted">
@@ -239,16 +239,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* wallet chip */}
-              <div className="absolute z-30 top-2 -left-1 sm:left-2 card-border px-4 py-3 flex items-center gap-3 animate-float" style={{ animationDelay: '0.6s' }}>
-                <span className="w-9 h-9 rounded-xl bg-gold text-night grid place-items-center">
-                  <Wallet size={18} strokeWidth={2.2} />
-                </span>
-                <div>
-                  <div className="text-[0.68rem] text-faint font-semibold uppercase tracking-wide">Wallet</div>
-                  <div className="text-sm font-bold text-body">₦48,500</div>
-                </div>
-              </div>
+
             </div>
           </div>
         </div>
@@ -268,6 +259,84 @@ export default function Home() {
                   <span className="font-semibold text-[0.95rem]">{p.name}</span>
                 </span>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== FEATURES APP PREVIEW ==================== */}
+      <section className="max-w-[1400px] mx-auto px-4 md:px-8 py-20 md:py-28 relative">
+        <div className="text-center max-w-[640px] mx-auto mb-16 reveal">
+          <p className="text-gold text-[0.78rem] uppercase tracking-[0.25em] font-bold mb-3">Seamless Experience</p>
+          <h2 className="font-syne text-[2rem] md:text-[2.8rem] font-bold text-body">Everything you need in one place</h2>
+        </div>
+        
+        <div className="grid lg:grid-cols-[1fr_auto_1fr] gap-10 lg:gap-16 items-center">
+          {/* Left features */}
+          <div className="space-y-10 reveal order-2 lg:order-1">
+            <div className="text-center lg:text-right flex flex-col items-center lg:items-end">
+              <span className="w-12 h-12 rounded-2xl bg-gold/15 text-gold grid place-items-center mb-4">
+                <Zap size={24} strokeWidth={2} />
+              </span>
+              <h3 className="font-syne text-xl font-bold text-body mb-2">Instant Access</h3>
+              <p className="text-muted text-[0.95rem] leading-relaxed max-w-[280px]">
+                No waiting around. Get numbers and accounts delivered immediately.
+              </p>
+            </div>
+            <div className="text-center lg:text-right flex flex-col items-center lg:items-end">
+              <span className="w-12 h-12 rounded-2xl bg-gold/15 text-gold grid place-items-center mb-4">
+                <ShieldCheck size={24} strokeWidth={2} />
+              </span>
+              <h3 className="font-syne text-xl font-bold text-body mb-2">Secure Transactions</h3>
+              <p className="text-muted text-[0.95rem] leading-relaxed max-w-[280px]">
+                Advanced security keeps your payments and data fully encrypted.
+              </p>
+            </div>
+            <div className="text-center lg:text-right flex flex-col items-center lg:items-end">
+              <span className="w-12 h-12 rounded-2xl bg-gold/15 text-gold grid place-items-center mb-4">
+                <Wallet size={24} strokeWidth={2} />
+              </span>
+              <h3 className="font-syne text-xl font-bold text-body mb-2">Unified Wallet</h3>
+              <p className="text-muted text-[0.95rem] leading-relaxed max-w-[280px]">
+                Manage all your spending from one simple, rechargeable balance.
+              </p>
+            </div>
+          </div>
+
+          {/* Center Image */}
+          <div className="relative flex justify-center reveal order-1 lg:order-2 mx-auto">
+            <div aria-hidden className="absolute inset-0 bg-gold/15 blur-[100px] rounded-full pointer-events-none w-full h-[80%] m-auto" />
+            <img src="/phone.png" alt="App Preview" className="relative z-10 w-[280px] lg:w-[320px] drop-shadow-[0_20px_50px_rgba(0,0,0,0.35)] object-contain" />
+          </div>
+
+          {/* Right features */}
+          <div className="space-y-10 reveal order-3">
+            <div className="text-center lg:text-left flex flex-col items-center lg:items-start">
+              <span className="w-12 h-12 rounded-2xl bg-gold/15 text-gold grid place-items-center mb-4">
+                <Globe size={24} strokeWidth={2} />
+              </span>
+              <h3 className="font-syne text-xl font-bold text-body mb-2">Global Reach</h3>
+              <p className="text-muted text-[0.95rem] leading-relaxed max-w-[280px]">
+                Access phone numbers from over 60 different countries.
+              </p>
+            </div>
+            <div className="text-center lg:text-left flex flex-col items-center lg:items-start">
+              <span className="w-12 h-12 rounded-2xl bg-gold/15 text-gold grid place-items-center mb-4">
+                <Headphones size={24} strokeWidth={2} />
+              </span>
+              <h3 className="font-syne text-xl font-bold text-body mb-2">24/7 Support</h3>
+              <p className="text-muted text-[0.95rem] leading-relaxed max-w-[280px]">
+                Our dedicated human support team is always here to help you.
+              </p>
+            </div>
+            <div className="text-center lg:text-left flex flex-col items-center lg:items-start">
+              <span className="w-12 h-12 rounded-2xl bg-gold/15 text-gold grid place-items-center mb-4">
+                <BadgeCheck size={24} strokeWidth={2} />
+              </span>
+              <h3 className="font-syne text-xl font-bold text-body mb-2">Premium Quality</h3>
+              <p className="text-muted text-[0.95rem] leading-relaxed max-w-[280px]">
+                Every account and service is tested to guarantee highest quality.
+              </p>
             </div>
           </div>
         </div>
