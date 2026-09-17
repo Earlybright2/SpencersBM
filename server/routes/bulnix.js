@@ -9,7 +9,7 @@ import { generateReference } from '../utils/flutterwave.js';
 import {
   findById, debitWallet, creditWallet,
   addUserOrder, updateUserOrder, recordSale, getUserWallet,
-  getBulnixOverrides
+  getBulnixOverrides, pushNotification
 } from '../utils/store.js';
 import { sendPurchaseSuccessEmail, sendPurchaseFailureEmail } from '../utils/mailer.js';
 
@@ -103,17 +103,34 @@ function humanizeSlug(slug) {
 // slug is the descriptive one. Treat these names as non-informative.
 const GENERIC_CATEGORY_NAMES = new Set(['', 'account', 'accounts', 'other', 'others', 'general', 'misc']);
 
-// Fire-and-forget purchase emails (never block the API response).
+// Fire-and-forget purchase emails + in-app notifications (never block the API response).
 const notify = {
   success: (userId, order) => {
     findById(userId)
       .then((user) => user && sendPurchaseSuccessEmail(user, order))
       .catch((err) => console.error('Bulnix success email failed:', err.message));
+    const list = Array.isArray(order) ? order : [order];
+    const first = list[0] || {};
+    pushNotification(userId, {
+      title: first.type === 'virtual_number' ? 'Number activated' : 'Order completed',
+      body: first.type === 'virtual_number'
+        ? `Your ${first.service || 'virtual number'} order was activated. Watch for the SMS code under My Orders.`
+        : `Your ${first.platform || 'account'} purchase is ${first.status === 'pending' ? 'processing' : 'ready'} — details are in My Orders.`,
+      type: 'success',
+      meta: { kind: 'order', orders: list.map((o) => o.order_ref || o.id) }
+    }).catch(() => {});
   },
   failure: (userId, order, reason) => {
     findById(userId)
       .then((user) => user && sendPurchaseFailureEmail(user, order, reason))
       .catch((err) => console.error('Bulnix failure email failed:', err.message));
+    const o = order || {};
+    pushNotification(userId, {
+      title: 'Order failed',
+      body: `Your ${o.platform || o.service || 'order'} could not be completed${reason ? `: ${reason}` : '.'} Any reserved funds have been returned to your wallet.`,
+      type: 'error',
+      meta: { kind: 'order_failed' }
+    }).catch(() => {});
   }
 };
 
@@ -397,6 +414,12 @@ router.post('/marketplace/order', requireAuth, async (req, res) => {
       reference: `${purchaseRef}-refund`,
       meta: { type: 'bulnix_marketplace_refund', reason: bxError(placed).code, provider: 'bulnix' }
     });
+    pushNotification(req.user.id, {
+      title: 'Order failed',
+      body: `Your ${product.platform || product.name || 'order'} could not be completed: ${bxError(placed).message}. Your wallet was not charged.`,
+      type: 'error',
+      meta: { kind: 'order_failed' }
+    }).catch(() => {});
     const reason = bxError(placed).message;
     notify.failure(req.user.id, { type: 'social_account', platform: product.platform || product.name, price: totalCost }, reason);
     return sendProviderError(res, placed, reason);
@@ -749,6 +772,27 @@ router.get('/sms/countries', async (req, res) => {
   res.json({ status: 'success', channel, count: countries.length, countries });
 });
 
+router.get('/sms/operators', async (req, res) => {
+  const channel = req.query.channel === 'worldwide' ? 'worldwide' : 'network';
+  const countrySlug = req.query.country_slug || req.query.countrySlug || '';
+  if (!countrySlug) {
+    return res.status(400).json({ status: 'error', message: 'A country is required.' });
+  }
+  const data = await sms.operators({ channel, countrySlug });
+  if (!isBxSuccess(data)) {
+    // A provider without network-channel support degrades to the worldwide route.
+    return res.json({ status: 'success', channel, count: 0, operators: [] });
+  }
+  const list = bxData(data);
+  const operators = (Array.isArray(list) ? list : [])
+    .map((o) => ({
+      slug: o.slug ?? o.operator_slug ?? o.code ?? '',
+      name: stripHtml(o.name ?? o.title ?? o.operator ?? o.slug ?? '', 80)
+    }))
+    .filter((o) => o.slug);
+  res.json({ status: 'success', channel, count: operators.length, operators });
+});
+
 router.get('/sms/services', async (req, res) => {
   const channel = req.query.channel === 'network' ? 'network' : 'worldwide';
   const [data, rate] = await Promise.all([
@@ -808,15 +852,7 @@ router.post('/sms/order', requireAuth, async (req, res) => {
   const svc = (Array.isArray(svcList) ? svcList : []).find((s) => String(s.slug ?? s.service_slug) === String(serviceSlug));
   if (!svc) return res.status(409).json({ status: 'error', message: 'That service is no longer available. Please refresh.' });
   const priceUsd = num(svc.retailPriceUSD, svc.price_usd, svc.price);
-  let price = applyBulnixMarkup(priceUsd, rate);
-  // Check for admin price override
-  try {
-    const overrideMap = await getOverridesMap('sms');
-    const override = overrideMap.get(String(serviceSlug));
-    if (override) {
-      price = Number(override.admin_price);
-    }
-  } catch { /* ignore */ }
+  const price = applyBulnixMarkup(priceUsd, rate);
   if (price <= 0) return res.status(502).json({ status: 'error', message: 'This service is not currently priced.' });
 
   // 2) Reserve funds.

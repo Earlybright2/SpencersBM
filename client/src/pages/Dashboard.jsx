@@ -214,8 +214,12 @@ export default function Dashboard() {
 
   // ----- Bulnix SMS (virtual numbers): country → service purchase flow -----
   const [smsCountries, setSmsCountries] = useState([]);
+  const [smsCountriesChannel, setSmsCountriesChannel] = useState('');
   const [smsCountry, setSmsCountry] = useState('');
   const [smsCountriesLoading, setSmsCountriesLoading] = useState(false);
+  const [smsOperators, setSmsOperators] = useState([]);
+  const [smsOperator, setSmsOperator] = useState('');
+  const [smsOperatorsLoading, setSmsOperatorsLoading] = useState(false);
   const [smsServices, setSmsServices] = useState([]);
   const [smsServicesLoading, setSmsServicesLoading] = useState(false);
 
@@ -293,31 +297,67 @@ export default function Dashboard() {
     }
   };
 
-  // Load Bulnix SMS countries once the SMS tab is open and the service is live.
+  // Load Bulnix SMS countries for the active route — the worldwide and network
+  // channels expose different catalogs, so refetch when the route switches.
   useEffect(() => {
-    if (tab !== 'sms' || !bxOn('sms') || smsCountries.length) return;
+    if (tab !== 'sms' || !bxOn('sms')) return;
+    if (smsCountriesChannel === smsRoute) return;
     let cancelled = false;
     setSmsCountriesLoading(true);
-    api.get('/bulnix/sms/countries', { params: { channel: 'worldwide' } })
+    setSmsCountries([]);
+    setSmsCountry('');
+    setSmsOperator('');
+    setSmsServices([]);
+    api.get('/bulnix/sms/countries', { params: { channel: smsRoute } })
       .then((res) => { if (!cancelled) setSmsCountries(res.data?.countries || []); })
-      .catch(() => { if (!cancelled) setSmsCountries([]); })
-      .finally(() => { if (!cancelled) setSmsCountriesLoading(false); });
+      .catch((err) => {
+        if (!cancelled) {
+          setSmsCountries([]);
+          setError(getErrorMessage(err));
+        }
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setSmsCountriesLoading(false);
+        setSmsCountriesChannel(smsRoute);
+      });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, bxStatus]);
+  }, [tab, bxStatus, smsRoute]);
 
-  // Load the verification services available for the chosen country.
+  // Network route: load the mobile operators for the chosen country.
   useEffect(() => {
-    if (!smsCountry) { setSmsServices([]); return; }
+    if (smsRoute !== 'network' || !smsCountry) { setSmsOperators([]); return; }
+    let cancelled = false;
+    setSmsOperatorsLoading(true);
+    setSmsOperators([]);
+    setSmsOperator('');
+    api.get('/bulnix/sms/operators', { params: { channel: 'network', country_slug: smsCountry } })
+      .then((res) => { if (!cancelled) setSmsOperators(res.data?.operators || []); })
+      .catch(() => { if (!cancelled) setSmsOperators([]); })
+      .finally(() => { if (!cancelled) setSmsOperatorsLoading(false); });
+    return () => { cancelled = true; };
+  }, [smsRoute, smsCountry]);
+
+  // Load the verification services for the chosen country (and operator on the
+  // network route).
+  useEffect(() => {
+    if (!smsCountry || (smsRoute === 'network' && !smsOperator)) {
+      setSmsServices([]);
+      return;
+    }
     let cancelled = false;
     setSmsServicesLoading(true);
     setSmsServices([]);
-    api.get('/bulnix/sms/services', { params: { channel: 'worldwide', country_code: smsCountry } })
+    const params = smsRoute === 'network'
+      ? { channel: 'network', country_slug: smsCountry, operator_slug: smsOperator }
+      : { channel: 'worldwide', country_code: smsCountry };
+    api.get('/bulnix/sms/services', { params })
       .then((res) => { if (!cancelled) setSmsServices(res.data?.services || []); })
       .catch(() => { if (!cancelled) setSmsServices([]); })
       .finally(() => { if (!cancelled) setSmsServicesLoading(false); });
     return () => { cancelled = true; };
-  }, [smsCountry]);
+  }, [smsCountry, smsOperator, smsRoute]);
 
   useEffect(() => {
     loadWallet(true);
@@ -411,16 +451,20 @@ export default function Dashboard() {
     }
   };
 
-  // Buy a Bulnix virtual number for the selected country + service (worldwide route).
-  // The SMS code arrives afterwards via /orders/status polling (Check SMS button).
+  // Buy a Bulnix virtual number for the selected country + service on the active
+  // route (worldwide or network). The SMS code arrives afterwards via
+  // /orders/status polling (Check SMS button).
   const handleBuyNumber = async (service) => {
     if (busy || !smsCountry) return;
+    if (smsRoute === 'network' && !smsOperator) return;
     setError('');
     setBusy(`buy-${service.slug}`);
     try {
       const res = await api.post('/bulnix/sms/order', {
-        channel: 'worldwide',
-        countryCode: smsCountry,
+        channel: smsRoute,
+        ...(smsRoute === 'network'
+          ? { countrySlug: smsCountry, operatorSlug: smsOperator }
+          : { countryCode: smsCountry }),
         serviceSlug: service.slug
       });
       setLastPurchase(res.data.order ? [res.data.order] : (res.data.orders || []));
@@ -1339,23 +1383,60 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Route selector */}
-          <div className="flex gap-2 p-1 rounded-full border border-gold/20 bg-gold/5 w-fit">
-            {[
-              { key: 'worldwide', label: 'Worldwide', icon: Globe },
-              { key: 'network', label: 'Network Select', icon: SlidersHorizontal }
-            ].map((r) => (
-              <button
-                key={r.key}
-                onClick={() => setSmsRoute(r.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-[0.85rem] font-medium transition-all ${
-                  smsRoute === r.key ? 'bg-gold text-night' : 'text-muted hover:text-body'
-                }`}
-              >
-                <r.icon size={16} strokeWidth={1.9} />
-                {r.label}
-              </button>
-            ))}
+          {/* Route selector — "Choose where you need a number" */}
+          <div className="card-border bg-gold/3 rounded-[16px] p-5 md:p-6">
+            <div className="flex items-center gap-2.5 mb-4">
+              <span className="w-9 h-9 rounded-[10px] bg-gold/10 border border-gold/25 text-gold flex items-center justify-center shrink-0">
+                <SlidersHorizontal size={17} strokeWidth={1.9} />
+              </span>
+              <h2 className="font-syne text-lg">Choose where you need a number</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                {
+                  key: 'worldwide',
+                  icon: Globe,
+                  label: 'Worldwide Verification',
+                  desc: 'Pick any country and buy a number for any service.'
+                },
+                {
+                  key: 'network',
+                  icon: SlidersHorizontal,
+                  label: 'Network Select',
+                  desc: 'Choose a specific mobile operator for higher delivery rates.'
+                }
+              ].map((r) => {
+                const active = smsRoute === r.key;
+                return (
+                  <button
+                    key={r.key}
+                    onClick={() => setSmsRoute(r.key)}
+                    className={`text-left rounded-[13px] p-4 border transition-all flex items-start gap-3 ${
+                      active
+                        ? 'border-gold bg-gold/10 shadow-[0_8px_24px_rgba(255,199,0,0.15)]'
+                        : 'border-gold/15 bg-card hover:border-gold/40'
+                    }`}
+                  >
+                    <span
+                      className={`w-10 h-10 rounded-[11px] flex items-center justify-center shrink-0 border ${
+                        active
+                          ? 'bg-gold text-night border-gold'
+                          : 'bg-gold/10 text-gold border-gold/20'
+                      }`}
+                    >
+                      <r.icon size={19} strokeWidth={1.9} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className={`flex items-center gap-2 text-[0.95rem] font-semibold ${active ? 'text-gold' : ''}`}>
+                        {r.label}
+                        {active && <Check size={15} strokeWidth={2.4} className="text-gold shrink-0" />}
+                      </span>
+                      <span className="block text-faint text-[0.8rem] mt-0.5 leading-snug">{r.desc}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {!bxOn('sms') ? (
@@ -1368,18 +1449,6 @@ export default function Dashboard() {
                 { icon: Globe, title: '190+ countries', desc: 'Worldwide numbers for any verification.' },
                 { icon: MessageSquare, title: '500+ services', desc: 'WhatsApp, Telegram, Google and more.' },
                 { icon: Clock, title: 'Instant codes', desc: 'Numbers activate on the spot; codes arrive fast.' }
-              ]}
-            />
-          ) : smsRoute === 'network' ? (
-            <ComingSoon
-              icon={SlidersHorizontal}
-              title="Network Select routing"
-              live={false}
-              tagline="Pick the exact mobile operator for higher delivery rates on strict services. This premium route is being connected — for now, Worldwide routing already covers every network."
-              points={[
-                { icon: SlidersHorizontal, title: 'Operator targeting', desc: 'Choose MTN, Airtel, Vodafone and more per order.' },
-                { icon: TrendingUp, title: 'Higher success', desc: 'Better delivery on strict verifications.' },
-                { icon: Globe, title: '190+ countries', desc: 'Deep coverage as operators come online.' }
               ]}
             />
           ) : (
@@ -1399,7 +1468,7 @@ export default function Dashboard() {
                   </div>
                 ) : null}
               >
-                {/* 1. Country picker */}
+                {/* 1. Country picker — worldwide uses country_code, network uses country_slug */}
                 <div className="flex flex-col gap-1.5 mb-5 max-w-[360px]">
                   <label className="text-[0.72rem] uppercase tracking-wider text-faint font-medium">1. Select country</label>
                   <select
@@ -1415,10 +1484,40 @@ export default function Dashboard() {
                   </select>
                 </div>
 
-                {/* 2. Services for the chosen country */}
+                {/* 2. Operator picker (network route only) */}
+                {smsRoute === 'network' && (
+                  <div className="flex flex-col gap-1.5 mb-5 max-w-[360px]">
+                    <label className="text-[0.72rem] uppercase tracking-wider text-faint font-medium">2. Select network operator</label>
+                    <select
+                      value={smsOperator}
+                      onChange={(e) => { setSmsOperator(e.target.value); setNumbersSearch(''); }}
+                      disabled={smsOperatorsLoading || !smsCountry}
+                      className="w-full px-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <option value="">
+                        {!smsCountry
+                          ? 'Choose a country first'
+                          : smsOperatorsLoading
+                            ? 'Loading operators…'
+                            : smsOperators.length === 0
+                              ? 'No operators available for this country'
+                              : 'Choose an operator'}
+                      </option>
+                      {smsOperators.map((o) => (
+                        <option key={o.slug} value={o.slug}>{o.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* 3. Services for the chosen country/operator */}
                 {!smsCountry ? (
                   <p className="text-faint text-[0.95rem] py-6 text-center">
                     Pick a country above to see available services and prices.
+                  </p>
+                ) : smsRoute === 'network' && !smsOperator ? (
+                  <p className="text-faint text-[0.95rem] py-6 text-center">
+                    Pick a network operator to see available services and prices.
                   </p>
                 ) : smsServicesLoading ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -1452,7 +1551,7 @@ export default function Dashboard() {
                         </div>
                         <button
                           onClick={() => handleBuyNumber(s)}
-                          disabled={Boolean(busy) || !s.price}
+                          disabled={Boolean(busy) || !s.price || (smsRoute === 'network' && !smsOperator)}
                           className="btn-gold w-full py-3 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-auto"
                         >
                           <Smartphone size={16} strokeWidth={1.8} />

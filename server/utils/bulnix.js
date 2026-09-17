@@ -245,18 +245,23 @@ export const marketplace = {
   balance: () => bxRequest({ service: 'marketplace', path: '/balance' }),
 
   // One order can carry multiple line items, each with its own quantity.
-  placeOrder: ({ items, productId, quantity = 1 } = {}) =>
-    bxRequest({
+  // Bulnix validates that every item's product_id is a JSON NUMBER — a string
+  // like "4213" is rejected with "Each item must have a numeric product_id".
+  // Coerce here so callers can pass either shape; non-numeric ids are dropped.
+  placeOrder: ({ items, productId, quantity = 1 } = {}) => {
+    const lineItems = (Array.isArray(items) && items.length ? items : [{ productId, quantity }])
+      .map((it) => ({
+        product_id: Number(it.productId ?? it.product_id),
+        quantity: Number(it.quantity) || 1
+      }))
+      .filter((it) => Number.isFinite(it.product_id) && it.product_id > 0);
+    return bxRequest({
       service: 'marketplace',
       method: 'POST',
       path: '/orders',
-      body: {
-        items:
-          Array.isArray(items) && items.length
-            ? items.map((it) => ({ product_id: it.productId ?? it.product_id, quantity: it.quantity ?? 1 }))
-            : [{ product_id: productId, quantity }]
-      }
-    }),
+      body: { items: lineItems }
+    });
+  },
 
   order: (orderId) => bxRequest({ service: 'marketplace', path: `/orders/${encodeURIComponent(orderId)}` }),
 
@@ -277,6 +282,14 @@ export const sms = {
   // Countries for a channel: [{ code, name }].
   catalog: ({ channel = 'worldwide' } = {}) =>
     bxRequest({ service: 'sms', path: '/reseller/sms-verification/catalog', query: { channel } }),
+
+  // Mobile operators for a country on the network channel: [{ slug, name }].
+  operators: ({ channel = 'network', countrySlug } = {}) =>
+    bxRequest({
+      service: 'sms',
+      path: '/reseller/sms-verification/operators',
+      query: { channel, country_slug: countrySlug }
+    }),
 
   // Services/prices. worldwide: channel,country_code · network: channel,country_slug,operator_slug
   services: ({ channel = 'worldwide', countryCode, countrySlug, operatorSlug } = {}) =>

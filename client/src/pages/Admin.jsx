@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Users, LogOut, Trash2, RefreshCw, ShieldCheck, Power, TrendingUp, Package, Search, Store, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Smartphone, UserRound, ReceiptText, Users, LogOut, Trash2, RefreshCw, ShieldCheck, Power, TrendingUp, Package, Search, Store, MessageSquare, Bell } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
@@ -11,7 +11,8 @@ const SECTIONS = [
   { id: 'numbers', label: 'Numbers', icon: Smartphone },
   { id: 'accounts', label: 'Accounts', icon: UserRound },
   { id: 'sales', label: 'Sales', icon: ReceiptText },
-  { id: 'users', label: 'Users', icon: Users }
+  { id: 'users', label: 'Users', icon: Users },
+  { id: 'notifications', label: 'Notifications', icon: Bell }
 ];
 
 const fmtNgn = (n) => `\u20A6${Number(n || 0).toLocaleString()}`;
@@ -89,6 +90,12 @@ export default function Admin() {
   const [svcEditPrices, setSvcEditPrices] = useState({});
   const [svcEditServiceType, setSvcEditServiceType] = useState('');
   const [svcEditProviderId, setSvcEditProviderId] = useState('');
+
+  // Notifications (support debugging) section state
+  const [notifUserId, setNotifUserId] = useState('');
+  const [notifSearch, setNotifSearch] = useState('');
+  const [notifData, setNotifData] = useState(null); // { user, notifications, unread }
+  const [notifLoading, setNotifLoading] = useState(false);
 
   const loadStats = async () => {
     try {
@@ -198,6 +205,11 @@ export default function Admin() {
     try {
       await api.put('/admin/bulnix/overrides', { serviceType, providerId, adminPrice: cost });
       setToast('Price updated');
+      setSvcEditPrices((m) => {
+        const next = { ...m };
+        delete next[`${serviceType === 'marketplace' ? 'mkt' : serviceType === 'sms' ? 'sms' : 'flw'}-${providerId}`];
+        return next;
+      });
       loadOverrides();
     } catch (err) {
       setError(getErrorMessage(err));
@@ -213,6 +225,34 @@ export default function Admin() {
       setError(getErrorMessage(err));
     }
   };
+
+  const loadUserNotifications = async (userId) => {
+    if (!userId) { setNotifData(null); return; }
+    setNotifLoading(true);
+    try {
+      const res = await api.get(`/admin/users/${encodeURIComponent(userId)}/notifications`);
+      setNotifData(res.data);
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setNotifData(null);
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const openUserNotifications = (userId) => {
+    setNotifUserId(userId);
+    setSection('notifications');
+    loadUserNotifications(userId);
+  };
+
+  const filteredNotifUsers = useMemo(() => {
+    const q = notifSearch.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) =>
+      `${u.name || ''} ${u.email || ''}`.toLowerCase().includes(q)
+    );
+  }, [users, notifSearch]);
 
   useEffect(() => {
     loadStats();
@@ -370,6 +410,7 @@ export default function Admin() {
     try {
       await api.put(`/admin/products/numbers/${id}`, updates);
       setToast('Updated');
+      setEditPrices((m) => ({ ...m, [`num-${id}`]: undefined }));
       loadProducts();
       loadStats();
     } catch (err) {
@@ -392,6 +433,7 @@ export default function Admin() {
     try {
       await api.put(`/admin/products/accounts/${id}`, updates);
       setToast('Updated');
+      setEditPrices((m) => ({ ...m, [`acc-${id}`]: undefined }));
       loadProducts();
       loadStats();
     } catch (err) {
@@ -607,15 +649,19 @@ export default function Admin() {
                                   <input
                                     type="number"
                                     min="1"
-                                    defaultValue={override?.admin_price || ''}
-                                    onBlur={(e) => {
-                                      const v = Number(e.target.value);
-                                      if (Number.isFinite(v) && v > 0) saveOverride('marketplace', String(p.id), v);
-                                    }}
+                                    value={svcEditPrices[`mkt-${p.id}`] ?? override?.admin_price ?? ''}
+                                    onChange={(e) => setSvcEditPrices((m) => ({ ...m, [`mkt-${p.id}`]: e.target.value }))}
                                     className={`${inputCls} w-[140px]`}
                                     placeholder={fmtNgn(p.price)}
                                   />
                                 </Field>
+                                <button
+                                  onClick={() => saveOverride('marketplace', String(p.id), svcEditPrices[`mkt-${p.id}`])}
+                                  disabled={svcEditPrices[`mkt-${p.id}`] === undefined || svcEditPrices[`mkt-${p.id}`] === ''}
+                                  className="btn-gold px-4 py-2.5 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Confirm
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -690,15 +736,19 @@ export default function Admin() {
                                   <input
                                     type="number"
                                     min="1"
-                                    defaultValue={override?.admin_price || ''}
-                                    onBlur={(e) => {
-                                      const v = Number(e.target.value);
-                                      if (Number.isFinite(v) && v > 0) saveOverride('sms', s.slug, v);
-                                    }}
+                                    value={svcEditPrices[`sms-${s.slug}`] ?? override?.admin_price ?? ''}
+                                    onChange={(e) => setSvcEditPrices((m) => ({ ...m, [`sms-${s.slug}`]: e.target.value }))}
                                     className={`${inputCls} w-[140px]`}
                                     placeholder={fmtNgn(s.price)}
                                   />
                                 </Field>
+                                <button
+                                  onClick={() => saveOverride('sms', s.slug, svcEditPrices[`sms-${s.slug}`])}
+                                  disabled={svcEditPrices[`sms-${s.slug}`] === undefined || svcEditPrices[`sms-${s.slug}`] === ''}
+                                  className="btn-gold px-4 py-2.5 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Confirm
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -766,15 +816,19 @@ export default function Admin() {
                                   <input
                                     type="number"
                                     min="1"
-                                    defaultValue={override?.admin_price || ''}
-                                    onBlur={(e) => {
-                                      const v = Number(e.target.value);
-                                      if (Number.isFinite(v) && v > 0) saveOverride('followers', String(s.id), v);
-                                    }}
+                                    value={svcEditPrices[`flw-${s.id}`] ?? override?.admin_price ?? ''}
+                                    onChange={(e) => setSvcEditPrices((m) => ({ ...m, [`flw-${s.id}`]: e.target.value }))}
                                     className={`${inputCls} w-[140px]`}
                                     placeholder={fmtNgn(s.priceNgnPer1000)}
                                   />
                                 </Field>
+                                <button
+                                  onClick={() => saveOverride('followers', String(s.id), svcEditPrices[`flw-${s.id}`])}
+                                  disabled={svcEditPrices[`flw-${s.id}`] === undefined || svcEditPrices[`flw-${s.id}`] === ''}
+                                  className="btn-gold px-4 py-2.5 text-[0.85rem] disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Confirm
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -888,21 +942,23 @@ export default function Admin() {
                               <Trash2 size={16} strokeWidth={1.8} />
                             </button>
                           </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span className="text-gold font-semibold">{fmtNgn(p.price)}</span>
-                          <input
-                            type="number"
-                            min="1"
-                            defaultValue={p.price}
-                            onBlur={(e) => {
-                              const v = Number(e.target.value);
-                              if (Number.isFinite(v) && v > 0 && v !== p.price) updateNumber(p.id, { price: v });
-                            }}
-                            className="w-32 px-3 py-2 bg-input border border-gold/20 rounded-[8px] text-body text-[0.88rem] outline-none focus:border-gold"
-                          />
-                          <span className="text-[0.75rem] text-faint">Edit price, then click away</span>
-                        </div>
+                        </div>                          <div className="flex flex-wrap items-center gap-3">
+                            <span className="text-gold font-semibold">{fmtNgn(p.price)}</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={editPrices[`num-${p.id}`] ?? p.price}
+                              onChange={(e) => setEditPrices((m) => ({ ...m, [`num-${p.id}`]: e.target.value }))}
+                              className="w-32 px-3 py-2 bg-input border border-gold/20 rounded-[8px] text-body text-[0.88rem] outline-none focus:border-gold"
+                            />
+                            <button
+                              onClick={() => updateNumber(p.id, { price: Number(editPrices[`num-${p.id}`]) })}
+                              disabled={editPrices[`num-${p.id}`] === undefined || Number(editPrices[`num-${p.id}`]) === p.price || !Number.isFinite(Number(editPrices[`num-${p.id}`])) || Number(editPrices[`num-${p.id}`]) <= 0}
+                              className="btn-gold px-4 py-2 text-[0.82rem] disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Confirm
+                            </button>
+                          </div>
                       </div>
                     ))}
                   </div>
@@ -1011,14 +1067,17 @@ export default function Admin() {
                             <input
                               type="number"
                               min="1"
-                              defaultValue={p.price}
-                              onBlur={(e) => {
-                                const v = Number(e.target.value);
-                                if (Number.isFinite(v) && v > 0 && v !== p.price) updateAccount(p.id, { price: v });
-                              }}
+                              value={editPrices[`acc-${p.id}`] ?? p.price}
+                              onChange={(e) => setEditPrices((m) => ({ ...m, [`acc-${p.id}`]: e.target.value }))}
                               className="w-32 px-3 py-2 bg-input border border-gold/20 rounded-[8px] text-body text-[0.88rem] outline-none focus:border-gold"
                             />
-                            <span className="text-[0.75rem] text-faint">Edit price, then click away</span>
+                            <button
+                              onClick={() => updateAccount(p.id, { price: Number(editPrices[`acc-${p.id}`]) })}
+                              disabled={editPrices[`acc-${p.id}`] === undefined || Number(editPrices[`acc-${p.id}`]) === p.price || !Number.isFinite(Number(editPrices[`acc-${p.id}`])) || Number(editPrices[`acc-${p.id}`]) <= 0}
+                              className="btn-gold px-4 py-2 text-[0.82rem] disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Confirm
+                            </button>
                           </div>
                         </div>
                       );
@@ -1042,6 +1101,123 @@ export default function Admin() {
             </div>
           )}
 
+          {section === 'notifications' && (
+            <div className="space-y-6">
+              <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+                  <div>
+                    <h2 className="font-syne text-xl mb-1">User Notifications</h2>
+                    <p className="text-faint text-[0.85rem]">
+                      See exactly what in-app notifications a user received — order updates, refunds and wallet top-ups — for support debugging.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => loadUserNotifications(notifUserId)}
+                    disabled={!notifUserId}
+                    className="btn-ghost px-4 py-2 text-[0.82rem] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <RefreshCw size={15} strokeWidth={1.9} /> Refresh
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                  <Field label="Search users">
+                    <div className="relative">
+                      <Search size={16} strokeWidth={1.9} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-faint pointer-events-none" />
+                      <input
+                        value={notifSearch}
+                        onChange={(e) => setNotifSearch(e.target.value)}
+                        placeholder="Search by name or email…"
+                        className="w-full pl-10 pr-3.5 py-2.5 bg-input border border-gold/20 rounded-[10px] text-body text-[0.9rem] outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 transition-all placeholder:text-subtle"
+                      />
+                    </div>
+                  </Field>
+                  <Field label="User">
+                    <select
+                      value={notifUserId}
+                      onChange={(e) => {
+                        setNotifUserId(e.target.value);
+                        loadUserNotifications(e.target.value);
+                      }}
+                      className={inputCls}
+                    >
+                      <option value="" className="bg-surface2">Choose a user</option>
+                      {filteredNotifUsers.map((u) => (
+                        <option key={u.id} value={u.id} className="bg-surface2">
+                          {u.name} · {u.email} ({u.unreadNotifications || 0} unread)
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                {!notifUserId ? (
+                  <p className="text-faint text-[0.9rem] py-6 text-center">Choose a user above to see their notification history.</p>
+                ) : notifLoading ? (
+                  <p className="text-faint text-[0.9rem] py-6 text-center">Loading notifications…</p>
+                ) : !notifData ? (
+                  <p className="text-faint text-[0.9rem] py-6 text-center">No data loaded.</p>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-3 mb-4">
+                      <span className="text-[0.88rem] text-muted">
+                        {notifData.user?.name} · {notifData.user?.email}
+                      </span>
+                      <span className="text-[0.72rem] font-semibold uppercase px-2.5 py-1 rounded-[50px] border text-gold border-gold/30 bg-gold/10">
+                        {notifData.notifications.length} total
+                      </span>
+                      {notifData.unread > 0 && (
+                        <span className="text-[0.72rem] font-semibold uppercase px-2.5 py-1 rounded-[50px] border text-[#e0645a] border-[#e0645a]/30 bg-[#e0645a]/10">
+                          {notifData.unread} unread
+                        </span>
+                      )}
+                    </div>
+                    {notifData.notifications.length === 0 ? (
+                      <p className="text-faint text-[0.9rem] py-6 text-center">This user has no notifications.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {notifData.notifications.map((n) => (
+                          <div
+                            key={n.id}
+                            className={`bg-gold/5 border border-gold/15 rounded-[12px] px-4 py-3 flex gap-3 ${n.read ? 'opacity-70' : ''}`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full mt-[7px] shrink-0 ${
+                                n.read
+                                  ? 'bg-softline'
+                                  : n.type === 'success'
+                                    ? 'bg-[#2ecc71]'
+                                    : n.type === 'error'
+                                      ? 'bg-[#e0645a]'
+                                      : n.type === 'refund'
+                                        ? 'bg-gold'
+                                        : 'bg-muted'
+                              }`}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[0.88rem] font-medium">{n.title}</span>
+                                <span className="text-[0.62rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border border-gold/25 bg-gold/10 text-gold">
+                                  {n.type}
+                                </span>
+                                {!n.read && (
+                                  <span className="text-[0.62rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border text-[#e0645a] border-[#e0645a]/30 bg-[#e0645a]/10">
+                                    unread
+                                  </span>
+                                )}
+                              </div>
+                              {n.body && <div className="text-faint text-[0.8rem] leading-snug mt-0.5">{n.body}</div>}
+                              <div className="text-[0.68rem] text-subtle mt-1">{new Date(n.createdAt).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {section === 'users' && (
             <div className="card-border bg-gold/3 rounded-[15px] p-6 md:p-8">
               <div className="flex items-center justify-between gap-4 mb-5">
@@ -1059,7 +1235,8 @@ export default function Admin() {
                       <th className="py-3 pr-4">Role</th>
                       <th className="py-3 pr-4">Wallet</th>
                       <th className="py-3 pr-4">Orders</th>
-                      <th className="py-3">Joined</th>
+                      <th className="py-3 pr-4">Joined</th>
+                      <th className="py-3">Notifs</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-softline">
@@ -1074,7 +1251,22 @@ export default function Admin() {
                         </td>
                         <td className="py-3 pr-4 text-gold">{fmtNgn(u.balance)}</td>
                         <td className="py-3 pr-4">{u.orders}</td>
-                        <td className="py-3 text-muted">{new Date(u.createdAt).toLocaleDateString()}</td>
+                        <td className="py-3 pr-4 text-muted">{new Date(u.createdAt).toLocaleDateString()}</td>
+                        <td className="py-3">
+                          <button
+                            onClick={() => openUserNotifications(u.id)}
+                            title="View notifications"
+                            aria-label={`View notifications for ${u.name}`}
+                            className="relative text-gold hover:bg-gold/10 rounded-[8px] p-2 transition-colors"
+                          >
+                            <Bell size={15} strokeWidth={1.9} />
+                            {(u.unreadNotifications || 0) > 0 && (
+                              <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full bg-gold text-night text-[0.58rem] font-bold flex items-center justify-center">
+                                {u.unreadNotifications > 9 ? '9+' : u.unreadNotifications}
+                              </span>
+                            )}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

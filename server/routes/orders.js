@@ -13,7 +13,8 @@ import {
   creditWallet,
   getCatalog,
   updateAccountProduct,
-  recordSale
+  recordSale,
+  pushNotification
 } from '../utils/store.js';
 import { sendPurchaseSuccessEmail, sendPurchaseFailureEmail, sendRefundEmail } from '../utils/mailer.js';
 
@@ -182,6 +183,12 @@ async function buyInventoryAccount(req, res, catalog, product, qty = 1) {
   }
 
   notify.success(req.user.id, orders);
+  pushNotification(req.user.id, {
+    title: 'Order completed',
+    body: `Your purchase of ${qty > 1 ? `${qty} × ` : ''}${product.platform} is ready. Open My Orders to view the credentials.`,
+    type: 'success',
+    meta: { kind: 'order', orders: orders.map((o) => o.order_ref) }
+  }).catch(() => {});
 
   res.status(201).json({
     status: 'success',
@@ -276,6 +283,12 @@ router.get('/status', asyncRoute(async (req, res) => {
       lastCheckedAt: new Date().toISOString()
     });
     notify.refund(req.user.id, { ...order, status: 'expired', sms: code }, refundResult?.balance);
+    pushNotification(req.user.id, {
+      title: 'Number refunded',
+      body: `Your ${order.service || 'virtual number'} order went dead without a code. ₦${Number(order.price || 0).toLocaleString()} has been refunded to your wallet.`,
+      type: 'refund',
+      meta: { kind: 'refund', orderRef: order_ref }
+    }).catch(() => {});
     return res.json({
       status: 'success',
       sms: code,
@@ -327,6 +340,12 @@ router.post('/cancel', asyncRoute(async (req, res) => {
       lastCheckedAt: new Date().toISOString()
     });
     notify.refund(req.user.id, { ...order, status: 'cancelled' }, refund?.balance);
+    pushNotification(req.user.id, {
+      title: 'Order cancelled',
+      body: `Your ${order.platform || 'account'} order was cancelled. ₦${Number(order.price || 0).toLocaleString()} has been refunded to your wallet.`,
+      type: 'refund',
+      meta: { kind: 'refund', orderRef: order_ref }
+    }).catch(() => {});
     return res.json({ status: 'success', refunded: true, balance: refund?.balance });
   }
 
@@ -353,6 +372,12 @@ router.post('/cancel', asyncRoute(async (req, res) => {
   });
 
   notify.refund(req.user.id, { ...order, status: 'cancelled' }, refund?.balance);
+  pushNotification(req.user.id, {
+    title: 'Order cancelled',
+    body: `Your ${order.service || order.platform || 'order'} was cancelled. ₦${Number(order.price || 0).toLocaleString()} has been refunded to your wallet.`,
+    type: 'refund',
+    meta: { kind: 'refund', orderRef: order_ref }
+  }).catch(() => {});
 
   res.json({ status: 'success', refunded: true, balance: refund?.balance });
 }));

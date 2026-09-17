@@ -138,27 +138,24 @@ export default function Home() {
         </div>
 
         <div className="max-w-[1400px] mx-auto px-4 md:px-8 pt-14 md:pt-20 pb-16 md:pb-24">
-          <div className="grid lg:grid-cols-2 gap-14 lg:gap-10 items-center">
-            {/* Left */}
-            <div className="animate-fade-in-up">
+          <div className="flex flex-col items-center justify-center text-center">
+            <div className="animate-fade-in-up flex flex-col items-center">
               <span className="inline-flex items-center gap-2 chip !py-2 !px-4 border-gold/30 !bg-gold/10">
                 <Sparkles size={14} className="text-gold" />
                 <span className="text-body/90 font-semibold">Instant delivery · 15,000+ orders filled</span>
               </span>
 
-              <h1 className="mt-6 font-syne font-extrabold tracking-tight text-body text-[2.2rem] leading-[1.15] sm:text-[2.6rem] md:text-[3.2rem] lg:text-[3.6rem] xl:text-[4rem]">
-                Verified numbers.<br />
-                Real Accounts.<br />
-                <span className="text-gradient-gold">Instant Delivery.</span>
+              <h1 className="mt-6 max-w-[900px] mx-auto font-syne font-extrabold tracking-tight text-body text-[2.2rem] leading-[1.3] sm:text-[2.6rem] md:text-[3.2rem] lg:text-[3.6rem] xl:text-[4rem]">
+                Verified numbers.<br /> Real Accounts.<br /> <span className="text-gradient-gold">Instant Delivery.</span>
               </h1>
 
-              <p className="mt-6 max-w-[540px] text-[1.05rem] md:text-[1.15rem] leading-relaxed text-muted">
+              <p className="mt-6 max-w-[760px] text-[1.05rem] md:text-[1.15rem] leading-relaxed text-muted mx-auto">
                 SpencerSBM is the trusted marketplace for virtual phone numbers, ready-to-use
                 social accounts, and real social growth — funded from your wallet and delivered
                 to your dashboard the moment you order.
               </p>
 
-              <div className="mt-9 flex flex-col sm:flex-row gap-4">
+              <div className="mt-9 flex flex-col sm:flex-row gap-4 justify-center">
                 {user ? (
                   <button onClick={go} className="btn-gold px-8 py-4 text-base flex items-center justify-center gap-2.5">
                     <LayoutDashboard size={20} strokeWidth={2} /> Enter dashboard
@@ -177,69 +174,18 @@ export default function Home() {
               </div>
 
               {/* inline trust stats */}
-              <div className="mt-11 grid grid-cols-3 gap-3 sm:gap-4 max-w-[360px] sm:max-w-[520px]">
+              <div className="mt-11 grid grid-cols-3 gap-3 sm:gap-4 max-w-[360px] sm:max-w-[520px] mx-auto">
                 {[
                   { v: <Counter value={60} suffix="+" />, l: 'Countries' },
                   { v: <Counter value={99.8} decimals={1} suffix="%" />, l: 'Success rate' },
                   { v: '~30s', l: 'Avg delivery' }
                 ].map((s, i) => (
-                  <div key={i} className="text-left">
+                  <div key={i} className="text-center">
                     <div className="font-syne text-2xl md:text-[1.9rem] font-bold text-body">{s.v}</div>
                     <div className="text-xs md:text-[0.8rem] text-faint font-medium uppercase tracking-wide mt-1">{s.l}</div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* Right — floating card cluster (pure CSS, no stock image) */}
-            <div className="relative min-h-[320px] sm:min-h-[400px] md:min-h-[520px] flex items-center justify-center animate-scale-in mt-10 lg:mt-0">
-              {/* OTP delivery card */}
-              <div className="relative z-20 w-[260px] sm:w-[300px] md:w-[340px] card-border p-4 sm:p-6 animate-float shadow-[var(--tw-shadow-lift)]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-9 h-9 rounded-xl bg-gold/15 text-gold grid place-items-center">
-                      <WhatsAppIcon size={18} />
-                    </span>
-                    <div>
-                      <div className="text-[0.7rem] text-faint font-semibold uppercase tracking-wide">WhatsApp · 🇬🇧 UK</div>
-                      <div className="text-sm font-bold text-body">+44 7•• ••• 219</div>
-                    </div>
-                  </div>
-                  <span className="chip !py-1 !px-2.5 !text-[0.68rem] !bg-gold/10 border-gold/25 text-gold font-bold">LIVE</span>
-                </div>
-                <div className="mt-5 rounded-2xl bg-field border border-softline p-4">
-                  <div className="text-[0.72rem] text-faint font-semibold uppercase tracking-wide mb-2">Verification code</div>
-                  <div className="flex items-center justify-between">
-                    <div className="font-syne text-3xl font-extrabold tracking-[0.35em] text-body">8 4 2 9</div>
-                    <Copy size={16} className="text-gold" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-1.5 text-[0.72rem] text-muted">
-                  <Clock size={13} className="text-gold" /> Delivered 4 seconds ago
-                </div>
-              </div>
-
-              {/* account delivered card */}
-              <div className="absolute z-10 -bottom-2 right-2 sm:right-0 w-[200px] sm:w-[240px] card-border p-4 sm:p-5 animate-bob" style={{ animationDelay: '1.2s' }}>
-                <div className="flex items-center gap-2.5 mb-3">
-                  <span className="w-9 h-9 rounded-xl bg-gold/15 text-gold grid place-items-center">
-                    <InstagramIcon size={18} />
-                  </span>
-                  <div>
-                    <div className="text-sm font-bold text-body">Account delivered</div>
-                    <div className="text-[0.72rem] text-faint">Aged · verified</div>
-                  </div>
-                  <span className="ml-auto w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-500 grid place-items-center">
-                    <Check size={14} strokeWidth={3} />
-                  </span>
-                </div>
-                <div className="space-y-1.5 text-[0.78rem]">
-                  <div className="flex justify-between"><span className="text-faint">user</span><span className="text-body font-medium">spencer_••••</span></div>
-                  <div className="flex justify-between"><span className="text-faint">pass</span><span className="text-body font-medium">•••••••••</span></div>
-                </div>
-              </div>
-
-
             </div>
           </div>
         </div>

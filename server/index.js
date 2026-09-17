@@ -7,6 +7,7 @@ import webhookRoutes from './routes/webhook.js';
 import ordersRoutes from './routes/orders.js';
 import adminRoutes from './routes/admin.js';
 import bulnixRoutes from './routes/bulnix.js';
+import notificationsRoutes from './routes/notifications.js';
 import { getUsers, ensureAdmin } from './utils/store.js';
 
 const app = express();
@@ -110,6 +111,7 @@ app.get('/', (req, res) => {
         buy: { method: 'POST', path: '/api/bulnix/marketplace/order', auth: 'user', body: { productId: 'string', quantity: 'number?' } },
         orderStatus: { method: 'GET', path: '/api/bulnix/marketplace/order/:id/status', auth: 'user' },
         smsServices: { method: 'GET', path: '/api/bulnix/sms/services', auth: 'none' },
+        smsOperators: { method: 'GET', path: '/api/bulnix/sms/operators?country_slug=', auth: 'none' },
         followersServices: { method: 'GET', path: '/api/bulnix/followers/services', auth: 'none' }
       }
     }
@@ -151,6 +153,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/bulnix', bulnixRoutes);
+app.use('/api/notifications', notificationsRoutes);
 app.use('/api/webhook', webhookRoutes);
 
 // Global error handler

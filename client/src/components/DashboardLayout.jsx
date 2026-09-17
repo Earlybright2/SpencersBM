@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Store, LayoutGrid, MessageSquare, TrendingUp,
-  Package, Settings, ArrowLeftRight, LogOut, ShieldCheck, ChevronRight, Sparkles
+  Package, Settings, ArrowLeftRight, LogOut, ShieldCheck, ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
+import NotificationBell from './NotificationBell.jsx';
 
 // New information architecture (see design ref): Explore / Services / Account.
 // Routing keeps the existing `?tab=` pattern the dashboard already reads.
@@ -194,13 +195,7 @@ export default function DashboardLayout({ title, subtitle, children }) {
               </div>
             </div>
             <div className="flex items-center gap-3 shrink-0">
-              <Link
-                to="/dashboard?tab=marketplace"
-                className="hidden md:flex items-center gap-1.5 chip hover:border-gold/50 transition-colors"
-              >
-                <Sparkles size={14} strokeWidth={2} className="text-gold" />
-                Marketplace
-              </Link>
+              <NotificationBell />
               <ThemeToggle />
             </div>
           </div>

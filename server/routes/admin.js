@@ -16,7 +16,8 @@ import {
   getBulnixOverrides,
   getBulnixOverride,
   upsertBulnixOverride,
-  deleteBulnixOverride
+  deleteBulnixOverride,
+  getNotifications
 } from '../utils/store.js';
 
 const router = Router();
@@ -64,9 +65,24 @@ router.get('/users', asyncRoute(async (req, res) => {
     role: u.role || 'user',
     balance: Number(u.wallet?.balance) || 0,
     orders: (u.orders || []).length,
+    notifications: (u.notifications || []).length,
+    unreadNotifications: (u.notifications || []).filter((n) => !n.read).length,
     createdAt: u.createdAt
   }));
   res.json({ users });
+}));
+
+// GET /api/admin/users/:id/notifications — a single user's in-app notification
+// history, for support debugging ("did the user get told about the refund?").
+router.get('/users/:id/notifications', asyncRoute(async (req, res) => {
+  const user = await findById(req.params.id);
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  const notifications = await getNotifications(req.params.id);
+  res.json({
+    user: { id: user.id, name: user.name, email: user.email },
+    notifications,
+    unread: notifications.filter((n) => !n.read).length
+  });
 }));
 
 // GET /api/admin/products
