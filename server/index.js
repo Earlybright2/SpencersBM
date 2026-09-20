@@ -8,7 +8,7 @@ import ordersRoutes from './routes/orders.js';
 import adminRoutes from './routes/admin.js';
 import bulnixRoutes from './routes/bulnix.js';
 import notificationsRoutes from './routes/notifications.js';
-import { getUsers, ensureAdmin } from './utils/store.js';
+import { getUsers, ensureAdmin, ensureSchema } from './utils/store.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -162,7 +162,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong on the server' });
 });
 
-ensureAdmin()
+// Ensure legacy schema bits (notifications column, overrides table) exist
+// BEFORE accepting traffic — this used to happen lazily per-request and caused
+// 502 storms when many requests raced the DDL at once.
+ensureSchema()
+  .then(() => ensureAdmin())
   .then(() => {
     app.listen(PORT, () => {
       console.log(`SpencerSBM API running on http://localhost:${PORT}`);

@@ -559,8 +559,7 @@ router.get('/marketplace/order/:id/status', requireAuth, async (req, res) => {
    ============================================================ */
 
 let flCatalogCache = { at: 0, rows: null };
-async function getFollowersCatalog() {
-  if (flCatalogCache.rows && Date.now() - flCatalogCache.at < 60_000) return flCatalogCache.rows;
+async function fetchFollowersCatalog() {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const res = await followers.catalog({});
     if (isBxSuccess(res)) {
@@ -569,9 +568,27 @@ async function getFollowersCatalog() {
       flCatalogCache = { at: Date.now(), rows };
       return rows;
     }
+    // Only retry genuine provider failures; "not configured" never recovers.
+    if (!isBxSuccess(res) && res?.code === 'not_configured') return null;
     if (attempt < 2) await sleep(900);
   }
   return null; // signals provider failure to the caller
+}
+
+// Browse path: a short cache keeps the catalog snappy and reliable.
+async function getFollowersCatalog() {
+  if (flCatalogCache.rows && Date.now() - flCatalogCache.at < 60_000) return flCatalogCache.rows;
+  return fetchFollowersCatalog();
+}
+
+// Order path: the provider price-locks orders against its CURRENT rate. A
+// cached row can carry a stale price and make the upstream reject with
+// SERVICE_REQUEST_FAILED — so orders always resolve against a FRESH catalog
+// (falling back to the cache only if the provider is momentarily unreachable).
+async function getFollowersCatalogForOrder() {
+  const fresh = await fetchFollowersCatalog();
+  if (fresh && fresh.length) return fresh;
+  return flCatalogCache.rows;
 }
 
 const flRateUsdPer1000 = (raw) => num(raw.retailRatePerThousandUSD, raw.rate, raw.price_per_1000, raw.rate_per_1000);
@@ -586,6 +603,7 @@ function mapFlService(raw, rate) {
     name: stripHtml(raw.name ?? raw.title ?? raw.service ?? `Service ${id}`, 160),
     platform: raw.platform ?? '',
     category: stripHtml(raw.category ?? '', 120),
+    description: stripHtml(raw.description ?? raw.details ?? raw.about ?? '', 400),
     min: Number(raw.min ?? raw.min_quantity ?? 0) || 0,
     max: Number(raw.max ?? raw.max_quantity ?? 0) || 0,
     dripfeed: Boolean(raw.dripfeedSupported ?? raw.dripfeed),
@@ -609,7 +627,7 @@ router.get('/followers/platforms', async (_req, res) => {
 
 router.get('/followers/services', async (req, res) => {
   const rows = await getFollowersCatalog();
-  if (rows === null) {
+  if (!rows) {
     return res.status(502).json(bxError({ code: 'provider_unreachable', retryable: true }, 'Followers Growth is busy. Please refresh in a moment.'));
   }
   const rate = await bxNgnRate();
@@ -647,9 +665,10 @@ router.post('/followers/order', requireAuth, async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Quantity must be a whole number.' });
   }
 
-  // 1) Resolve the service against the live catalog (authoritative price + bounds).
-  const rows = await getFollowersCatalog();
-  if (rows === null) {
+  // 1) Resolve the service against a FRESH catalog (authoritative price + bounds).
+  // Price-locked upstream: quoting from a cached row gets the order rejected.
+  const rows = await getFollowersCatalogForOrder();
+  if (!rows) {
     return res.status(502).json(bxError({ code: 'provider_unreachable', retryable: true }, 'Followers Growth is busy. Please try again in a moment.'));
   }
   const rawSvc = rows.find((r) => String(r.id ?? r.service_id ?? r.service) === String(serviceId));
@@ -665,12 +684,14 @@ router.post('/followers/order', requireAuth, async (req, res) => {
   const rate = await bxNgnRate();
   const costUsd = (rateUsdPer1000 * qty) / 1000;
   let price = applyBulnixMarkup(costUsd, rate);
-  // Check for admin price override
+  // Admin price override. The override is quoted PER 1,000 (same unit the admin
+  // sets in the panel), so scale it by the ordered quantity — quoting it as a
+  // flat total undercharged multi-thousand orders.
   try {
     const overrideMap = await getOverridesMap('followers');
     const override = overrideMap.get(String(serviceId));
     if (override) {
-      price = Number(override.admin_price);
+      price = Math.ceil((Number(override.admin_price) * qty) / 1000);
     }
   } catch { /* ignore */ }
   if (price <= 0) {
@@ -852,7 +873,13 @@ router.post('/sms/order', requireAuth, async (req, res) => {
   const svc = (Array.isArray(svcList) ? svcList : []).find((s) => String(s.slug ?? s.service_slug) === String(serviceSlug));
   if (!svc) return res.status(409).json({ status: 'error', message: 'That service is no longer available. Please refresh.' });
   const priceUsd = num(svc.retailPriceUSD, svc.price_usd, svc.price);
-  const price = applyBulnixMarkup(priceUsd, rate);
+  let price = applyBulnixMarkup(priceUsd, rate);
+  // Admin price overrides also apply at purchase time, not just in the catalog.
+  try {
+    const overrideMap = await getOverridesMap('sms');
+    const override = overrideMap.get(String(serviceSlug));
+    if (override) price = Number(override.admin_price);
+  } catch { /* ignore override errors */ }
   if (price <= 0) return res.status(502).json({ status: 'error', message: 'This service is not currently priced.' });
 
   // 2) Reserve funds.

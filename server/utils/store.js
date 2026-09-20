@@ -565,15 +565,10 @@ export async function toNgn(amount, currency) {
 
 // ----- Notifications (in-app, per user) -----
 
-// Self-healing: the notifications column may not exist on a database provisioned
-// before this feature (migrate.js is a separate manual step on Render).
-let notificationsColumnReady = false;
-async function ensureNotificationsColumn() {
-  if (notificationsColumnReady) return;
-  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS notifications JSONB DEFAULT '[]'::jsonb`);
-  notificationsColumnReady = true;
-}
-
+// The notifications column is created with the schema at boot (index.js runs
+// ensureSchema()); migrate.js also adds it. The old request-path ALTER TABLE
+// was removed — DDL on every GET /api/notifications raced under load and
+// caused 502 storms on Render.
 const MAX_NOTIFICATIONS = 50;
 
 /**
@@ -583,7 +578,6 @@ const MAX_NOTIFICATIONS = 50;
  */
 export async function pushNotification(userId, { title, body, type = 'info', meta }) {
   try {
-    await ensureNotificationsColumn();
     const user = await findById(userId);
     if (!user) return null;
     const list = [
@@ -607,45 +601,66 @@ export async function pushNotification(userId, { title, body, type = 'info', met
 }
 
 export async function getNotifications(userId) {
-  await ensureNotificationsColumn();
-  const user = await findById(userId);
-  return user?.notifications || [];
+  try {
+    const user = await findById(userId);
+    return user?.notifications || [];
+  } catch (err) {
+    // Never fail the bell: an empty list beats a 502 loop in the UI.
+    console.error('getNotifications failed:', err.message);
+    return [];
+  }
 }
 
 // Mark every notification read (called when the user opens the bell panel).
 export async function markNotificationsRead(userId) {
-  await ensureNotificationsColumn();
-  const user = await findById(userId);
-  if (!user) return [];
-  const list = (user.notifications || []).map((n) => (n.read ? n : { ...n, read: true }));
-  await pool.query('UPDATE users SET notifications = $1 WHERE id = $2', [JSON.stringify(list), userId]);
-  return list;
+  try {
+    const user = await findById(userId);
+    if (!user) return [];
+    const list = (user.notifications || []).map((n) => (n.read ? n : { ...n, read: true }));
+    await pool.query('UPDATE users SET notifications = $1 WHERE id = $2', [JSON.stringify(list), userId]);
+    return list;
+  } catch (err) {
+    console.error('markNotificationsRead failed:', err.message);
+    return [];
+  }
+}
+
+// ----- Boot-time schema ensure -----
+
+// Creates anything a legacy database might be missing (the notifications column
+// and the bulnix_overrides table). Runs ONCE at startup instead of DDL inside
+// request handlers, and is safe against concurrent/duplicate boots.
+let schemaReady = null;
+export function ensureSchema() {
+  if (!schemaReady) {
+    schemaReady = pool
+      .query(`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS notifications JSONB DEFAULT '[]'::jsonb;
+        CREATE TABLE IF NOT EXISTS bulnix_overrides (
+          id VARCHAR(255) PRIMARY KEY,
+          service_type VARCHAR(50) NOT NULL,
+          provider_id VARCHAR(255) NOT NULL,
+          admin_price NUMERIC(14, 2) NOT NULL,
+          enabled BOOLEAN DEFAULT true,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(service_type, provider_id)
+        )
+      `)
+      .then(() => {
+        schemaReady = true;
+      })
+      .catch((err) => {
+        schemaReady = null; // allow a retry on the next call
+        throw err;
+      });
+  }
+  return schemaReady;
 }
 
 // ----- Bulnix Overrides (admin price overrides) -----
 
-// Self-healing: on a fresh environment the bulnix_overrides table may not exist
-// yet (migrate.js is a separate manual step on Render). Create it on demand so
-// GET /admin/bulnix/overrides returns [] instead of a 502.
-let overridesTableReady = false;
-async function ensureOverridesTable() {
-  if (overridesTableReady) return;
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS bulnix_overrides (
-      id VARCHAR(255) PRIMARY KEY,
-      service_type VARCHAR(50) NOT NULL,
-      provider_id VARCHAR(255) NOT NULL,
-      admin_price NUMERIC(14, 2) NOT NULL,
-      enabled BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(service_type, provider_id)
-    )
-  `);
-  overridesTableReady = true;
-}
-
 export async function getBulnixOverrides(serviceType) {
-  await ensureOverridesTable();
+  await ensureSchema().catch(() => {});
   let query = 'SELECT * FROM bulnix_overrides';
   const params = [];
   if (serviceType) {
@@ -658,7 +673,7 @@ export async function getBulnixOverrides(serviceType) {
 }
 
 export async function getBulnixOverride(serviceType, providerId) {
-  await ensureOverridesTable();
+  await ensureSchema().catch(() => {});
   const { rows } = await pool.query(
     'SELECT * FROM bulnix_overrides WHERE service_type = $1 AND provider_id = $2',
     [serviceType, providerId]
@@ -667,7 +682,7 @@ export async function getBulnixOverride(serviceType, providerId) {
 }
 
 export async function upsertBulnixOverride(override) {
-  await ensureOverridesTable();
+  await ensureSchema();
   const { id, serviceType, providerId, adminPrice, enabled } = override;
   const { rows } = await pool.query(
     `INSERT INTO bulnix_overrides (id, service_type, provider_id, admin_price, enabled, created_at)
@@ -682,7 +697,7 @@ export async function upsertBulnixOverride(override) {
 }
 
 export async function deleteBulnixOverride(serviceType, providerId) {
-  await ensureOverridesTable();
+  await ensureSchema();
   await pool.query(
     'DELETE FROM bulnix_overrides WHERE service_type = $1 AND provider_id = $2',
     [serviceType, providerId]

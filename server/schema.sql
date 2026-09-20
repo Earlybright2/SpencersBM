@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   flw_customer_id VARCHAR(255),
   orders JSONB DEFAULT '[]'::jsonb,
   transactions JSONB DEFAULT '[]'::jsonb,
+  notifications JSONB DEFAULT '[]'::jsonb,
   pending_funds JSONB DEFAULT '{}'::jsonb,
   virtual_account JSONB DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP

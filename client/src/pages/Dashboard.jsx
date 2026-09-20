@@ -313,6 +313,7 @@ export default function Dashboard() {
       .catch((err) => {
         if (!cancelled) {
           setSmsCountries([]);
+          // Surface a clear message so an empty list is never silent.
           setError(getErrorMessage(err));
         }
       })
@@ -326,18 +327,27 @@ export default function Dashboard() {
   }, [tab, bxStatus, smsRoute]);
 
   // Network route: load the mobile operators for the chosen country.
+  // NOTE: the network channel identifies countries by SLUG, not the numeric/
+  // ISO code the worldwide channel uses — sending the code here made every
+  // provider lookup return an empty operator list.
+  const smsCountryEntry = useMemo(
+    () => smsCountries.find((c) => c.code === smsCountry || c.slug === smsCountry),
+    [smsCountries, smsCountry]
+  );
+  const smsCountrySlug = smsCountryEntry?.slug || smsCountry;
   useEffect(() => {
     if (smsRoute !== 'network' || !smsCountry) { setSmsOperators([]); return; }
     let cancelled = false;
     setSmsOperatorsLoading(true);
     setSmsOperators([]);
     setSmsOperator('');
-    api.get('/bulnix/sms/operators', { params: { channel: 'network', country_slug: smsCountry } })
+    api.get('/bulnix/sms/operators', { params: { channel: 'network', country_slug: smsCountrySlug } })
       .then((res) => { if (!cancelled) setSmsOperators(res.data?.operators || []); })
       .catch(() => { if (!cancelled) setSmsOperators([]); })
       .finally(() => { if (!cancelled) setSmsOperatorsLoading(false); });
     return () => { cancelled = true; };
-  }, [smsRoute, smsCountry]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smsRoute, smsCountry, smsCountries]);
 
   // Load the verification services for the chosen country (and operator on the
   // network route).
@@ -350,7 +360,7 @@ export default function Dashboard() {
     setSmsServicesLoading(true);
     setSmsServices([]);
     const params = smsRoute === 'network'
-      ? { channel: 'network', country_slug: smsCountry, operator_slug: smsOperator }
+      ? { channel: 'network', country_slug: smsCountrySlug, operator_slug: smsOperator }
       : { channel: 'worldwide', country_code: smsCountry };
     api.get('/bulnix/sms/services', { params })
       .then((res) => { if (!cancelled) setSmsServices(res.data?.services || []); })
@@ -463,7 +473,7 @@ export default function Dashboard() {
       const res = await api.post('/bulnix/sms/order', {
         channel: smsRoute,
         ...(smsRoute === 'network'
-          ? { countrySlug: smsCountry, operatorSlug: smsOperator }
+          ? { countrySlug: smsCountrySlug, operatorSlug: smsOperator }
           : { countryCode: smsCountry }),
         serviceSlug: service.slug
       });
@@ -1078,9 +1088,11 @@ export default function Dashboard() {
           <span className="w-11 h-11 rounded-[11px] bg-gold/10 border border-gold/20 text-gold flex items-center justify-center shrink-0">
             <Icon size={21} strokeWidth={1.8} />
           </span>
+          {/* Full service name is shown (wraps) — never truncated, so customers
+              can read exactly what they are buying. */}
           <div className="min-w-0 flex-1">
-            <div className="font-medium text-[0.95rem] truncate">{item.title}</div>
-            {item.subtitle && <div className="text-faint text-[0.78rem] truncate">{item.subtitle}</div>}
+            <div className="font-medium text-[0.95rem] break-words leading-snug">{item.title}</div>
+            {item.subtitle && <div className="text-faint text-[0.78rem] break-words mt-0.5">{item.subtitle}</div>}
           </div>
           {item.stock !== null && item.stock !== undefined && (
             <span className={`text-[0.68rem] font-semibold px-2 py-1 rounded-full border shrink-0 ${
@@ -1091,7 +1103,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        {item.desc && <p className="text-muted text-[0.83rem] mb-3 line-clamp-2">{item.desc}</p>}
+        {item.desc && <p className="text-muted text-[0.83rem] mb-3 break-words leading-relaxed">{item.desc}</p>}
 
         <div className="mt-auto">
           <div className="flex items-end gap-2 mb-3">
@@ -1540,7 +1552,8 @@ export default function Dashboard() {
                             <MessageSquare size={18} strokeWidth={1.8} />
                           </span>
                           <div className="min-w-0">
-                            <div className="font-medium text-[0.95rem] truncate">{s.name}</div>
+                            {/* Full service name (wraps instead of truncating). */}
+                            <div className="font-medium text-[0.95rem] break-words leading-snug">{s.name}</div>
                             {(s.availability !== null && s.availability !== undefined) && (
                               <div className="text-faint text-[0.78rem]">{Number(s.availability).toLocaleString()} available</div>
                             )}
@@ -1630,8 +1643,10 @@ export default function Dashboard() {
                     <option value="">Select a service…</option>
                     {flServices.map((s, i) => (
                       <option key={s.id || i} value={s.id || s.service || i}>
+                        {/* Full service name + category so nothing is cut short. */}
                         {(s.name || s.title || s.service || `Service ${i + 1}`)}
-                        {s.priceNgnPer1000 ? ` — ₦${Number(s.priceNgnPer1000).toLocaleString()}/1k` : ''}
+                        {s.category ? ` — ${s.category}` : ''}
+                        {s.priceNgnPer1000 ? ` (₦${Number(s.priceNgnPer1000).toLocaleString()}/1k)` : ''}
                       </option>
                     ))}
                   </select>
@@ -1641,12 +1656,24 @@ export default function Dashboard() {
                     const qty = Number(flForm.quantity) || 0;
                     const est = qty && svc.priceNgnPer1000 ? Math.ceil((svc.priceNgnPer1000 * qty) / 1000 / 100) * 100 : 0;
                     return (
-                      <p className="mt-2 text-[0.75rem] text-faint flex flex-wrap gap-x-3 gap-y-1">
-                        {svc.min || svc.max ? (
-                          <span>Range: {Number(svc.min || 1).toLocaleString()}–{Number(svc.max || 0).toLocaleString()}</span>
-                        ) : null}
-                        {est ? <span className="text-gold font-semibold">Est. ₦{est.toLocaleString()}</span> : null}
-                      </p>
+                      <div className="mt-3 bg-gold/5 border border-gold/15 rounded-[10px] px-4 py-3">
+                        <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold mb-2">Service details</div>
+                        <div className="text-[0.85rem] font-medium break-words leading-snug mb-2">{svc.name || `Service ${svc.id}`}</div>
+                        {svc.description && <div className="text-[0.78rem] text-muted break-words leading-relaxed mb-2">{svc.description}</div>}
+                        <div className="text-[0.78rem] text-faint flex flex-wrap gap-x-4 gap-y-1">
+                          <span>Platform: <span className="text-body/80">{svc.platform || '—'}</span></span>
+                          {svc.category && <span>Category: <span className="text-body/80">{svc.category}</span></span>}
+                          {(svc.min || svc.max) ? (
+                            <span>Range: <span className="text-body/80">{Number(svc.min || 1).toLocaleString()}–{Number(svc.max || 0).toLocaleString()}</span></span>
+                          ) : null}
+                          {svc.priceNgnPer1000 ? (
+                            <span>Price: <span className="text-gold font-semibold">₦{Number(svc.priceNgnPer1000).toLocaleString()}</span> per 1,000</span>
+                          ) : null}
+                          {svc.refill ? <span className="text-[#2ecc71]">Refill supported</span> : null}
+                          {svc.dripfeed ? <span className="text-[#2ecc71]">Drip-feed supported</span> : null}
+                        </div>
+                        {est ? <p className="mt-2 text-[0.8rem] text-gold font-semibold">Estimated total: ₦{est.toLocaleString()}</p> : null}
+                      </div>
                     );
                   })()}
                 </div>
