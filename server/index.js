@@ -148,6 +148,25 @@ app.get('/api/config', (req, res) => {
   });
 });
 
+// Readiness gate: hold /api traffic until the DB schema is initialized.
+// The port is opened FIRST (see listen below) so the platform proxy sees the
+// app as up during cold starts and deploys — binding only after DB init made
+// every request that arrived during initialization fail with a proxy 502.
+// /api/health is registered above and stays reachable during init.
+const dbReady = ensureSchema()
+  .then(() => ensureAdmin())
+  .then(() => {
+    console.log('Database schema ready');
+  })
+  .catch((err) => {
+    console.error('Failed to initialize database schema:', err);
+    process.exit(1);
+  });
+
+app.use('/api', (req, res, next) => {
+  dbReady.then(() => next()).catch(() => {});
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/orders', ordersRoutes);
@@ -162,17 +181,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong on the server' });
 });
 
-// Ensure legacy schema bits (notifications column, overrides table) exist
-// BEFORE accepting traffic — this used to happen lazily per-request and caused
-// 502 storms when many requests raced the DDL at once.
-ensureSchema()
-  .then(() => ensureAdmin())
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`SpencerSBM API running on http://localhost:${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error('Failed to initialize database schema:', err);
-    process.exit(1);
-  });
+// Listen immediately; API requests queue at the readiness gate above until
+// ensureSchema/ensureAdmin complete. A permanent DB failure still exits(1) so
+// the platform marks the deploy as failed.
+app.listen(PORT, () => {
+  console.log(`SpencerSBM API running on http://localhost:${PORT}`);
+});
