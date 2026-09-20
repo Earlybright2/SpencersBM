@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ReceiptText, Users, LogOut, RefreshCw, ShieldCheck, TrendingUp, Search, Store, MessageSquare, Bell } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, Users, LogOut, RefreshCw, ShieldCheck, TrendingUp, Search, Store, MessageSquare, Bell, Package } from 'lucide-react';
 import api, { getErrorMessage } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import ThemeToggle from '../components/ThemeToggle.jsx';
