@@ -211,6 +211,7 @@ export default function Dashboard() {
   const [historyPage, setHistoryPage] = useState(1);
   const [paidPage, setPaidPage] = useState(1);
   const [openAccounts, setOpenAccounts] = useState(() => new Set());
+  const [openRawDetails, setOpenRawDetails] = useState(() => new Set());
 
   // ----- Bulnix SMS (virtual numbers): country → service purchase flow -----
   const [smsCountries, setSmsCountries] = useState([]);
@@ -817,6 +818,22 @@ export default function Dashboard() {
   const safePaidPage = Math.min(paidPage, paidTotalPages);
   const visiblePaidAccounts = paidAccounts.slice((safePaidPage - 1) * PAID_PAGE_SIZE, safePaidPage * PAID_PAGE_SIZE);
 
+  // Group accounts by order_ref to show "Account X of Y" for bulk purchases
+  const accountGroupInfo = useMemo(() => {
+    const groups = {};
+    paidAccounts.forEach((a) => {
+      const ref = a.order_ref || a.id;
+      if (!groups[ref]) groups[ref] = [];
+      groups[ref].push(a.id);
+    });
+    const info = {};
+    Object.values(groups).forEach((ids) => {
+      if (ids.length <= 1) return;
+      ids.forEach((id, i) => { info[id] = { pos: i + 1, total: ids.length }; });
+    });
+    return info;
+  }, [paidAccounts]);
+
   const toggleAccount = (id) =>
     setOpenAccounts((prev) => {
       const next = new Set(prev);
@@ -824,6 +841,25 @@ export default function Dashboard() {
       else next.add(id);
       return next;
     });
+
+  const toggleRawDetails = (id) =>
+    setOpenRawDetails((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const copyAllCredentials = (a) => {
+    const parts = [];
+    if (a.username) parts.push(`Username: ${a.username}`);
+    if (a.password) parts.push(`Password: ${a.password}`);
+    if (a.email) parts.push(`Email: ${a.email}`);
+    if (a.email_password || a.emailPassword) parts.push(`Email Password: ${a.email_password || a.emailPassword}`);
+    if (a.recovery) parts.push(`Recovery: ${a.recovery}`);
+    (Array.isArray(a.extra) ? a.extra : []).filter(Boolean).forEach((v, i) => parts.push(`Detail ${i + 1}: ${v}`));
+    copyText(parts.join('\n'), `all-${a.id}`);
+  };
 
   // ---- Reusable render helpers (used across SMS + My Orders) ----
   const renderNumbersList = () => (
@@ -968,7 +1004,14 @@ export default function Dashboard() {
                       <Icon size={18} strokeWidth={1.8} />
                     </span>
                     <div>
-                      <div className="font-medium text-[0.95rem]">{a.platform}</div>
+                      <div className="font-medium text-[0.95rem]">
+                        {a.platform}
+                        {accountGroupInfo[a.id] && (
+                          <span className="ml-2 text-[0.75rem] font-normal text-faint">
+                            (Account {accountGroupInfo[a.id].pos} of {accountGroupInfo[a.id].total})
+                          </span>
+                        )}
+                      </div>
                       <div className="text-faint text-[0.8rem]">
                         {a.order_ref} · {new Date(a.purchasedAt || Date.now()).toLocaleString()}
                       </div>
@@ -1030,37 +1073,63 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <>
-                    {(() => {
-                      const credFields = [
-                        { label: 'Username', value: a.username || '', key: `u-${a.id}` },
-                        { label: 'Password', value: a.password || '', key: `p-${a.id}` },
-                        { label: 'Account Email', value: a.email || '', key: `e-${a.id}` },
-                        { label: 'Email Password', value: a.email_password || a.emailPassword || '', key: `ep-${a.id}` },
-                        { label: 'Recovery', value: a.recovery || '', key: `r-${a.id}` }
-                      ].filter((f) => f.value);
-                      const extraFields = (Array.isArray(a.extra) ? a.extra : [])
-                        .filter((v) => String(v).trim())
-                        .map((v, i) => ({ label: `Additional Detail ${i + 1}`, value: String(v), key: `x-${a.id}-${i}` }));
-                      return (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {[...credFields, ...extraFields].map((f) => (
-                            <div key={f.key} className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold">{f.label}</div>
-                                <div className="font-mono text-[0.92rem] break-all">{f.value}</div>
-                              </div>
-                              <button onClick={() => copyText(f.value, f.key)} className="text-gold hover:bg-gold/10 rounded-[8px] p-2 shrink-0">
-                                {copied === f.key ? <Check size={17} /> : <Copy size={17} />}
-                              </button>
-                            </div>
-                          ))}
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <KeyRound size={15} strokeWidth={1.9} className="text-[#2ecc71]" />
+                        <span className="text-[0.78rem] font-semibold uppercase tracking-wider text-[#2ecc71]">Your Credentials</span>
+                      </div>
+                      <button
+                        onClick={() => copyAllCredentials(a)}
+                        className="flex items-center gap-1.5 text-[0.75rem] font-medium text-gold hover:bg-gold/10 rounded-[8px] px-3 py-1.5 border border-gold/25 transition-colors"
+                      >
+                        {copied === `all-${a.id}` ? <Check size={14} /> : <Copy size={14} />}
+                        {copied === `all-${a.id}` ? 'Copied' : 'Copy All'}
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { label: 'Username', value: a.username },
+                        { label: 'Password', value: a.password },
+                        { label: 'Email', value: a.email },
+                        { label: 'Email Password', value: a.email_password || a.emailPassword },
+                        { label: 'Recovery', value: a.recovery }
+                      ].filter((f) => f.value).map((f) => (
+                        <div key={`${f.label}-${a.id}`} className="flex items-center justify-between gap-3 bg-[#2ecc71]/5 border border-[#2ecc71]/15 rounded-[10px] px-4 py-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[0.65rem] uppercase tracking-widest text-[#2ecc71]/70 font-semibold mb-0.5">{f.label}</div>
+                            <div className="font-mono text-[0.92rem] break-all text-body">{f.value}</div>
+                          </div>
+                          <button onClick={() => copyText(f.value, `${f.label}-${a.id}`)} className="text-[#2ecc71] hover:bg-[#2ecc71]/10 rounded-[8px] p-2 shrink-0 transition-colors">
+                            {copied === `${f.label}-${a.id}` ? <Check size={17} /> : <Copy size={17} />}
+                          </button>
                         </div>
-                      );
-                    })()}
+                      ))}
+                      {(Array.isArray(a.extra) ? a.extra : []).filter((v) => String(v).trim()).map((v, i) => (
+                        <div key={`x-${a.id}-${i}`} className="flex items-center justify-between gap-3 bg-[#2ecc71]/5 border border-[#2ecc71]/15 rounded-[10px] px-4 py-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[0.65rem] uppercase tracking-widest text-[#2ecc71]/70 font-semibold mb-0.5">Additional Detail {i + 1}</div>
+                            <div className="font-mono text-[0.92rem] break-all text-body">{String(v)}</div>
+                          </div>
+                          <button onClick={() => copyText(String(v), `x-${a.id}-${i}`)} className="text-[#2ecc71] hover:bg-[#2ecc71]/10 rounded-[8px] p-2 shrink-0 transition-colors">
+                            {copied === `x-${a.id}-${i}` ? <Check size={17} /> : <Copy size={17} />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                     {a.account_raw && (
-                      <div className="bg-field border border-gold/15 rounded-[10px] px-4 py-3 mt-3">
-                        <div className="text-[0.65rem] uppercase tracking-widest text-faint font-semibold mb-1">Full Details (from provider)</div>
-                        <div className="font-mono text-[0.88rem] break-all text-body/90">{a.account_raw}</div>
+                      <div className="mt-3">
+                        <button
+                          onClick={() => toggleRawDetails(a.id)}
+                          className="flex items-center gap-2 text-[0.75rem] text-faint hover:text-body font-medium transition-colors mb-2"
+                        >
+                          {openRawDetails.has(a.id) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          Full Details (from provider)
+                        </button>
+                        {openRawDetails.has(a.id) && (
+                          <div className="bg-field border border-gold/10 rounded-[10px] px-4 py-3">
+                            <div className="font-mono text-[0.82rem] break-all text-faint leading-relaxed">{a.account_raw}</div>
+                          </div>
+                        )}
                       </div>
                     )}
                     <p className="text-[0.75rem] text-faint mt-3 flex items-center gap-1.5">
@@ -1068,7 +1137,7 @@ export default function Dashboard() {
                       Keep these credentials safe. Store them somewhere secure.
                     </p>
                   </>
-                ))}
+                )}
               </div>
             );
           })}

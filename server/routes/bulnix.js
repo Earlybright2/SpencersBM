@@ -799,13 +799,17 @@ router.get('/sms/operators', async (req, res) => {
   if (!countrySlug) {
     return res.status(400).json({ status: 'error', message: 'A country is required.' });
   }
-  const data = await sms.operators({ channel, countrySlug });
+  // Operators are embedded in the catalog response for the network channel.
+  const data = await sms.catalog({ channel });
   if (!isBxSuccess(data)) {
-    // A provider without network-channel support degrades to the worldwide route.
     return res.json({ status: 'success', channel, count: 0, operators: [] });
   }
   const list = bxData(data);
-  const operators = (Array.isArray(list) ? list : [])
+  const country = (Array.isArray(list) ? list : []).find(
+    (c) => (c.slug === countrySlug || c.code === countrySlug || c.country_slug === countrySlug)
+  );
+  const rawOperators = country?.operators || country?.routing || [];
+  const operators = (Array.isArray(rawOperators) ? rawOperators : [])
     .map((o) => ({
       slug: o.slug ?? o.operator_slug ?? o.code ?? '',
       name: stripHtml(o.name ?? o.title ?? o.operator ?? o.slug ?? '', 80)

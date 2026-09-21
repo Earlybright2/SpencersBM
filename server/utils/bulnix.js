@@ -283,14 +283,6 @@ export const sms = {
   catalog: ({ channel = 'worldwide' } = {}) =>
     bxRequest({ service: 'sms', path: '/reseller/sms-verification/catalog', query: { channel } }),
 
-  // Mobile operators for a country on the network channel: [{ slug, name }].
-  operators: ({ channel = 'network', countrySlug } = {}) =>
-    bxRequest({
-      service: 'sms',
-      path: '/reseller/sms-verification/operators',
-      query: { channel, country_slug: countrySlug }
-    }),
-
   // Services/prices. worldwide: channel,country_code · network: channel,country_slug,operator_slug
   services: ({ channel = 'worldwide', countryCode, countrySlug, operatorSlug } = {}) =>
     bxRequest({
