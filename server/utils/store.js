@@ -633,9 +633,11 @@ export async function markNotificationsRead(userId) {
 let schemaReady = null;
 export function ensureSchema() {
   if (!schemaReady) {
-    schemaReady = pool
-      .query(`
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS notifications JSONB DEFAULT '[]'::jsonb;
+    schemaReady = (async () => {
+      await pool.query(
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS notifications JSONB DEFAULT \'[]\'::jsonb'
+      );
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS bulnix_overrides (
           id VARCHAR(255) PRIMARY KEY,
           service_type VARCHAR(50) NOT NULL,
@@ -645,7 +647,8 @@ export function ensureSchema() {
           created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
           UNIQUE(service_type, provider_id)
         )
-      `)
+      `);
+    })()
       .then(() => {
         schemaReady = true;
       })
@@ -657,49 +660,69 @@ export function ensureSchema() {
   return schemaReady;
 }
 
+async function withSchemaRetry(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err.code === '42P01') { // undefined_table
+      await ensureSchema();
+      return await fn();
+    }
+    throw err;
+  }
+}
+
 // ----- Bulnix Overrides (admin price overrides) -----
 
 export async function getBulnixOverrides(serviceType) {
   await ensureSchema().catch(() => {});
-  let query = 'SELECT * FROM bulnix_overrides';
-  const params = [];
-  if (serviceType) {
-    query += ' WHERE service_type = $1';
-    params.push(serviceType);
-  }
-  query += ' ORDER BY created_at DESC';
-  const { rows } = await pool.query(query, params);
-  return rows;
+  return withSchemaRetry(async () => {
+    let query = 'SELECT * FROM bulnix_overrides';
+    const params = [];
+    if (serviceType) {
+      query += ' WHERE service_type = $1';
+      params.push(serviceType);
+    }
+    query += ' ORDER BY created_at DESC';
+    const { rows } = await pool.query(query, params);
+    return rows;
+  });
 }
 
 export async function getBulnixOverride(serviceType, providerId) {
   await ensureSchema().catch(() => {});
-  const { rows } = await pool.query(
-    'SELECT * FROM bulnix_overrides WHERE service_type = $1 AND provider_id = $2',
-    [serviceType, providerId]
-  );
-  return rows[0] || null;
+  return withSchemaRetry(async () => {
+    const { rows } = await pool.query(
+      'SELECT * FROM bulnix_overrides WHERE service_type = $1 AND provider_id = $2',
+      [serviceType, providerId]
+    );
+    return rows[0] || null;
+  });
 }
 
 export async function upsertBulnixOverride(override) {
   await ensureSchema();
   const { id, serviceType, providerId, adminPrice, enabled } = override;
-  const { rows } = await pool.query(
-    `INSERT INTO bulnix_overrides (id, service_type, provider_id, admin_price, enabled, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (service_type, provider_id) DO UPDATE SET
-       admin_price = EXCLUDED.admin_price,
-       enabled = EXCLUDED.enabled
-     RETURNING *`,
-    [id, serviceType, providerId, adminPrice, enabled ?? true, new Date().toISOString()]
-  );
-  return rows[0];
+  return withSchemaRetry(async () => {
+    const { rows } = await pool.query(
+      `INSERT INTO bulnix_overrides (id, service_type, provider_id, admin_price, enabled, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (service_type, provider_id) DO UPDATE SET
+         admin_price = EXCLUDED.admin_price,
+         enabled = EXCLUDED.enabled
+       RETURNING *`,
+      [id, serviceType, providerId, adminPrice, enabled ?? true, new Date().toISOString()]
+    );
+    return rows[0];
+  });
 }
 
 export async function deleteBulnixOverride(serviceType, providerId) {
   await ensureSchema();
-  await pool.query(
-    'DELETE FROM bulnix_overrides WHERE service_type = $1 AND provider_id = $2',
-    [serviceType, providerId]
-  );
+  return withSchemaRetry(async () => {
+    await pool.query(
+      'DELETE FROM bulnix_overrides WHERE service_type = $1 AND provider_id = $2',
+      [serviceType, providerId]
+    );
+  });
 }
