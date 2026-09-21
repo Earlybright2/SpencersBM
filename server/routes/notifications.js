@@ -5,6 +5,8 @@ import { getNotifications, markNotificationsRead } from '../utils/store.js';
 
 const router = Router();
 
+router.use(requireAuth);
+
 // GET /api/notifications — the current user's in-app notifications (newest first).
 router.get('/', asyncRoute(async (req, res) => {
   const notifications = await getNotifications(req.user.id);
