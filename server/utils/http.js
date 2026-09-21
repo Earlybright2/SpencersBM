@@ -3,7 +3,7 @@
  */
 
 /**
- * Wraps an async Express handler so rejections are turned into a clean 502 JSON
+ * Wraps an async Express handler so rejections are turned into a clean 500 JSON
  * response instead of crashing the process (Express 4 doesn't catch async throws).
  */
 export function asyncRoute(handler) {
@@ -11,7 +11,7 @@ export function asyncRoute(handler) {
     Promise.resolve(handler(req, res, next)).catch((err) => {
       console.error('[route error]', err);
       if (res.headersSent) return next(err);
-      res.status(502).json({
+      res.status(500).json({
         status: 'error',
         code: 'server_error',
         message: 'Something went wrong. Please try again in a moment.'

@@ -164,7 +164,11 @@ const dbReady = ensureSchema()
   });
 
 app.use('/api', (req, res, next) => {
-  dbReady.then(() => next()).catch(() => {});
+  dbReady.then(() => next()).catch(() => {
+    if (!res.headersSent) {
+      res.status(503).json({ status: 'error', message: 'Service temporarily unavailable. Please try again.' });
+    }
+  });
 });
 
 app.use('/api/auth', authRoutes);
