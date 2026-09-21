@@ -649,9 +649,6 @@ export function ensureSchema() {
         )
       `);
     })()
-      .then(() => {
-        schemaReady = true;
-      })
       .catch((err) => {
         schemaReady = null; // allow a retry on the next call
         throw err;
